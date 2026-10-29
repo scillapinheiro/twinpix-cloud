@@ -1,8 +1,9 @@
 import type { CloudFolder, CloudItem, RestoreResult } from '@twinpix/shared';
 import type { ChildrenPage, CloudProvider } from '../cloud-provider';
-import { GraphError, InvalidLinkError } from '../errors';
+import { GraphError, InvalidLinkError, TestFolderLockError } from '../errors';
+import { isInsideFolder } from '../test-folder';
 import type { GraphClient } from './graph-client';
-import { mapFile, mapFolder, type DriveItem } from './map-drive-item';
+import { folderPathOf, mapFile, mapFolder, type DriveItem } from './map-drive-item';
 
 const SELECT =
   'id,name,size,webUrl,createdDateTime,lastModifiedDateTime,parentReference,file,folder,root,fileSystemInfo,photo,image,video';
@@ -49,10 +50,24 @@ export function parseOneDriveAddress(url: string): OneDriveAddress | null {
 
 const OTHER_ACCOUNT = 'Esta pasta é de outra conta. Nesta versão, só dá para analisar pastas do seu próprio OneDrive.';
 
+export interface OneDriveOptions {
+  /** Trava da pasta de teste ("/TwinPix Teste"); null = sem trava. */
+  testFolder?: string | null;
+}
+
 export class OneDriveProvider implements CloudProvider {
   private ownDriveId: string | null = null;
+  private readonly testFolder: string | null;
+  /**
+   * Com a trava: ids que ESTE processo conferiu (arquivo dentro da pasta de teste) e moveu para a
+   * lixeira. Item na lixeira não pode ser consultado (o Graph responde 404), então a restauração só é
+   * permitida para esses ids; qualquer outro é recusado sem chamar o OneDrive.
+   */
+  private readonly trashedHere = new Set<string>();
 
-  constructor(private readonly graph: GraphClient) {}
+  constructor(private readonly graph: GraphClient, opts: OneDriveOptions = {}) {
+    this.testFolder = opts.testFolder ?? null;
+  }
 
   async getRoot(): Promise<CloudFolder> {
     const { data } = await this.graph.request<DriveItem>('GET', `/me/drive/root?$select=${SELECT}`);
@@ -63,14 +78,26 @@ export class OneDriveProvider implements CloudProvider {
     const folders: CloudFolder[] = [];
     let token: string | null = null;
     do {
-      const page = await this.listChildren(parentId, token);
+      // o seletor de pastas navega a partir da raiz: só lista nomes, não passa pela trava
+      const page = await this.fetchChildren(parentId, token);
       folders.push(...page.folders);
       token = page.nextPageToken;
     } while (token);
     return folders.sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  /** Usado pela análise: com a trava, a pasta precisa estar dentro da pasta de teste. */
   async listChildren(folderId: string, pageToken: string | null): Promise<ChildrenPage> {
+    if (this.testFolder && !pageToken) {
+      const { status, data } = await this.graph.request<DriveItem>('GET', `/me/drive/items/${encodeURIComponent(folderId)}?$select=${SELECT}`);
+      if (status === 404 || !data?.folder || !isInsideFolder(mapFolder(data).path, this.testFolder)) {
+        throw new TestFolderLockError(this.testFolder, 'analisar pastas');
+      }
+    }
+    return this.fetchChildren(folderId, pageToken);
+  }
+
+  private async fetchChildren(folderId: string, pageToken: string | null): Promise<ChildrenPage> {
     const url = pageToken ?? `/me/drive/items/${encodeURIComponent(folderId)}/children?$top=200&$select=${SELECT}`;
     const { data } = await this.graph.request<Page>('GET', url);
     const value = data?.value ?? [];
@@ -93,16 +120,29 @@ export class OneDriveProvider implements CloudProvider {
   }
 
   async moveToTrash(id: string): Promise<'moved' | 'already-gone'> {
+    if (this.testFolder) {
+      const { status, data } = await this.graph.request<DriveItem>('GET', `/me/drive/items/${encodeURIComponent(id)}?$select=${SELECT}`);
+      if (status === 404 || !data) return 'already-gone';
+      // só arquivos com caminho conhecido dentro da pasta (nunca a própria pasta nem pastas)
+      if (!data.file || !data.parentReference?.path || !isInsideFolder(folderPathOf(data), this.testFolder)) {
+        throw new TestFolderLockError(this.testFolder);
+      }
+    }
     const { status } = await this.graph.request('DELETE', `/me/drive/items/${encodeURIComponent(id)}`);
     if (status === 404) return 'already-gone';
-    if (status === 200 || status === 204) return 'moved';
+    if (status === 200 || status === 204) {
+      if (this.testFolder) this.trashedHere.add(id);
+      return 'moved';
+    }
     throw new GraphError(status, '');
   }
 
   async restore(id: string): Promise<RestoreResult> {
+    if (this.testFolder && !this.trashedHere.has(id)) throw new TestFolderLockError(this.testFolder);
     const { status } = await this.graph.request('POST', `/me/drive/items/${encodeURIComponent(id)}/restore`, {});
     if (status === 404) return 'not-in-trash';
     if (status === 409) return 'conflict';
+    this.trashedHere.delete(id);
     return 'restored';
   }
 

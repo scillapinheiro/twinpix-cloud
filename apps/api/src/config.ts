@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { normalizeTestFolder } from './cloud/test-folder';
 
 export interface AppConfig {
   port: number;
@@ -16,6 +17,8 @@ export interface AppConfig {
   allowedOrigins: string[];
   openBrowser: boolean;
   webDist: string;
+  /** Trava da pasta de teste (só OneDrive real): fora dela nada é analisado, movido ou restaurado. */
+  testFolder: string | null;
 }
 
 export function loadConfig(
@@ -26,10 +29,11 @@ export function loadConfig(
   const port = Number(env.PORT ?? 4317);
   const devOrigin = env.TWINPIX_DEV_ORIGIN || null;
   const dataDir = env.TWINPIX_DATA_DIR ?? join(homedir(), '.twinpix-cloud');
+  const provider = demo || env.TWINPIX_PROVIDER === 'fake' ? 'fake' : 'onedrive';
   return {
     port,
     demo,
-    provider: demo || env.TWINPIX_PROVIDER === 'fake' ? 'fake' : 'onedrive',
+    provider,
     clientId: env.TWINPIX_CLIENT_ID || null,
     authority: env.TWINPIX_AUTHORITY ?? 'https://login.microsoftonline.com/consumers',
     dataDir,
@@ -39,6 +43,7 @@ export function loadConfig(
     allowedOrigins: [`http://127.0.0.1:${port}`, `http://localhost:${port}`, ...(devOrigin ? [devOrigin] : [])],
     openBrowser: env.TWINPIX_NO_BROWSER !== '1' && !devOrigin,
     webDist: resolve(__dirname, '../../web/dist'),
+    testFolder: provider === 'onedrive' ? normalizeTestFolder(env.TWINPIX_TEST_FOLDER) : null,
   };
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { GraphError, InvalidLinkError } from '../errors';
+import { ForbiddenError, GraphError, InvalidLinkError, TestFolderLockError } from '../errors';
+import { isInsideFolder } from '../test-folder';
 import type { GraphClient } from './graph-client';
 import { encodeShareUrl, OneDriveProvider, parseOneDriveAddress } from './onedrive-provider';
 
@@ -161,5 +162,123 @@ describe('OneDriveProvider', () => {
     const noDrive = { ...folderItem('F', 'x'), parentReference: { path: '/drive/root:' } };
     const p3 = new OneDriveProvider(fakeGraph({ ...own, 'GET /me/drive/root:/x': { status: 200, data: noDrive } }).graph);
     await expect(p3.resolveFolderLink('https://onedrive.live.com/my?id=%2Fpersonal%2Fabc%2FDocuments%2Fx')).rejects.toThrow('outra conta');
+  });
+});
+
+describe('OneDriveProvider com a trava da pasta de teste', () => {
+  const T = '/TwinPix Teste';
+  const photo = (id: string, parentPath: string) => ({
+    id, name: `${id}.jpg`, size: 1, webUrl: '', createdDateTime: 'c', lastModifiedDateTime: 'm',
+    parentReference: { driveId: 'meu', path: parentPath }, file: { mimeType: 'image/jpeg' },
+  });
+  const locked = (routes: Record<string, { status: number; data: unknown }>) => {
+    const g = fakeGraph(routes);
+    return { ...g, p: new OneDriveProvider(g.graph, { testFolder: T }) };
+  };
+  const called = (request: ReturnType<typeof fakeGraph>['request'], method: string) =>
+    request.mock.calls.some(([m]) => m === method);
+
+  it('move para a lixeira item da pasta de teste e das subpastas (consulta o item antes)', async () => {
+    const { p, request } = locked({
+      'GET /me/drive/items/A': { status: 200, data: photo('A', '/drive/root:/TwinPix%20Teste') },
+      'DELETE /me/drive/items/A': { status: 204, data: null },
+      'GET /me/drive/items/B': { status: 200, data: photo('B', '/drive/root:/TwinPix Teste/Sub') },
+      'DELETE /me/drive/items/B': { status: 204, data: null },
+    });
+    expect(await p.moveToTrash('A')).toBe('moved');
+    expect(await p.moveToTrash('B')).toBe('moved');
+    expect(request.mock.calls.map(([m, path]) => `${m} ${String(path).split('?')[0]}`)).toEqual([
+      'GET /me/drive/items/A', 'DELETE /me/drive/items/A', 'GET /me/drive/items/B', 'DELETE /me/drive/items/B',
+    ]);
+  });
+
+  it('recusa mover item fora da pasta de teste, com nome parecido, a própria pasta e item sem caminho', async () => {
+    const { p, request } = locked({
+      'GET /me/drive/items/F': { status: 200, data: photo('F', '/drive/root:/Fotos') },
+      'GET /me/drive/items/S': { status: 200, data: photo('S', '/drive/root:/TwinPix Teste 2') },
+      'GET /me/drive/items/R': { status: 200, data: photo('R', '/drive/root:') },
+      'GET /me/drive/items/P': { status: 200, data: folderItem('P', 'TwinPix Teste') },
+      'GET /me/drive/items/N': { status: 200, data: { ...photo('N', ''), parentReference: { driveId: 'meu' } } },
+    });
+    for (const id of ['F', 'S', 'R', 'P', 'N']) {
+      await expect(p.moveToTrash(id)).rejects.toBeInstanceOf(TestFolderLockError);
+    }
+    expect(called(request, 'DELETE')).toBe(false);
+  });
+
+  it('a recusa é um ForbiddenError (o app registra como falha, sem tentar conferir)', async () => {
+    const { p } = locked({ 'GET /me/drive/items/F': { status: 200, data: photo('F', '/drive/root:/Fotos') } });
+    const e = await p.moveToTrash('F').catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(ForbiddenError);
+    expect((e as Error).message).toContain(T);
+  });
+
+  it('item que já sumiu: já não estava, sem DELETE', async () => {
+    const { p, request } = locked({ 'GET /me/drive/items/X': { status: 404, data: null } });
+    expect(await p.moveToTrash('X')).toBe('already-gone');
+    expect(called(request, 'DELETE')).toBe(false);
+  });
+
+  it('restaura só o que este provedor conferiu e moveu; o resto é recusado sem POST', async () => {
+    const { p, request } = locked({
+      'GET /me/drive/items/A': { status: 200, data: photo('A', '/drive/root:/TwinPix Teste') },
+      'DELETE /me/drive/items/A': { status: 204, data: null },
+      'POST /me/drive/items/A/restore': { status: 200, data: {} },
+    });
+    await expect(p.restore('A')).rejects.toBeInstanceOf(TestFolderLockError);
+    await expect(p.restore('Z')).rejects.toBeInstanceOf(TestFolderLockError);
+    expect(called(request, 'POST')).toBe(false);
+    await p.moveToTrash('A');
+    expect(await p.restore('A')).toBe('restored');
+    await expect(p.restore('A')).rejects.toBeInstanceOf(TestFolderLockError);
+  });
+
+  it('restauração sem sucesso mantém a permissão para tentar de novo', async () => {
+    const { p } = locked({
+      'GET /me/drive/items/A': { status: 200, data: photo('A', '/drive/root:/TwinPix Teste') },
+      'DELETE /me/drive/items/A': { status: 204, data: null },
+      'POST /me/drive/items/A/restore': { status: 409, data: null },
+    });
+    await p.moveToTrash('A');
+    expect(await p.restore('A')).toBe('conflict');
+    expect(await p.restore('A')).toBe('conflict');
+  });
+
+  it('análise: lista só pastas dentro da pasta de teste; continuação de página não reconsulta', async () => {
+    const children = { status: 200, data: { value: [photo('A', '/drive/root:/TwinPix Teste')] } };
+    const { p, request } = locked({
+      'GET /me/drive/items/T': { status: 200, data: folderItem('T', 'TwinPix Teste') },
+      'GET /me/drive/items/T/children': children,
+      'GET /me/drive/items/S': { status: 200, data: folderItem('S', 'Sub', '/drive/root:/TwinPix Teste') },
+      'GET /me/drive/items/S/children': children,
+      'GET /me/drive/items/O': { status: 200, data: folderItem('O', 'Fotos') },
+      'GET /me/drive/items/R': { status: 200, data: { ...folderItem('R', 'root'), root: {} } },
+    });
+    expect((await p.listChildren('T', null)).files).toHaveLength(1);
+    expect((await p.listChildren('S', null)).files).toHaveLength(1);
+    await expect(p.listChildren('O', null)).rejects.toBeInstanceOf(TestFolderLockError);
+    await expect(p.listChildren('R', null)).rejects.toBeInstanceOf(TestFolderLockError);
+    expect(request.mock.calls.some(([, path]) => String(path).startsWith('/me/drive/items/O/children'))).toBe(false);
+    request.mockClear();
+    request.mockImplementationOnce(async () => children);
+    await p.listChildren('T', 'https://graph.microsoft.com/v1.0/next');
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('o seletor de pastas continua navegando a partir da raiz', async () => {
+    const { p } = locked({
+      'GET /me/drive/items/root/children': { status: 200, data: { value: [folderItem('T', 'TwinPix Teste'), folderItem('O', 'Fotos')] } },
+    });
+    expect((await p.listFolders('root')).map((f) => f.path)).toEqual(['/Fotos', '/TwinPix Teste']);
+  });
+});
+
+describe('isInsideFolder', () => {
+  it('aceita a pasta e o que está dentro dela, sem diferenciar maiúsculas; recusa nomes parecidos', () => {
+    expect(isInsideFolder('/TwinPix Teste', '/TwinPix Teste')).toBe(true);
+    expect(isInsideFolder('/twinpix teste/Sub', '/TwinPix Teste')).toBe(true);
+    expect(isInsideFolder('/TwinPix Teste 2', '/TwinPix Teste')).toBe(false);
+    expect(isInsideFolder('/', '/TwinPix Teste')).toBe(false);
+    expect(isInsideFolder('/Outra/TwinPix Teste', '/TwinPix Teste')).toBe(false);
   });
 });

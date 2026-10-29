@@ -27,4 +27,13 @@ describe('loadConfig', () => {
     expect(c.openBrowser).toBe(false);
     expect(c.sessionToken).toBe('dev-local');
   });
+
+  it('pasta de teste: normalizada, só vale para o OneDrive real, e nunca a raiz', () => {
+    expect(loadConfig({}, []).testFolder).toBeNull();
+    expect(loadConfig({ TWINPIX_TEST_FOLDER: '' }, []).testFolder).toBeNull();
+    expect(loadConfig({ TWINPIX_TEST_FOLDER: 'TwinPix Teste/' }, []).testFolder).toBe('/TwinPix Teste');
+    expect(loadConfig({ TWINPIX_TEST_FOLDER: '/TwinPix Teste' }, []).testFolder).toBe('/TwinPix Teste');
+    expect(loadConfig({ TWINPIX_TEST_FOLDER: '/TwinPix Teste' }, ['--demo']).testFolder).toBeNull();
+    expect(() => loadConfig({ TWINPIX_TEST_FOLDER: '/' }, [])).toThrow('raiz');
+  });
 });

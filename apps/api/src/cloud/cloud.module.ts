@@ -26,7 +26,7 @@ import { OneDriveProvider } from './onedrive/onedrive-provider';
           seedDemo(fake);
           return fake;
         }
-        return new OneDriveProvider(new GraphClient(auth));
+        return new OneDriveProvider(new GraphClient(auth), { testFolder: config.testFolder });
       },
     },
   ],
