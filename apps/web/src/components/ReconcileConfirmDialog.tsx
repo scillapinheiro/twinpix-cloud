@@ -9,11 +9,13 @@ interface Props {
   /** Envia o lote; se rejeitar, o erro aparece no modal e dá para tentar de novo. */
   onConfirm: () => Promise<void>;
   onCancel: () => void;
+  /** Chamado por "Recarregar" quando a prévia mudou: fecha o modal e recarrega. */
+  onReload: () => void;
 }
 
 const fileName = (f: { folderPath: string; name: string }) => `${f.folderPath === '/' ? '' : f.folderPath}/${f.name}`;
 
-export function ReconcileConfirmDialog({ plan, onConfirm, onCancel }: Props) {
+export function ReconcileConfirmDialog({ plan, onConfirm, onCancel, onReload }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -42,6 +44,7 @@ export function ReconcileConfirmDialog({ plan, onConfirm, onCancel }: Props) {
   }
 
   const n = plan.deleteFiles.length;
+  const stale = error !== null && /prévia mudou/i.test(error);
   return (
     <div className="modal-overlay" onClick={(e) => { if (!busy && e.target === e.currentTarget) onCancel(); }}>
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="reconcile-confirm-title" tabIndex={-1} ref={dialogRef}>
@@ -54,8 +57,12 @@ export function ReconcileConfirmDialog({ plan, onConfirm, onCancel }: Props) {
         <ul className="reconcile-list" aria-label="Arquivos que saem">
           {plan.deleteFiles.map((f) => <li key={f.id}>{fileName(f)}</li>)}
         </ul>
-        <h2>Ficam</h2>
-        <ul aria-label="Arquivos que ficam">
+        <h2>Ficam ({plan.keepFiles.length})</h2>
+        <ul className="reconcile-list" aria-label="Cópias que ficam">
+          {plan.keepFiles.map((f) => <li key={f.id}>{fileName(f)}</li>)}
+        </ul>
+        <h3>Como cada pasta fica</h3>
+        <ul aria-label="Pastas depois da limpeza">
           {plan.remaining.map((r) => (
             <li key={r.path}>{r.path}: {r.fileCount === 0 ? 'fica vazia' : plural(r.fileCount, 'arquivo', 'arquivos')}</li>
           ))}
@@ -63,9 +70,13 @@ export function ReconcileConfirmDialog({ plan, onConfirm, onCancel }: Props) {
         {error && <p className="alert" role="alert">{error}</p>}
         <div className="row">
           <button type="button" className="button" onClick={onCancel} disabled={busy}>Voltar</button>
-          <button type="button" className="button danger" disabled={busy} onClick={() => void confirm()}>
-            {error ? 'Tentar de novo' : 'Mover para a lixeira'}
-          </button>
+          {stale ? (
+            <button type="button" className="button primary" onClick={onReload}>Recarregar</button>
+          ) : (
+            <button type="button" className="button danger" disabled={busy} onClick={() => void confirm()}>
+              {error ? 'Tentar de novo' : 'Mover para a lixeira'}
+            </button>
+          )}
         </div>
       </div>
     </div>

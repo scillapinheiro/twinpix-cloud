@@ -632,7 +632,7 @@ describe('BatchService: cópia fixada sem pasta escolhida', () => {
         { groupId: gidOf('a1'), keepId: 'a1', deleteIds: ['b1'] },
         { groupId: gidOf('a4'), keepId: 'd4', deleteIds: ['a4'] },
       ],
-      deleteFiles: [], bytes: 0, remaining: [],
+      deleteFiles: [], keepFiles: [], bytes: 0, remaining: [],
     });
     const sentOf = (p: ReconcilePlan): ReconcileItem[] => p.items.map((i) => ({ ...i, deleteIds: [...i.deleteIds] }));
     /** Arquivos sem cópia em nenhum grupo (só existem em uma pasta): nunca podem ser tocados. */

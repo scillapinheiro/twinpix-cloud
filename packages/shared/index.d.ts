@@ -220,6 +220,8 @@ export interface ReconcilePlan {
   keepFolder: string;
   items: ReconcileItem[];
   deleteFiles: CloudItem[];
+  /** Uma cópia que fica por item (a keepId), para a lista de conferência. */
+  keepFiles: CloudItem[];
   bytes: number;
   remaining: Array<{ path: string; fileCount: number }>;
 }

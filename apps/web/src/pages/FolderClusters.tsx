@@ -73,6 +73,7 @@ export function FolderClusters() {
       onPrev={() => go(index - 1)}
       onNext={() => go(index + 1)}
       onStarted={setBatch}
+      onReload={() => void load()}
     />
   );
 }
@@ -115,9 +116,9 @@ function UniqueList({ scanId, cluster, folder }: { scanId: string; cluster: Fold
   );
 }
 
-function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStarted }: {
+function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStarted, onReload }: {
   cluster: FolderCluster; position: number; total: number; scanId: string;
-  onPrev: () => void; onNext: () => void; onStarted: (b: BatchSummary) => void;
+  onPrev: () => void; onNext: () => void; onStarted: (b: BatchSummary) => void; onReload: () => void;
 }) {
   const navigate = useNavigate();
   const [choice, setChoice] = useState(cluster.suggestedKeep);
@@ -126,6 +127,7 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
   const [confirming, setConfirming] = useState(false);
   const applyButton = useRef<HTMLButtonElement>(null);
   const seq = useRef(0);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     if (choice === REVIEW) { seq.current++; setPlan(null); setPlanError(null); return; }
@@ -135,7 +137,7 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
     apiFetch<ReconcilePlan>(`/api/scans/${scanId}/folder-clusters/plan?key=${encodeURIComponent(cluster.key)}&keep=${encodeURIComponent(choice)}`)
       .then((p) => { if (mine === seq.current) setPlan(p); })
       .catch((e: ApiError) => { if (mine === seq.current) setPlanError(e.message); });
-  }, [choice, cluster.key, scanId]);
+  }, [choice, cluster.key, scanId, tick]);
 
   const cancel = useCallback(() => { setConfirming(false); applyButton.current?.focus(); }, []);
   const folders = cluster.folders;
@@ -197,7 +199,7 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
             )}
           </div>
           <fieldset className="reconcile-choice">
-            <legend><strong>{two ? `O que fazer com os ${plan ? n : cluster.groupCount} arquivos repetidos?` : 'Manter as cópias repetidas em qual pasta?'}</strong></legend>
+            <legend><strong>{two ? (plan ? `O que fazer com os ${plan.items.length} arquivos repetidos?` : 'O que fazer com os arquivos repetidos?') : 'Manter as cópias repetidas em qual pasta?'}</strong></legend>
             {folders.map((f, i) => (
               <label key={f.path}>
                 <input type="radio" name="keep" checked={choice === f.path} onChange={() => setChoice(f.path)} />
@@ -211,7 +213,11 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
             {plan && <p className="muted" role="status">{resultText(cluster, plan)}</p>}
             {!plan && !planError && choice !== REVIEW && <p className="muted" role="status">Calculando a prévia…</p>}
             {planError && <p className="alert" role="alert">{planError}</p>}
-            <p className="muted">🔒 Os {cluster.uniqueFiles} arquivos que só existem em uma pasta <strong>nunca</strong> são tocados.</p>
+            {folders.filter((x) => x.uniqueCount > 0).map((x) => (
+              <p key={x.path} className="muted">
+                🔒 {x.uniqueCount === 1 ? 'O arquivo que só existe' : `Os ${x.uniqueCount} arquivos que só existem`} em <strong>{x.path}</strong> <strong>nunca</strong> {x.uniqueCount === 1 ? 'é tocado' : 'são tocados'}.
+              </p>
+            ))}
           </fieldset>
         </div>
         <div className="action-bar">
@@ -231,6 +237,7 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
         <ReconcileConfirmDialog
           plan={plan}
           onCancel={cancel}
+          onReload={() => { setConfirming(false); setTick((t) => t + 1); onReload(); }}
           onConfirm={async () => {
             const b = await apiFetch<BatchSummary>(`/api/scans/${scanId}/folder-clusters/apply`, {
               method: 'POST',

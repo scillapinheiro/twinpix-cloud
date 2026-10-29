@@ -26,6 +26,7 @@ describe('planReconcile', () => {
       { groupId: 2, keepId: 'a2', deleteIds: ['b2'] },
     ]);
     expect(plan.deleteFiles.map((x) => x.id)).toEqual(['b1', 'b2']);
+    expect(plan.keepFiles.map((x) => x.id)).toEqual(['a1', 'a2']);
     expect(plan.bytes).toBe(30);
     expect(plan.remaining).toEqual([{ path: '/A', fileCount: 4 }, { path: '/B', fileCount: 0 }]);
   });

@@ -14,6 +14,7 @@ export function planReconcile(
 
   const items: ReconcileItem[] = [];
   const deleteFiles: CloudItem[] = [];
+  const keepFiles: CloudItem[] = [];
   for (const g of [...groups].sort((a, b) => a.groupId - b.groupId)) {
     const copies = [...new Set(g.fileIds)].map((id) => byId.get(id)).filter((f): f is CloudItem => !!f);
     const inKeep = copies.filter((f) => f.folderPath === keepFolder);
@@ -23,6 +24,7 @@ export function planReconcile(
     if (!inKeep.some((f) => f.id === keepId)) throw new Error('A cópia a manter precisa estar na pasta escolhida.');
     items.push({ groupId: g.groupId, keepId, deleteIds: toDelete.map((f) => f.id) });
     deleteFiles.push(...toDelete);
+    keepFiles.push(inKeep.find((f) => f.id === keepId)!);
   }
 
   const removedByFolder = new Map<string, number>();
@@ -32,6 +34,7 @@ export function planReconcile(
     keepFolder,
     items,
     deleteFiles,
+    keepFiles,
     bytes: deleteFiles.reduce((s, f) => s + f.size, 0),
     remaining: cluster.folders.map((f) => ({ path: f.path, fileCount: f.fileCount - (removedByFolder.get(f.path) ?? 0) })),
   };

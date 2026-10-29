@@ -19,8 +19,8 @@ const three: FolderCluster = {
   folders: [stat('/X', { uniqueCount: 3, situation: 'complete' }), stat('/Y', { situation: 'contained', containedIn: '/X' }), stat('/Z', { uniqueCount: 2, commonWithComplete: 9 })],
 };
 const planFor = (keep: string): ReconcilePlan => keep === '/A'
-  ? { clusterKey: two.key, keepFolder: '/A', items: [{ groupId: 1, keepId: 'a1', deleteIds: ['b1'] }], deleteFiles: [item('b1', '/B'), item('b2', '/B')], bytes: 2_000_000, remaining: [{ path: '/A', fileCount: 10 }, { path: '/B', fileCount: 0 }] }
-  : { clusterKey: two.key, keepFolder: '/B', items: [{ groupId: 2, keepId: 'b1', deleteIds: ['a1'] }], deleteFiles: [item('a1', '/A')], bytes: 100, remaining: [{ path: '/A', fileCount: 2 }, { path: '/B', fileCount: 8 }] };
+  ? { clusterKey: two.key, keepFolder: '/A', items: [{ groupId: 1, keepId: 'a1', deleteIds: ['b1'] }], deleteFiles: [item('b1', '/B'), item('b2', '/B')], keepFiles: [item('a1', '/A')], bytes: 2_000_000, remaining: [{ path: '/A', fileCount: 10 }, { path: '/B', fileCount: 0 }] }
+  : { clusterKey: two.key, keepFolder: '/B', items: [{ groupId: 2, keepId: 'b1', deleteIds: ['a1'] }], deleteFiles: [item('a1', '/A')], keepFiles: [item('b1', '/B')], bytes: 100, remaining: [{ path: '/A', fileCount: 2 }, { path: '/B', fileCount: 8 }] };
 const summary: BatchSummary = { id: 7, kind: 'folders', scanId: 1, status: 'running', createdAt: '', totalGroups: 1, doneGroups: 0, skippedGroups: 0, movedFiles: 0, movedBytes: 0, failedFiles: 0, restoredFiles: 0, notRestoredFiles: 0, error: null };
 
 let clusters: FolderCluster[];
@@ -112,7 +112,8 @@ it('modal confirma e envia os items do plano mostrado, uma vez só com clique du
   const dialog = await screen.findByRole('dialog');
   expect(dialog).toHaveTextContent('Nada é apagado de vez');
   expect(screen.getByRole('list', { name: 'Arquivos que saem' })).toHaveTextContent('/B/b1.jpg');
-  expect(screen.getByRole('list', { name: 'Arquivos que ficam' })).toHaveTextContent('/B: fica vazia');
+  expect(screen.getByRole('list', { name: 'Cópias que ficam' })).toHaveTextContent('/A/a1.jpg');
+  expect(screen.getByRole('list', { name: 'Pastas depois da limpeza' })).toHaveTextContent('/B: fica vazia');
   await userEvent.dblClick(screen.getByRole('button', { name: 'Mover para a lixeira' }));
   expect(await screen.findByText('Lote de pastas repetidas')).toBeInTheDocument();
   const posts = calls.filter((c) => c.method === 'POST' && c.url.endsWith('/apply'));
@@ -132,7 +133,48 @@ it('erro do servidor aparece no modal e permite tentar de novo', async () => {
   await userEvent.click(screen.getByRole('button', { name: /Aplicar/ }));
   await userEvent.click(await screen.findByRole('button', { name: 'Mover para a lixeira' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('A prévia mudou');
-  expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeEnabled();
+  expect(screen.queryByRole('button', { name: 'Tentar de novo' })).toBeNull();
+  await userEvent.click(screen.getByRole('button', { name: 'Recarregar' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(await screen.findByRole('button', { name: /Aplicar/ })).toBeEnabled();
+});
+
+it('erro genérico no modal permite tentar de novo', async () => {
+  const base = globalThis.fetch as unknown as (u: string, i?: RequestInit) => Promise<Response>;
+  let first = true;
+  vi.stubGlobal('fetch', vi.fn(async (u: string, i?: RequestInit) => {
+    if (u.endsWith('/apply') && first) { first = false; return new Response(JSON.stringify({ message: 'Sem conexão.' }), { status: 400 }); }
+    return base(u, i);
+  }));
+  renderPage();
+  await screen.findByText('Resultado: a segunda pasta fica vazia.');
+  await userEvent.click(screen.getByRole('button', { name: /Aplicar/ }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Mover para a lixeira' }));
+  expect(await screen.findByRole('button', { name: 'Tentar de novo' })).toBeEnabled();
+});
+
+it('duas trocas rápidas com respostas fora de ordem: vale o último plano', async () => {
+  clusters = [{ ...two, folders: [...two.folders, stat('/C', { fileCount: 3 })] }];
+  const base = globalThis.fetch as unknown as (u: string, i?: RequestInit) => Promise<Response>;
+  let releaseB!: () => void;
+  const gateB = new Promise<void>((r) => { releaseB = r; });
+  vi.stubGlobal('fetch', vi.fn(async (u: string, i?: RequestInit) => {
+    if (u.includes('plan?') && u.includes('keep=%2FB')) { await gateB; return new Response(JSON.stringify(planFor('/B'))); }
+    if (u.includes('plan?') && u.includes('keep=%2FC')) return new Response(JSON.stringify({ ...planFor('/B'), keepFolder: '/C', items: [{ groupId: 3, keepId: 'c1', deleteIds: ['a1'] }] }));
+    return base(u, i);
+  }));
+  renderPage();
+  await screen.findByText(/^Resultado:/);
+  await userEvent.click(screen.getByRole('radio', { name: /Manter em \/B/ }));
+  await userEvent.click(screen.getByRole('radio', { name: /Manter em \/C/ }));
+  await waitFor(() => expect(screen.getByRole('button', { name: /Aplicar/ })).toBeEnabled());
+  releaseB();
+  await new Promise((r) => setTimeout(r, 30));
+  await userEvent.click(screen.getByRole('button', { name: /Aplicar/ }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Mover para a lixeira' }));
+  await screen.findByText('Lote de pastas repetidas');
+  const post = calls.find((c) => c.url.endsWith('/apply'))!;
+  expect(JSON.parse(post.body!)).toMatchObject({ keepFolder: '/C', items: [{ groupId: 3, keepId: 'c1', deleteIds: ['a1'] }] });
 });
 
 it('Pular e Voltar navegam entre conjuntos', async () => {
