@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionsService } from '../actions/actions.service';
 import { OfflineError } from '../cloud/errors';
 import { FakeCloudProvider } from '../cloud/fake-cloud-provider';
@@ -47,8 +47,12 @@ beforeEach(async () => {
   cloud.addFile(B.id, { id: 'b2', name: 'a2.jpg', quickXorHash: 'h2', size: 200, ...nw });
   cloud.addFile(A.id, { id: 'a3', name: 'a3.jpg', quickXorHash: 'h3', size: 300, ...old });
   cloud.addFile(C.id, { id: 'c3', name: 'a3.jpg', quickXorHash: 'h3', size: 300, ...nw });
+  const D = cloud.addFolder(cloud.rootId, 'D');
+  cloud.addFile(A.id, { id: 'a4', name: 'a4.jpg', quickXorHash: 'h4', size: 400, ...old });
+  cloud.addFile(D.id, { id: 'd4', name: 'a4.jpg', quickXorHash: 'h4', size: 400, ...nw });
+  cloud.addFile(D.id, { id: 'd4x', name: 'a4 (1).jpg', quickXorHash: 'h4', size: 400, ...nw });
   const scan = new ScanService(db, cloud, { offlineRetryMs: 0 });
-  scanId = scan.start([A, B, C]);
+  scanId = scan.start([A, B, C, D]);
   await scan.whenIdle(scanId);
   review = new ReviewService(db);
   actions = new ActionsService(db, cloud, review);
@@ -56,13 +60,21 @@ beforeEach(async () => {
 });
 
 const lineFor = (folder: string) => batch.preview(scanId).lines.find((l) => l.removeFolders.includes(folder))!;
+function manualBatch(line: { key: string; items: Array<{ groupId: number }> }, status = 'paused'): number {
+  const { lastInsertRowid } = db.sql.prepare('INSERT INTO batches (scan_id, created_at, status) VALUES (?, ?, ?)').run(scanId, new Date().toISOString(), status);
+  const id = Number(lastInsertRowid);
+  line.items.forEach((it, i) =>
+    db.sql.prepare("INSERT INTO batch_groups (batch_id, group_id, line_key, seq, status) VALUES (?, ?, ?, ?, 'pending')").run(id, it.groupId, line.key, i));
+  return id;
+}
+const inGroup = (gid: number) => (db.sql.prepare('SELECT file_id FROM dup_group_files WHERE group_id = ?').all(gid) as Array<{ file_id: string }>).map((r) => r.file_id);
 const groupStatus = (gid: number) => (db.sql.prepare('SELECT status FROM dup_groups WHERE id = ?').get(gid) as { status: string }).status;
 
 describe('BatchService', () => {
-  it('prévia: dois pares de pastas viram duas linhas', () => {
+  it('prévia: pares de pastas diferentes viram linhas diferentes', () => {
     const p = batch.preview(scanId);
-    expect(p.lines).toHaveLength(2);
-    expect(p.pendingCount).toBe(3);
+    expect(p.lines).toHaveLength(3);
+    expect(p.pendingCount).toBe(4);
     expect(p.tiesCount).toBe(0);
   });
 
@@ -70,7 +82,7 @@ describe('BatchService', () => {
     setRules(db, [{ type: 'largestResolution' }]);
     const p = batch.preview(scanId);
     expect(p.lines).toHaveLength(0);
-    expect(p.tiesCount).toBe(3);
+    expect(p.tiesCount).toBe(4);
   });
 
   it('prévia: análise rodando dá 400', () => {
@@ -90,7 +102,7 @@ describe('BatchService', () => {
     await expectEveryGroupKeepsACopy();
   });
 
-  it('grupo alterado no OneDrive depois da prévia é pulado e segue pendente', async () => {
+  it('arquivo que mudou e deixou de ser cópia: grupo é pulado, resolvido sem ele, nada movido', async () => {
     const line = lineFor('/B');
     const gid = line.items.find((i) => i.remove[0].id === 'b1')!.groupId;
     cloud.updateFile('b1', { size: 999 });
@@ -98,18 +110,54 @@ describe('BatchService', () => {
     await batch.whenIdle(s.id);
     expect(batch.summary(s.id)).toMatchObject({ status: 'done', doneGroups: 1, skippedGroups: 1, movedFiles: 1 });
     expect(cloud.isInTrash('b1')).toBe(false);
-    // o arquivo mudou e deixou de ser cópia: o grupo se atualiza sozinho (nada é movido)
-    expect(groupStatus(gid)).not.toBe('done');
+    expect(groupStatus(gid)).toBe('resolved');
+    expect(inGroup(gid)).toEqual(['a1']);
+    await expectEveryGroupKeepsACopy();
+  });
+
+  it('grupo de 3 cópias em que uma cópia que sai mudou: pulado, nada movido e segue pendente', async () => {
+    const line = lineFor('/D');
+    const gid = line.items[0].groupId;
+    cloud.updateFile('d4', { quickXorHash: 'editada' });
+    const s = batch.start(scanId, [line.key]);
+    await batch.whenIdle(s.id);
+    expect(batch.summary(s.id)).toMatchObject({ status: 'done', doneGroups: 0, skippedGroups: 1, movedFiles: 0 });
+    expect(cloud.calls).not.toContain('moveToTrash');
+    expect(groupStatus(gid)).toBe('pending');
+    expect(inGroup(gid).sort()).toEqual(['a4', 'd4x']);
+    await expectEveryGroupKeepsACopy();
+  });
+
+  it('sugestão mudou de pasta (linha diferente) antes de o laço chegar: pulado, nada movido, segue pendente', async () => {
+    const line = lineFor('/B');
+    const id = manualBatch(line);
+    setRules(db, [{ type: 'inFolder', path: '/B' }]);
+    batch.resume(id);
+    await batch.whenIdle(id);
+    expect(batch.summary(id)).toMatchObject({ status: 'done', doneGroups: 0, skippedGroups: 2, movedFiles: 0 });
+    expect(cloud.calls).not.toContain('moveToTrash');
+    for (const it of line.items) expect(groupStatus(it.groupId)).toBe('pending');
+    await expectEveryGroupKeepsACopy();
+  });
+
+  it('regras mudam entre a leitura do lote e o apply: reconferido dentro da trava, pulado', async () => {
+    const line = lineFor('/B');
+    const real = actions.apply.bind(actions);
+    vi.spyOn(actions, 'apply').mockImplementation((...args) => {
+      setRules(db, [{ type: 'inFolder', path: '/B' }]);
+      return real(...args);
+    });
+    const s = batch.start(scanId, [line.key]);
+    await batch.whenIdle(s.id);
+    expect(batch.summary(s.id)).toMatchObject({ status: 'done', doneGroups: 0, skippedGroups: 2, movedFiles: 0 });
+    expect(cloud.calls).not.toContain('moveToTrash');
+    for (const it of line.items) expect(groupStatus(it.groupId)).toBe('pending');
     await expectEveryGroupKeepsACopy();
   });
 
   it('grupo que virou empate depois da prévia é pulado', async () => {
     const line = lineFor('/B');
-    // lote já gravado com a prévia antiga; as regras mudam antes de o laço chegar nos grupos
-    const { lastInsertRowid } = db.sql.prepare("INSERT INTO batches (scan_id, created_at, status) VALUES (?, ?, 'paused')").run(scanId, new Date().toISOString());
-    const s = { id: Number(lastInsertRowid) };
-    line.items.forEach((it, i) =>
-      db.sql.prepare("INSERT INTO batch_groups (batch_id, group_id, line_key, seq, status) VALUES (?, ?, ?, ?, 'pending')").run(s.id, it.groupId, line.key, i));
+    const s = { id: manualBatch(line) };
     setRules(db, [{ type: 'largestResolution' }]);
     batch.resume(s.id);
     await batch.whenIdle(s.id);
@@ -141,10 +189,7 @@ describe('BatchService', () => {
 
   it('reinício: instância nova relança o lote que estava rodando', async () => {
     const line = lineFor('/B');
-    const { lastInsertRowid } = db.sql.prepare("INSERT INTO batches (scan_id, created_at, status) VALUES (?, ?, 'running')").run(scanId, new Date().toISOString());
-    const id = Number(lastInsertRowid);
-    line.items.forEach((it, i) =>
-      db.sql.prepare("INSERT INTO batch_groups (batch_id, group_id, line_key, seq, status) VALUES (?, ?, ?, ?, 'pending')").run(id, it.groupId, line.key, i));
+    const id = manualBatch(line, 'running');
     const fresh = makeBatch();
     fresh.onModuleInit();
     await fresh.whenIdle(id);
@@ -179,10 +224,76 @@ describe('BatchService', () => {
     const line = lineFor('/B');
     const s = batch.start(scanId, [line.key]);
     await batch.whenIdle(s.id);
-    (cloud as unknown as { trash: Map<string, unknown> }).trash.delete('b1');
+    cloud.purgeFromTrash('b1');
     batch.undo(s.id);
     await batch.whenIdle(s.id);
     expect(batch.summary(s.id)).toMatchObject({ status: 'undone', restoredFiles: 1, notRestoredFiles: 1 });
     await expectEveryGroupKeepsACopy();
+  });
+
+  it('erro antigo é limpo quando o lote volta a rodar e quando o desfazer começa', async () => {
+    const line = lineFor('/B');
+    const id = manualBatch(line);
+    db.sql.prepare("UPDATE batches SET error = 'velho' WHERE id = ?").run(id);
+    batch.resume(id);
+    await batch.whenIdle(id);
+    expect(batch.summary(id)).toMatchObject({ status: 'done', error: null });
+    db.sql.prepare("UPDATE batches SET error = 'velho' WHERE id = ?").run(id);
+    batch.undo(id);
+    await batch.whenIdle(id);
+    expect(batch.summary(id)).toMatchObject({ status: 'undone', error: null });
+  });
+
+  it('desfazer sem internet: espera em waiting-network, volta a undoing e termina', async () => {
+    const line = lineFor('/B');
+    const s = batch.start(scanId, [line.key]);
+    await batch.whenIdle(s.id);
+    const seen: string[] = [];
+    const b2 = new BatchService(db, review, actions, {
+      offlineRetryMs: 0,
+      sleep: async () => { seen.push(b2.summary(s.id).status); },
+    });
+    cloud.failNext('restore', new OfflineError(), 2);
+    b2.undo(s.id);
+    await b2.whenIdle(s.id);
+    expect(seen).toEqual(['waiting-network', 'waiting-network']);
+    expect(b2.summary(s.id)).toMatchObject({ status: 'undone', restoredFiles: 2, notRestoredFiles: 0 });
+    await expectEveryGroupKeepsACopy();
+  });
+
+  it('reinício durante o desfazer (undoing ou waiting-network) continua o desfazer', async () => {
+    const line = lineFor('/B');
+    const s = batch.start(scanId, [line.key]);
+    await batch.whenIdle(s.id);
+    for (const st of ['undoing', 'waiting-network']) {
+      db.sql.prepare('UPDATE batches SET status = ? WHERE id = ?').run(st, s.id);
+      const fresh = makeBatch();
+      fresh.onModuleInit();
+      await fresh.whenIdle(s.id);
+      expect(fresh.summary(s.id).status).toBe('undone');
+      expect(cloud.isInTrash('b1')).toBe(false);
+      // refaz o lote para a próxima volta
+      await actions.apply(line.items[0].groupId, ['b1'], { batchId: s.id });
+      await actions.apply(line.items[1].groupId, ['b2'], { batchId: s.id });
+    }
+  });
+
+  it('pausar durante o desfazer dá 400', async () => {
+    const line = lineFor('/B');
+    const s = batch.start(scanId, [line.key]);
+    await batch.whenIdle(s.id);
+    db.sql.prepare("UPDATE batches SET status = 'undoing' WHERE id = ?").run(s.id);
+    expect(() => batch.pause(s.id)).toThrow('Não dá para pausar enquanto desfaz.');
+  });
+
+  it('desfazer ignora ações que já foram desfeitas à mão', async () => {
+    const line = lineFor('/B');
+    const s = batch.start(scanId, [line.key]);
+    await batch.whenIdle(s.id);
+    const first = (db.sql.prepare("SELECT id FROM actions WHERE batch_id = ? ORDER BY id").get(s.id) as { id: number }).id;
+    await actions.undo(first);
+    batch.undo(s.id);
+    await batch.whenIdle(s.id);
+    expect(batch.summary(s.id)).toMatchObject({ status: 'undone', restoredFiles: 2, notRestoredFiles: 0 });
   });
 });

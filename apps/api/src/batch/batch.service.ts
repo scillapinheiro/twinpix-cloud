@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import type { BatchPreview, BatchStatus, BatchSummary } from '@twinpix/shared';
+import type { BatchPreview, GroupView, BatchStatus, BatchSummary } from '@twinpix/shared';
 import { ActionsService } from '../actions/actions.service';
 import { OfflineError, ReconnectRequiredError } from '../cloud/errors';
 import { ReviewService } from '../review/review.service';
@@ -34,9 +34,9 @@ export class BatchService implements OnModuleInit {
 
   onModuleInit(): void {
     const rows = this.db.sql
-      .prepare("SELECT id, status FROM batches WHERE status IN ('running', 'waiting-network', 'undoing')")
-      .all() as Array<{ id: number; status: BatchStatus }>;
-    for (const r of rows) this.launch(r.id, r.status === 'undoing' ? 'undo' : 'apply');
+      .prepare("SELECT id FROM batches WHERE status IN ('running', 'waiting-network', 'undoing')")
+      .all() as Array<{ id: number }>;
+    for (const r of rows) this.launch(r.id, this.isUndoMode(r.id) ? 'undo' : 'apply');
   }
 
   preview(scanId: number): BatchPreview {
@@ -87,10 +87,22 @@ export class BatchService implements OnModuleInit {
     return this.summary(id);
   }
 
+  /**
+   * Desfazendo = 'undoing', ou 'waiting-network' sem grupos pendentes (o desfazer encerra os pendentes
+   * ao começar; uma execução esperando rede sempre tem o grupo atual pendente).
+   */
+  private isUndoMode(id: number): boolean {
+    const status = this.mustStatus(id);
+    if (status === 'undoing') return true;
+    if (status !== 'waiting-network') return false;
+    return !this.db.sql.prepare("SELECT 1 FROM batch_groups WHERE batch_id = ? AND status = 'pending' LIMIT 1").get(id);
+  }
+
   pause(id: number): BatchSummary {
     const status = this.mustStatus(id);
+    if (this.isUndoMode(id)) throw new BadRequestException('Não dá para pausar enquanto desfaz.');
     if (this.running.has(id)) {
-      if (status !== 'undoing') this.pauseRequested.add(id);
+      this.pauseRequested.add(id);
     } else if (status === 'running' || status === 'waiting-network') {
       this.setStatus(id, 'paused');
     }
@@ -105,7 +117,7 @@ export class BatchService implements OnModuleInit {
         .prepare("SELECT 1 FROM batches WHERE id != ? AND status IN ('running', 'waiting-network', 'undoing') LIMIT 1")
         .get(id);
       if (other) throw new BadRequestException('Já existe um lote em andamento.');
-      this.launch(id, 'apply');
+      this.launch(id, this.isUndoMode(id) ? 'undo' : 'apply');
     }
     return this.summary(id);
   }
@@ -115,7 +127,8 @@ export class BatchService implements OnModuleInit {
     if (this.running.has(id) || !['done', 'paused', 'error'].includes(status)) {
       throw new BadRequestException('Só dá para desfazer um lote que terminou ou está pausado.');
     }
-    this.db.sql.prepare('UPDATE batches SET not_restored = 0 WHERE id = ?').run(id);
+    // Desfazer encerra o que faltava executar; não há como continuar a execução depois.
+    this.db.sql.prepare("UPDATE batch_groups SET status = 'skipped' WHERE batch_id = ? AND status = 'pending'").run(id);
     this.setStatus(id, 'undoing');
     this.launch(id, 'undo');
     return this.summary(id);
@@ -182,6 +195,7 @@ export class BatchService implements OnModuleInit {
   private async applyLoop(id: number): Promise<void> {
     const sql = this.db.sql;
     const batchId = id;
+    sql.prepare('UPDATE batches SET error = NULL WHERE id = ?').run(id);
     this.setStatus(id, 'running');
     for (;;) {
       if (this.pauseRequested.delete(id)) {
@@ -216,16 +230,24 @@ export class BatchService implements OnModuleInit {
   }
 
   private async processGroup(batchId: number, row: BatchGroupRow): Promise<'done' | 'skipped'> {
-    const status = (this.db.sql.prepare('SELECT status FROM dup_groups WHERE id = ?').get(row.group_id) as { status: string } | undefined)?.status;
-    if (status !== 'pending') return 'skipped';
     const view = this.review.view(row.group_id);
-    if (view.suggestion.fallback) return 'skipped';
+    if (!this.stillMatches(view, row.line_key)) return 'skipped';
+    // A mesma conferência roda de novo dentro da trava do ActionsService, com o grupo recalculado.
+    const expectedKeep = view.suggestion.keepId;
+    const result = await this.actions.apply(row.group_id, view.preMarkedIds, {
+      batchId,
+      expect: (v) => v.suggestion.keepId === expectedKeep && this.stillMatches(v, row.line_key),
+    });
+    return result.stale || result.skipped ? 'skipped' : 'done';
+  }
+
+  /** Grupo ainda pendente, com regra clara, e na mesma linha da prévia (mesma pasta que fica e mesmas pastas que saem). */
+  private stillMatches(view: GroupView, lineKey: string): boolean {
+    if (view.status !== 'pending' || view.suggestion.fallback) return false;
     const keep = view.files.find((f) => f.id === view.suggestion.keepId);
-    if (!keep || view.preMarkedIds.length === 0) return 'skipped';
+    if (!keep || view.preMarkedIds.length === 0) return false;
     const removeFolders = view.files.filter((f) => f.id !== keep.id).map((f) => f.folderPath);
-    if (lineKeyOf(keep.folderPath, [...new Set(removeFolders)]) !== row.line_key) return 'skipped';
-    const result = await this.actions.apply(row.group_id, view.preMarkedIds, { batchId });
-    return result.stale ? 'skipped' : 'done';
+    return lineKeyOf(keep.folderPath, [...new Set(removeFolders)]) === lineKey;
   }
 
   private async runUndo(id: number): Promise<void> {
@@ -239,6 +261,7 @@ export class BatchService implements OnModuleInit {
   private async undoLoop(id: number): Promise<void> {
     const sql = this.db.sql;
     this.setStatus(id, 'undoing');
+    sql.prepare('UPDATE batches SET error = NULL WHERE id = ?').run(id);
     // Reinício no meio: as ações já restauradas viraram 'undone'; as não restauradas voltam a ser contadas.
     sql.prepare('UPDATE batches SET not_restored = 0 WHERE id = ?').run(id);
     const pending = (sql
@@ -246,13 +269,18 @@ export class BatchService implements OnModuleInit {
       .all(id) as Array<{ id: number }>).map((r) => r.id);
     for (const actionId of pending) {
       for (;;) {
+        // Já desfeita à mão (um a um) enquanto o lote rodava: não conta como não restaurada.
+        const current = sql.prepare('SELECT status FROM actions WHERE id = ?').get(actionId) as { status: string } | undefined;
+        if (current?.status !== 'done') break;
         try {
           const r = await this.actions.undo(actionId);
           if (r.result !== 'restored') sql.prepare('UPDATE batches SET not_restored = not_restored + 1 WHERE id = ?').run(id);
           break;
         } catch (e) {
           if (e instanceof OfflineError) {
+            this.setStatus(id, 'waiting-network');
             await this.sleep(this.options.offlineRetryMs);
+            this.setStatus(id, 'undoing');
             continue;
           }
           if (e instanceof ReconnectRequiredError) {

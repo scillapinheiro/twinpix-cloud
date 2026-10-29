@@ -101,6 +101,8 @@ export interface ApplyResult {
   groupId: number;
   /** true quando algo mudou no OneDrive desde a varredura; nada foi movido. */
   stale: boolean;
+  /** true quando a conferência dentro da trava reprovou (ex.: lote); nada foi movido. */
+  skipped?: boolean;
   results: ActionResult[];
 }
 

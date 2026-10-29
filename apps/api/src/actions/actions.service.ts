@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import type { ActionResult, ActionStatus, ApplyResult, DeletionPreview, HistoryEntry, UndoResponse } from '@twinpix/shared';
+import type { ActionResult, GroupView, ActionStatus, ApplyResult, DeletionPreview, HistoryEntry, UndoResponse } from '@twinpix/shared';
 import type { CloudItem } from '@twinpix/shared';
 import type { CloudProvider } from '../cloud/cloud-provider';
 import { ForbiddenError } from '../cloud/errors';
@@ -52,13 +52,27 @@ export class ActionsService implements OnModuleInit {
     return run;
   }
 
-  apply(groupId: number, deleteIds: string[], opts: { batchId?: number } = {}): Promise<ApplyResult> {
-    return this.withLock(() => this.applyLocked(groupId, deleteIds, opts.batchId ?? null));
+  /**
+   * `expect` (usado pelo lote) é avaliado DENTRO da trava, com o grupo recalculado depois de acertar o
+   * diário; se reprovar, nada é movido e o resultado vem com `skipped: true`.
+   */
+  apply(
+    groupId: number,
+    deleteIds: string[],
+    opts: { batchId?: number; expect?: (view: GroupView) => boolean } = {},
+  ): Promise<ApplyResult> {
+    return this.withLock(() => this.applyLocked(groupId, deleteIds, opts.batchId ?? null, opts.expect));
   }
 
-  private async applyLocked(groupId: number, deleteIds: string[], batchId: number | null): Promise<ApplyResult> {
+  private async applyLocked(
+    groupId: number,
+    deleteIds: string[],
+    batchId: number | null,
+    expectFn?: (view: GroupView) => boolean,
+  ): Promise<ApplyResult> {
     // Acerta o diário antes de planejar: uma ação pendente pode ter (ou não) levado um arquivo.
     await this.recoverPendingLocked();
+    if (expectFn && !expectFn(this.review.view(groupId))) return { groupId, stale: false, skipped: true, results: [] };
     const { scanId, plan } = this.plan(groupId, deleteIds);
     const stored = new Map(getFilesByIds(this.db.sql, scanId, [...plan.deleteIds, ...plan.keepIds]).map((f) => [f.id, f]));
 

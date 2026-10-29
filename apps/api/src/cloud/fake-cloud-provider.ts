@@ -75,6 +75,11 @@ export class FakeCloudProvider implements CloudProvider {
     return this.trash.has(id);
   }
 
+  /** Simula a lixeira do OneDrive sendo esvaziada fora do app. */
+  purgeFromTrash(id: string): void {
+    this.trash.delete(id);
+  }
+
   failNext(method: Method, error: Error, times = 1): void {
     this.faults.push({ method, error, times });
   }
