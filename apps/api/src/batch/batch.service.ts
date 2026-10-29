@@ -350,6 +350,9 @@ export class BatchService implements OnModuleInit {
             this.setStatus(id, 'error', BATCH_ERRORS.undoReconnect);
             return;
           }
+          // Corrida com um desfazer à mão: se a ação já está desfeita, não conta como não restaurada.
+          const now = sql.prepare('SELECT status FROM actions WHERE id = ?').get(actionId) as { status: string } | undefined;
+          if (now?.status === 'undone') break;
           sql.prepare('UPDATE batches SET not_restored = not_restored + 1, error = ? WHERE id = ?').run(BATCH_ERRORS.notRestored, id);
           break;
         }

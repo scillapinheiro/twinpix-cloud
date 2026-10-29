@@ -309,6 +309,21 @@ describe('BatchService', () => {
     expect(batch.summary(s.id)).toMatchObject({ status: 'undone', restoredFiles: 2, notRestoredFiles: 0 });
   });
 
+  it('desfazer à mão correndo junto com o desfazer do lote: não conta como não restaurado', async () => {
+    const line = lineFor('/B');
+    const s = startBatch([line.key]);
+    await batch.whenIdle(s.id);
+    const real = actions.undo.bind(actions);
+    // A ação é desfeita à mão (outra aba) no meio da chamada do lote, que então falha.
+    vi.spyOn(actions, 'undo').mockImplementationOnce(async (actionId) => {
+      await real(actionId);
+      throw new Error('Esta ação já foi desfeita.');
+    });
+    batch.undo(s.id);
+    await batch.whenIdle(s.id);
+    expect(batch.summary(s.id)).toMatchObject({ status: 'undone', restoredFiles: 2, notRestoredFiles: 0, error: null });
+  });
+
   describe('mensagens de erro: só frases fixas em português, nunca a exceção crua', () => {
     it('erro inesperado num grupo: pulado, e o erro guardado é a frase fixa', async () => {
       const line = lineFor('/B');
