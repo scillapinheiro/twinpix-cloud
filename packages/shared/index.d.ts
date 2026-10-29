@@ -62,6 +62,8 @@ export interface Suggestion {
   keepId: string;
   /** Ex.: "regra: mais antiga (tirada em)". */
   reason: string;
+  /** true só quando a escolha caiu na ordem alfabética (sem regra clara). */
+  fallback: boolean;
 }
 
 export interface GroupView {
@@ -109,6 +111,7 @@ export interface HistoryEntry {
   status: ActionStatus;
   error: string | null;
   createdAt: string;
+  batchId: number | null;
 }
 
 export type RestoreResult = 'restored' | 'not-in-trash' | 'conflict';
@@ -129,4 +132,46 @@ export interface AuthStatus {
 export interface NestedRoot {
   inner: string;
   outer: string;
+}
+
+export interface BatchItem {
+  groupId: number;
+  keep: { name: string; folderPath: string };
+  remove: Array<{ id: string; name: string; folderPath: string; size: number }>;
+}
+
+export interface BatchLine {
+  key: string;
+  keepFolder: string;
+  removeFolders: string[];
+  reasons: string[];
+  groupCount: number;
+  fileCount: number;
+  bytes: number;
+  items: BatchItem[];
+}
+
+export interface BatchPreview {
+  scanId: number;
+  lines: BatchLine[];
+  tiesCount: number;
+  pendingCount: number;
+}
+
+export type BatchStatus = 'running' | 'paused' | 'waiting-network' | 'needs-auth' | 'done' | 'undoing' | 'undone' | 'error';
+
+export interface BatchSummary {
+  id: number;
+  scanId: number;
+  status: BatchStatus;
+  createdAt: string;
+  totalGroups: number;
+  doneGroups: number;
+  skippedGroups: number;
+  movedFiles: number;
+  movedBytes: number;
+  failedFiles: number;
+  restoredFiles: number;
+  notRestoredFiles: number;
+  error: string | null;
 }

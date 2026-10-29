@@ -15,12 +15,19 @@ const f = (over: Partial<RuleFile> & { id: string }): RuleFile => ({
 });
 
 describe('suggestKeep', () => {
+  it('fallback é true só no empate total (ordem alfabética)', () => {
+    const tie = suggestKeep([f({ id: 'a' }), f({ id: 'b' })], DEFAULT_RULES);
+    expect(tie.fallback).toBe(true);
+    expect(tie.reason).toBe('regra: primeira em ordem alfabética');
+    expect(suggestKeep([f({ id: 'a', size: 1 }), f({ id: 'b', size: 2 })], [{ type: 'largestSize' }]).fallback).toBe(false);
+  });
+
   it('aplica o primeiro critério que desempata e informa o motivo', () => {
     const s = suggestKeep(
       [f({ id: 'a', width: 100, height: 100 }), f({ id: 'b', width: 200, height: 200 })],
       [{ type: 'largestResolution' }, { type: 'oldestTaken' }],
     );
-    expect(s).toEqual({ keepId: 'b', reason: 'regra: maior resolução' });
+    expect(s).toEqual({ keepId: 'b', reason: 'regra: maior resolução', fallback: false });
   });
 
   it('pula critério empatado e usa o próximo', () => {
@@ -28,7 +35,7 @@ describe('suggestKeep', () => {
       [f({ id: 'a', takenAt: '2016-01-01T00:00:00Z' }), f({ id: 'b', takenAt: '2015-01-01T00:00:00Z' })],
       [{ type: 'largestResolution' }, { type: 'oldestTaken' }],
     );
-    expect(s).toEqual({ keepId: 'b', reason: 'regra: mais antiga (tirada em)' });
+    expect(s).toEqual({ keepId: 'b', reason: 'regra: mais antiga (tirada em)', fallback: false });
   });
 
   it('sem data em que foi tirada, usa a data de criação', () => {
@@ -41,7 +48,7 @@ describe('suggestKeep', () => {
 
   it('prefere nome sem sufixo de cópia', () => {
     const s = suggestKeep([f({ id: 'a', name: 'x 1.jpg' }), f({ id: 'b', name: 'x.jpg' })], DEFAULT_RULES);
-    expect(s).toEqual({ keepId: 'b', reason: 'regra: nome sem sufixo de cópia' });
+    expect(s).toEqual({ keepId: 'b', reason: 'regra: nome sem sufixo de cópia', fallback: false });
   });
 
   it('está na pasta X / não está na pasta Y', () => {
@@ -49,6 +56,7 @@ describe('suggestKeep', () => {
     expect(suggestKeep(files, [{ type: 'inFolder', path: '/Fotos' }])).toEqual({
       keepId: 'b',
       reason: 'regra: está na pasta /Fotos',
+      fallback: false,
     });
     expect(suggestKeep(files, [{ type: 'notInFolder', path: '/Fotos' }]).keepId).toBe('a');
   });
@@ -65,7 +73,7 @@ describe('suggestKeep', () => {
 
   it('empate total: primeira em ordem alfabética de pasta e nome', () => {
     const s = suggestKeep([f({ id: 'b', folderPath: '/Z' }), f({ id: 'a', folderPath: '/A' })], DEFAULT_RULES);
-    expect(s).toEqual({ keepId: 'a', reason: 'regra: primeira em ordem alfabética' });
+    expect(s).toEqual({ keepId: 'a', reason: 'regra: primeira em ordem alfabética', fallback: true });
   });
 
   it('propriedade: sempre devolve um arquivo do grupo', () => {

@@ -64,12 +64,12 @@ export function suggestKeep(files: RuleFile[], rules: RuleCriterion[]): Suggesti
     if (narrowed.length < candidates.length) {
       candidates = narrowed;
       if (candidates.length === 1) {
-        return { keepId: candidates[0].id, reason: `regra: ${criterionLabel(rule)}` };
+        return { keepId: candidates[0].id, reason: `regra: ${criterionLabel(rule)}`, fallback: false };
       }
     }
   }
   const first = [...candidates].sort(alphabetical)[0];
-  return { keepId: first.id, reason: 'regra: primeira em ordem alfabética' };
+  return { keepId: first.id, reason: 'regra: primeira em ordem alfabética', fallback: true };
 }
 
 const SIMPLE = new Set(['largestResolution', 'largestSize', 'oldestTaken', 'oldestModified', 'noCopySuffix']);

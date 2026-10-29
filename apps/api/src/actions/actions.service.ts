@@ -52,11 +52,11 @@ export class ActionsService implements OnModuleInit {
     return run;
   }
 
-  apply(groupId: number, deleteIds: string[]): Promise<ApplyResult> {
-    return this.withLock(() => this.applyLocked(groupId, deleteIds));
+  apply(groupId: number, deleteIds: string[], opts: { batchId?: number } = {}): Promise<ApplyResult> {
+    return this.withLock(() => this.applyLocked(groupId, deleteIds, opts.batchId ?? null));
   }
 
-  private async applyLocked(groupId: number, deleteIds: string[]): Promise<ApplyResult> {
+  private async applyLocked(groupId: number, deleteIds: string[], batchId: number | null): Promise<ApplyResult> {
     // Acerta o diário antes de planejar: uma ação pendente pode ter (ou não) levado um arquivo.
     await this.recoverPendingLocked();
     const { scanId, plan } = this.plan(groupId, deleteIds);
@@ -79,8 +79,8 @@ export class ActionsService implements OnModuleInit {
     for (const id of plan.deleteIds) {
       const now = nowIso();
       const { lastInsertRowid } = this.db.sql
-        .prepare("INSERT INTO actions (group_id, file_id, kept_file_id, status, created_at, updated_at) VALUES (?, ?, ?, 'pending', ?, ?)")
-        .run(groupId, id, keptRef, now, now);
+        .prepare("INSERT INTO actions (group_id, file_id, kept_file_id, status, created_at, updated_at, batch_id) VALUES (?, ?, ?, 'pending', ?, ?, ?)")
+        .run(groupId, id, keptRef, now, now, batchId);
       const actionId = Number(lastInsertRowid);
       let status: ActionStatus = 'done';
       let error: string | null = null;
@@ -132,13 +132,13 @@ export class ActionsService implements OnModuleInit {
   history(): HistoryEntry[] {
     const rows = this.db.sql
       .prepare(
-        `SELECT a.id action_id, a.group_id, a.status, a.error, a.created_at action_created_at, f.*
+        `SELECT a.id action_id, a.group_id, a.status, a.error, a.created_at action_created_at, a.batch_id, f.*
          FROM actions a
          JOIN dup_groups g ON g.id = a.group_id
          JOIN files f ON f.scan_id = g.scan_id AND f.id = a.file_id
          ORDER BY a.id DESC`,
       )
-      .all() as Array<FileRow & { action_id: number; group_id: number; status: ActionStatus; error: string | null; action_created_at: string }>;
+      .all() as Array<FileRow & { action_id: number; group_id: number; status: ActionStatus; error: string | null; action_created_at: string; batch_id: number | null }>;
     return rows.map((r) => ({
       actionId: r.action_id,
       groupId: r.group_id,
@@ -146,6 +146,7 @@ export class ActionsService implements OnModuleInit {
       status: r.status,
       error: r.error,
       createdAt: r.action_created_at,
+      batchId: r.batch_id,
     }));
   }
 

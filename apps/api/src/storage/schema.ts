@@ -68,6 +68,22 @@ CREATE TABLE IF NOT EXISTS actions (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS batches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scan_id INTEGER NOT NULL REFERENCES scans(id),
+  created_at TEXT NOT NULL,
+  status TEXT NOT NULL,
+  error TEXT,
+  not_restored INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS batch_groups (
+  batch_id INTEGER NOT NULL REFERENCES batches(id),
+  group_id INTEGER NOT NULL REFERENCES dup_groups(id),
+  line_key TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  PRIMARY KEY (batch_id, group_id)
+);
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL

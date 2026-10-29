@@ -16,7 +16,7 @@ const group: GroupView = {
     { ...base, id: 'a', name: 'x.jpg', modifiedAt: '2015-02-07T10:00:00Z' },
     { ...base, id: 'b', name: 'x 1.jpg', modifiedAt: '2015-04-21T19:30:00Z' },
   ],
-  suggestion: { keepId: 'a', reason: 'regra: nome sem sufixo de cópia' },
+  suggestion: { keepId: 'a', reason: 'regra: nome sem sufixo de cópia', fallback: false },
   preMarkedIds: ['b'],
   bytesFreedSoFar: 2_100_000_000,
 };
@@ -62,7 +62,7 @@ it.each([[2, '2'], [3, '3'], [4, 'many'], [5, 'many']])('com %i mídias as colun
   const files = Array.from({ length: n }, (_, i) => ({ ...base, id: `f${i}`, name: `x ${i}.jpg`, modifiedAt: '2015-02-07T10:00:00Z' }));
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (url.endsWith('/thumbnail')) return new Response(JSON.stringify({ url: null }));
-    return new Response(JSON.stringify({ ...group, files, suggestion: { keepId: 'f0', reason: 'regra: x' }, preMarkedIds: [] }));
+    return new Response(JSON.stringify({ ...group, files, suggestion: { keepId: 'f0', reason: 'regra: x', fallback: false }, preMarkedIds: [] }));
   }));
   const { container } = render(
     <MemoryRouter initialEntries={['/revisao/1']}>
@@ -77,7 +77,7 @@ it('com 3 cópias o resumo "Igual em todas as cópias" vem depois dos cartões',
   const files = ['a', 'b', 'c'].map((id) => ({ ...base, id, name: `x ${id}.jpg`, modifiedAt: '2015-02-07T10:00:00Z' }));
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (url.endsWith('/thumbnail')) return new Response(JSON.stringify({ url: null }));
-    return new Response(JSON.stringify({ ...group, files, suggestion: { keepId: 'a', reason: 'regra: x' }, preMarkedIds: [] }));
+    return new Response(JSON.stringify({ ...group, files, suggestion: { keepId: 'a', reason: 'regra: x', fallback: false }, preMarkedIds: [] }));
   }));
   const { container } = render(
     <MemoryRouter initialEntries={['/revisao/1']}>
@@ -95,7 +95,7 @@ describe('modal de confirmação', () => {
   const next: GroupView = { ...group, id: 8, position: 13, files: [
     { ...base, id: 'c', name: 'y.jpg', modifiedAt: '2015-02-07T10:00:00Z' },
     { ...base, id: 'd', name: 'y 1.jpg', modifiedAt: '2015-02-07T10:00:00Z' },
-  ], suggestion: { keepId: 'c', reason: 'regra: x' }, preMarkedIds: ['d'] };
+  ], suggestion: { keepId: 'c', reason: 'regra: x', fallback: false }, preMarkedIds: ['d'] };
   let applies: number;
   let current: GroupView;
 

@@ -35,6 +35,16 @@ beforeEach(async () => {
 });
 
 describe('ActionsService', () => {
+  it('apply com batchId grava batch_id e o histórico devolve batchId (null fora de lote)', async () => {
+    const scanId = review.view(groupId).scanId;
+    db.sql.prepare("INSERT INTO batches (id, scan_id, created_at, status) VALUES (7, ?, 'x', 'running')").run(scanId);
+    await actions.apply(groupId, ['c1'], { batchId: 7 });
+    await actions.apply(groupId, ['c2']);
+    const h = actions.history();
+    expect(h.find((x) => x.file.id === 'c1')!.batchId).toBe(7);
+    expect(h.find((x) => x.file.id === 'c2')!.batchId).toBeNull();
+  });
+
   it('prévia mostra contagem, espaço e listas', () => {
     const p = actions.preview(groupId, extra);
     expect(p.deleteFiles.map((f) => f.id).sort()).toEqual(['c1', 'c2']);

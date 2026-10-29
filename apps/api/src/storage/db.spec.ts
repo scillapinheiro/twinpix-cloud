@@ -1,4 +1,8 @@
 import type { CloudItem } from '@twinpix/shared';
+import Database from 'better-sqlite3';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { Db } from './db';
 import { getFilesByIds, insertFile } from './rows';
@@ -31,7 +35,7 @@ describe('Db', () => {
       .all()
       .map((r: any) => r.name);
     expect(tables).toEqual(
-      expect.arrayContaining(['actions', 'dup_group_files', 'dup_groups', 'files', 'scan_folders', 'scan_roots', 'scans', 'settings']),
+      expect.arrayContaining(['actions', 'batch_groups', 'batches', 'dup_group_files', 'dup_groups', 'files', 'scan_folders', 'scan_roots', 'scans', 'settings']),
     );
     db.close();
   });
@@ -43,5 +47,25 @@ describe('Db', () => {
     insertFile(db.sql, 1, item);
     insertFile(db.sql, 1, item); // repetido é ignorado
     expect(getFilesByIds(db.sql, 1, ['f1'])).toEqual([item]);
+  });
+
+  it('migra um banco com o esquema antigo (actions sem batch_id) e abre de novo', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'twinpix-db-')), 'old.sqlite');
+    const old = new Database(file);
+    old.exec(`CREATE TABLE actions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL, file_id TEXT NOT NULL,
+      kept_file_id TEXT NOT NULL, status TEXT NOT NULL, error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      INSERT INTO actions (group_id, file_id, kept_file_id, status, created_at, updated_at) VALUES (1, 'f', 'k', 'done', 'x', 'x');`);
+    old.close();
+    for (let i = 0; i < 2; i++) {
+      const db = new Db(file);
+      const cols = (db.sql.prepare('PRAGMA table_info(actions)').all() as Array<{ name: string }>).map((c) => c.name);
+      expect(cols.filter((c) => c === 'batch_id')).toHaveLength(1);
+      const bcols = (db.sql.prepare('PRAGMA table_info(batches)').all() as Array<{ name: string }>).map((c) => c.name);
+      expect(bcols).toContain('not_restored');
+      expect(db.sql.prepare('SELECT COUNT(*) n FROM batch_groups').get()).toEqual({ n: 0 });
+      expect(db.sql.prepare('SELECT batch_id FROM actions').get()).toEqual({ batch_id: null });
+      db.close();
+    }
   });
 });
