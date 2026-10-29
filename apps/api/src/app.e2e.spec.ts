@@ -7,9 +7,11 @@ import { join } from 'node:path';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from './app.module';
+import type { FakeCloudProvider } from './cloud/fake-cloud-provider';
 import { loadConfig } from './config';
 import { DomainErrorFilter } from './http/domain-error.filter';
 import { sessionMiddleware } from './security/session.middleware';
+import { CLOUD_PROVIDER } from './tokens';
 
 let app: INestApplication;
 const T = 'tok';
@@ -117,6 +119,16 @@ describe('API em modo demonstração', () => {
     // Cada grupo move todas as cópias menos uma: nenhum grupo perde todas.
     const expectedMoved = preview.lines.reduce((n: number, l: BatchLine) => n + l.items.reduce((m, it) => m + it.remove.length, 0), 0);
     expect(summary.movedFiles).toBe(expectedMoved);
+    // A ★ que a autora viu em cada grupo continua fora da lixeira; todas as outras cópias foram para lá.
+    const cloud = app.get<FakeCloudProvider>(CLOUD_PROVIDER, { strict: false });
+    for (const l of preview.lines) {
+      for (const it of l.items) {
+        const star = keeps[it.groupId];
+        expect(await cloud.getItem(star), `★ ${star} do grupo ${it.groupId}`).not.toBeNull();
+        expect(cloud.isInTrash(star), `★ ${star} do grupo ${it.groupId} foi para a lixeira`).toBe(false);
+        for (const f of [it.keep, ...it.remove].filter((x) => x.id !== star)) expect(cloud.isInTrash(f.id)).toBe(true);
+      }
+    }
 
     // Os empates continuam pendentes para a revisão um por um.
     const after = (await api().get(`/api/scans/${started.id}/batch`)).body as BatchPreview;

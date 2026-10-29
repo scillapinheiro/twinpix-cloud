@@ -398,6 +398,16 @@ describe('BatchService', () => {
       expect(nBatches()).toBe(0);
     });
 
+    it('grupo saiu da linha depois da prévia (resolvido em outra aba): 400 e nada é criado', async () => {
+      const seen = lineFor('/B');
+      const keeps = keepsFor([seen.key]);
+      const gone = seen.items[0];
+      await actions.apply(gone.groupId, gone.remove.map((f) => f.id));
+      expect(lineFor('/B').items.map((i) => i.groupId)).not.toContain(gone.groupId);
+      expect(() => batch.start(scanId, [seen.key], {}, keeps)).toThrow('A prévia mudou. Abra o lote de novo.');
+      expect(nBatches()).toBe(0);
+    });
+
     it('★ mudou depois da prévia: 400 e nada é criado', () => {
       const line = lineFor('/D');
       const keeps = keepsFor([line.key], { [line.key]: '/D' });
