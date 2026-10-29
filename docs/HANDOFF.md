@@ -16,7 +16,7 @@ A implementação foi dividida em planos:
 | **1** | Base + **cópias idênticas** de ponta a ponta + modo demonstração | **Implementado e revisado** (branch `plano-1-identicas`) |
 | 2 | **Lote das idênticas** (prévia por par de pastas, inverter, desfazer lote) + atalhos de teclado | **Implementado e revisado** (29/10, tarde) |
 | 3 | **Reconciliação de pastas** (`docs/superpowers/plans/2026-10-29-plano-3-reconciliacao-de-pastas.md`) | **Implementado e revisado** (29/10, tarde) |
-| 4 | Prováveis cópias | A planejar |
+| 4 | **Prováveis cópias** (`docs/superpowers/plans/2026-10-29-plano-4-provaveis-copias.md`) | Em execução |
 | 5 | Testes de contrato com o OneDrive real, trava da pasta de teste, validação com as listagens do rclone (§10), acabamento | A planejar |
 
 ## Estado atual
