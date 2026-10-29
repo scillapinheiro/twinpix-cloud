@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OfflineError } from '../cloud/errors';
 import { FakeCloudProvider } from '../cloud/fake-cloud-provider';
 import { ReviewService } from '../review/review.service';
@@ -74,6 +74,65 @@ describe('ActionsService', () => {
   it('se o arquivo que sai mudou, nada é movido', async () => {
     cloud.updateFile('c1', { size: 999 });
     expect((await actions.apply(groupId, extra)).stale).toBe(true);
+    expect(cloud.calls).not.toContain('moveToTrash');
+  });
+
+  it('se o arquivo que sai desapareceu, nada é movido e o grupo fica desatualizado', async () => {
+    cloud.removeFile('c1');
+    expect((await actions.apply(groupId, extra)).stale).toBe(true);
+    expect(cloud.calls).not.toContain('moveToTrash');
+    expect(review.view(groupId).status).toBe('stale');
+  });
+
+  it('sem conexão na conferência: rejeita, não move e não muda o grupo', async () => {
+    cloud.failNext('getItem', new OfflineError());
+    await expect(actions.apply(groupId, extra)).rejects.toBeInstanceOf(OfflineError);
+    expect(cloud.calls).not.toContain('moveToTrash');
+    expect(review.view(groupId).status).toBe('pending');
+  });
+
+  it('recoverPending sem conexão mantém a ação pendente', async () => {
+    const now = new Date().toISOString();
+    db.sql.prepare("INSERT INTO actions (group_id, file_id, kept_file_id, status, created_at, updated_at) VALUES (?, ?, ?, 'pending', ?, ?)").run(groupId, 'c1', keep, now, now);
+    cloud.failNext('getItem', new OfflineError());
+    await actions.recoverPending();
+    expect(db.sql.prepare('SELECT status FROM actions').all()).toEqual([{ status: 'pending' }]);
+  });
+
+  it('apply simultâneos no mesmo grupo nunca levam todas as cópias', async () => {
+    const [a, b] = await Promise.all([actions.apply(groupId, ['c1', 'c2']), actions.apply(groupId, ['orig']).catch((e) => e)]);
+    expect(a.stale).toBe(false);
+    expect(b).toBeInstanceOf(UnsafeDeletionError);
+    expect(['orig', 'c1', 'c2'].some((id) => !cloud.isInTrash(id))).toBe(true);
+    expect(cloud.isInTrash('orig')).toBe(false);
+  });
+
+  it('apply duplicado com os mesmos IDs não gera duas ações para o mesmo arquivo', async () => {
+    const [a, b] = await Promise.all([actions.apply(groupId, ['c1']), actions.apply(groupId, ['c1']).catch((e) => e)]);
+    expect(a.results).toHaveLength(1);
+    expect(b).toBeInstanceOf(UnsafeDeletionError);
+    expect(actions.history().filter((h) => h.file.id === 'c1')).toHaveLength(1);
+  });
+
+  it('já não estava no OneDrive: registra com nota e desfazer não chama restore', async () => {
+    const spy = vi.spyOn(cloud, 'moveToTrash').mockResolvedValueOnce('already-gone');
+    const r = await actions.apply(groupId, ['c1']);
+    spy.mockRestore();
+    expect(r.results[0]).toMatchObject({ status: 'done', error: 'Já não estava no OneDrive.' });
+    const before = cloud.calls.filter((c) => c === 'restore').length;
+    const u = await actions.undo(r.results[0].actionId);
+    expect(u.result).toBe('not-in-trash');
+    expect(cloud.calls.filter((c) => c === 'restore').length).toBe(before);
+  });
+
+  it('desfazer simultâneo a apply deixa o grupo consistente', async () => {
+    const first = await actions.apply(groupId, ['c1']);
+    const [, u] = await Promise.all([actions.apply(groupId, ['c2']), actions.undo(first.results[0].actionId)]);
+    expect(u.result).toBe('restored');
+    expect(cloud.isInTrash('c1')).toBe(false);
+    expect(cloud.isInTrash('c2')).toBe(true);
+    expect(review.view(groupId).status).toBe('pending');
+    expect(review.activeFileIds(groupId)).toEqual(['c1', 'orig']);
   });
 
   it('falha parcial: cada item tem seu resultado e o grupo continua pendente', async () => {

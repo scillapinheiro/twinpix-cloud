@@ -7,6 +7,8 @@ import { getFilesByIds, nowIso, rowToItem, type FileRow } from '../storage/rows'
 import { CLOUD_PROVIDER, DB } from '../tokens';
 import { planDeletion } from './deletion-plan';
 
+const ALREADY_GONE_NOTE = 'Já não estava no OneDrive.';
+
 const UNDO_MESSAGES = {
   restored: 'Arquivo restaurado para a pasta original.',
   'not-in-trash': 'Não é mais possível restaurar: o arquivo já saiu da lixeira do OneDrive.',
@@ -34,7 +36,25 @@ export class ActionsService implements OnModuleInit {
     return { groupId, deleteFiles, keepFiles, bytes: deleteFiles.reduce((s, f) => s + f.size, 0) };
   }
 
-  async apply(groupId: number, deleteIds: string[]): Promise<ApplyResult> {
+  private readonly locks = new Map<number, Promise<unknown>>();
+
+  /** Serializa operações do mesmo grupo (apply/undo) dentro do processo. */
+  private withGroupLock<T>(groupId: number, fn: () => Promise<T>): Promise<T> {
+    const prev = this.locks.get(groupId) ?? Promise.resolve();
+    const run = prev.then(fn, fn);
+    const tail = run.catch(() => undefined);
+    this.locks.set(groupId, tail);
+    void tail.then(() => {
+      if (this.locks.get(groupId) === tail) this.locks.delete(groupId);
+    });
+    return run;
+  }
+
+  apply(groupId: number, deleteIds: string[]): Promise<ApplyResult> {
+    return this.withGroupLock(groupId, () => this.applyLocked(groupId, deleteIds));
+  }
+
+  private async applyLocked(groupId: number, deleteIds: string[]): Promise<ApplyResult> {
     const { scanId, plan } = this.plan(groupId, deleteIds);
     const stored = new Map(getFilesByIds(this.db.sql, scanId, [...plan.deleteIds, ...plan.keepIds]).map((f) => [f.id, f]));
 
@@ -59,7 +79,8 @@ export class ActionsService implements OnModuleInit {
       let status: ActionStatus = 'done';
       let error: string | null = null;
       try {
-        await this.cloud.moveToTrash(id);
+        const moved = await this.cloud.moveToTrash(id);
+        if (moved === 'already-gone') error = ALREADY_GONE_NOTE;
       } catch (e) {
         status = 'failed';
         error = (e as Error).message;
@@ -104,12 +125,19 @@ export class ActionsService implements OnModuleInit {
     }));
   }
 
-  async undo(actionId: number): Promise<UndoResponse> {
-    const a = this.db.sql.prepare('SELECT id, group_id, file_id, status FROM actions WHERE id = ?').get(actionId) as
-      | { id: number; group_id: number; file_id: string; status: ActionStatus }
+  undo(actionId: number): Promise<UndoResponse> {
+    const row = this.db.sql.prepare('SELECT group_id FROM actions WHERE id = ?').get(actionId) as { group_id: number } | undefined;
+    if (!row) throw new NotFoundException('Ação não encontrada.');
+    return this.withGroupLock(row.group_id, () => this.undoLocked(actionId));
+  }
+
+  private async undoLocked(actionId: number): Promise<UndoResponse> {
+    const a = this.db.sql.prepare('SELECT id, group_id, file_id, status, error FROM actions WHERE id = ?').get(actionId) as
+      | { id: number; group_id: number; file_id: string; status: ActionStatus; error: string | null }
       | undefined;
     if (!a) throw new NotFoundException('Ação não encontrada.');
     if (a.status !== 'done') throw new BadRequestException('Só dá para desfazer arquivos que foram para a lixeira.');
+    if (a.error === ALREADY_GONE_NOTE) return { result: 'not-in-trash', message: UNDO_MESSAGES['not-in-trash'] };
     const result = await this.cloud.restore(a.file_id);
     if (result === 'restored') {
       this.setActionStatus(a.id, 'undone', null);

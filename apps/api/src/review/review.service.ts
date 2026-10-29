@@ -17,7 +17,7 @@ export class ReviewService {
       .prepare(
         `SELECT gf.file_id FROM dup_group_files gf
          WHERE gf.group_id = ?
-           AND NOT EXISTS (SELECT 1 FROM actions a WHERE a.group_id = gf.group_id AND a.file_id = gf.file_id AND a.status = 'done')
+           AND NOT EXISTS (SELECT 1 FROM actions a WHERE a.group_id = gf.group_id AND a.file_id = gf.file_id AND a.status IN ('done','pending'))
          ORDER BY gf.file_id`,
       )
       .all(groupId) as Array<{ file_id: string }>).map((r) => r.file_id);
