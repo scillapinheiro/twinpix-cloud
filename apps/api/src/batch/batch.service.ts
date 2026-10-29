@@ -363,7 +363,7 @@ export class BatchService implements OnModuleInit {
       v.files.some((f) => f.id === keepId) &&
       deleteIds.every((id) => v.files.some((f) => f.id === id));
     if (!intact(this.review.view(row.group_id))) return 'skipped';
-    const result = await this.actions.apply(row.group_id, deleteIds, { batchId, expect: intact });
+    const result = await this.actions.apply(row.group_id, deleteIds, { batchId, expect: intact, keepId: keepId ?? undefined, resolveOnlyWhenSingle: true });
     return result.stale || result.skipped ? 'skipped' : 'done';
   }
 

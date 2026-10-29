@@ -660,6 +660,10 @@ describe('BatchService: cópia fixada sem pasta escolhida', () => {
       expect(cloud.isInTrash('b1') && cloud.isInTrash('a4')).toBe(true);
       expect(cloud.isInTrash('d4') || cloud.isInTrash('d4x') || cloud.isInTrash('a1')).toBe(false);
       expect(actions.history().every((h) => h.batchId === s.id)).toBe(true);
+      // Grupo com uma só cópia restante: resolvido. Grupo com 2+ cópias que ficam (d4 e d4x): volta para a revisão.
+      expect(groupStatus(gidOf('a1'))).toBe('resolved');
+      expect(groupStatus(gidOf('a4'))).toBe('pending');
+      expect(review.activeFileIds(gidOf('a4')).sort()).toEqual(['d4', 'd4x']);
       expectUniquesUntouched();
       await expectEveryGroupKeepsACopy();
       batch.undo(s.id);
@@ -667,6 +671,25 @@ describe('BatchService: cópia fixada sem pasta escolhida', () => {
       expect(batch.summary(s.id)).toMatchObject({ status: 'undone', restoredFiles: 2, notRestoredFiles: 0 });
       for (const id of ['a1', 'a2', 'a3', 'a4', 'b1', 'b2', 'c3', 'd4', 'd4x']) expect(cloud.isInTrash(id)).toBe(false);
       await expectEveryGroupKeepsACopy();
+    });
+
+    it('kept_file_id registra a cópia escolhida no plano (não a primeira restante)', async () => {
+      // d4x fixada (não é a primeira das cópias restantes, d4).
+      const p = { ...plan(), items: plan().items.map((i) => (i.keepId === 'd4' ? { ...i, keepId: 'd4x' } : i)) };
+      const s = batch.startFolders(scanId, p, sentOf(p));
+      await batch.whenIdle(s.id);
+      const kept = (fileId: string) => (db.sql.prepare('SELECT kept_file_id k FROM actions WHERE file_id = ?').get(fileId) as { k: string }).k;
+      expect(kept('a4')).toBe('d4x');
+      expect(kept('b1')).toBe('a1');
+    });
+
+    it('lote de linhas e um a um continuam resolvendo o grupo quando tudo sai certo', async () => {
+      const s = startBatch([lineFor('/B').key]);
+      await batch.whenIdle(s.id);
+      expect(groupStatus(gidOf('a1'))).toBe('resolved');
+      await actions.apply(gidOf('a4'), ['a4'], {});
+      // Um a um: comportamento de hoje (resolvido mesmo restando d4 e d4x).
+      expect(groupStatus(gidOf('a4'))).toBe('resolved');
     });
 
     it('delete_id que sumiu: grupo pulado sem mover nada', async () => {

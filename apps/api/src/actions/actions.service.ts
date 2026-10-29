@@ -55,21 +55,25 @@ export class ActionsService implements OnModuleInit {
   /**
    * `expect` (usado pelo lote) é avaliado DENTRO da trava, com o grupo recalculado depois de acertar o
    * diário; se reprovar, nada é movido e o resultado vem com `skipped: true`.
+   * `keepId` (lote de pastas): a cópia que a autora viu ficar, registrada em `kept_file_id`.
+   * `resolveOnlyWhenSingle` (lote de pastas): o grupo só fica resolvido se restar menos de 2 cópias
+   * ativas; senão volta a pendente, para as cópias que ficaram continuarem visíveis na revisão.
    */
   apply(
     groupId: number,
     deleteIds: string[],
-    opts: { batchId?: number; expect?: (view: GroupView) => boolean } = {},
+    opts: { batchId?: number; expect?: (view: GroupView) => boolean; keepId?: string; resolveOnlyWhenSingle?: boolean } = {},
   ): Promise<ApplyResult> {
-    return this.withLock(() => this.applyLocked(groupId, deleteIds, opts.batchId ?? null, opts.expect));
+    return this.withLock(() => this.applyLocked(groupId, deleteIds, opts.batchId ?? null, opts));
   }
 
   private async applyLocked(
     groupId: number,
     deleteIds: string[],
     batchId: number | null,
-    expectFn?: (view: GroupView) => boolean,
+    opts: { expect?: (view: GroupView) => boolean; keepId?: string; resolveOnlyWhenSingle?: boolean },
   ): Promise<ApplyResult> {
+    const expectFn = opts.expect;
     // Acerta o diário antes de planejar: uma ação pendente pode ter (ou não) levado um arquivo.
     await this.recoverPendingLocked();
     if (expectFn && !expectFn(this.review.view(groupId))) return { groupId, stale: false, skipped: true, results: [] };
@@ -88,7 +92,7 @@ export class ActionsService implements OnModuleInit {
       return { groupId, stale: true, results: [] };
     }
 
-    const keptRef = plan.keepIds[0];
+    const keptRef = opts.keepId !== undefined && plan.keepIds.includes(opts.keepId) ? opts.keepId : plan.keepIds[0];
     const results: ActionResult[] = [];
     for (const id of plan.deleteIds) {
       const now = nowIso();
@@ -107,7 +111,9 @@ export class ActionsService implements OnModuleInit {
       this.setActionStatus(actionId, status, error);
       results.push({ actionId, fileId: id, fileName: stored.get(id)!.name, status, error });
     }
-    this.setGroupStatus(groupId, results.every((r) => r.status === 'done') ? 'resolved' : 'pending');
+    const allDone = results.every((r) => r.status === 'done');
+    const resolved = allDone && (!opts.resolveOnlyWhenSingle || this.review.activeFileIds(groupId).length < 2);
+    this.setGroupStatus(groupId, resolved ? 'resolved' : 'pending');
     return { groupId, stale: false, results };
   }
 
