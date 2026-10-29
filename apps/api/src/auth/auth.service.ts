@@ -41,6 +41,10 @@ const defaultFactory: PcaFactory = (config) => {
 
 export const PCA_FACTORY = 'PCA_FACTORY';
 
+export class LoginExpiredError extends Error {
+  constructor() { super('O pedido de login expirou. Tente conectar de novo.'); this.name = 'LoginExpiredError'; }
+}
+
 @Injectable()
 export class AuthService implements TokenSource {
   private pca: Pca | null = null;
@@ -83,7 +87,7 @@ export class AuthService implements TokenSource {
     const entry = this.pending.get(state);
     this.pending.delete(state);
     if (!entry || Date.now() - entry.createdAt > 10 * 60_000) {
-      throw new Error('O pedido de login expirou. Tente conectar de novo.');
+      throw new LoginExpiredError();
     }
     await this.client().acquireTokenByCode({
       code,
