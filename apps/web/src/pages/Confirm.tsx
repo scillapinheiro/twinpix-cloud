@@ -37,19 +37,23 @@ export function Confirm() {
         {result.stale ? (
           <p className="notice">
             Este grupo mudou no OneDrive desde a análise (algum arquivo foi alterado, movido ou apagado). Nada foi movido.
-            Revise o grupo de novo antes de excluir.
+            {' '}O grupo foi atualizado com a situação atual — confira de novo antes de excluir.
           </p>
         ) : (
-          <ul>
-            {result.results.map((r) => (
-              <li key={r.actionId} className={r.status === 'failed' ? 'alert' : undefined}>
-                {r.fileName}: {STATUS_TEXT[r.status]}{r.error ? ` (${r.error})` : ''}
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul>
+              {result.results.map((r) => (
+                <li key={r.actionId} className={r.status === 'failed' ? 'alert' : undefined}>
+                  {r.fileName}: {STATUS_TEXT[r.status]}{r.error ? ` (${r.error})` : ''}
+                </li>
+              ))}
+            </ul>
+            <p className="muted">Mudou de ideia? Dá para desfazer no Histórico enquanto o arquivo estiver na lixeira.</p>
+          </>
         )}
-        <p className="muted">Mudou de ideia? Dá para desfazer no Histórico enquanto o arquivo estiver na lixeira.</p>
-        <button type="button" className="button primary" onClick={nextGroup}>Próximo grupo</button>
+        <button type="button" className="button primary" onClick={nextGroup}>
+          {result.stale ? 'Conferir o grupo atualizado' : 'Próximo grupo'}
+        </button>
       </section>
     );
   }

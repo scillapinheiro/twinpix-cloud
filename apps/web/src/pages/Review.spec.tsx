@@ -51,3 +51,16 @@ it('mostra o cabeçalho do grupo, pré-marca a cópia e segue para a confirmaç�
   await userEvent.click(screen.getByRole('button', { name: 'Excluir marcadas (1)' }));
   expect(screen.getByTestId('where').textContent).toContain('"deleteIds":["b"]');
 });
+
+it('grupo desatualizado mostra o aviso de que foi atualizado', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url.endsWith('/thumbnail')) return new Response(JSON.stringify({ url: null }));
+    return new Response(JSON.stringify({ ...group, status: 'stale' }));
+  }));
+  render(
+    <MemoryRouter initialEntries={['/revisao/1']}>
+      <Routes><Route path="/revisao/:scanId" element={<Review />} /></Routes>
+    </MemoryRouter>,
+  );
+  expect(await screen.findByText(/Ele foi atualizado com a situação atual/)).toBeInTheDocument();
+});

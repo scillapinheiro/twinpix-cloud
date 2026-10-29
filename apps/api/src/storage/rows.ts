@@ -46,10 +46,10 @@ export function rowToItem(r: FileRow): CloudItem {
   };
 }
 
-export function insertFile(sql: Database.Database, scanId: number, i: CloudItem): void {
+export function insertFile(sql: Database.Database, scanId: number, i: CloudItem, mode: 'IGNORE' | 'REPLACE' = 'IGNORE'): void {
   sql
     .prepare(
-      `INSERT OR IGNORE INTO files (scan_id, id, name, folder_path, size, quick_xor_hash, mime_type, kind,
+      `INSERT OR ${mode} INTO files (scan_id, id, name, folder_path, size, quick_xor_hash, mime_type, kind,
         taken_at, created_at, modified_at, width, height, camera_make, camera_model, duration_ms, web_url)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )

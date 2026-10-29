@@ -91,7 +91,9 @@ export function Review() {
           Grupo {group.position} de {group.total} · Cópias idênticas · {formatBytes(group.bytesFreedSoFar)} liberados até agora
         </strong>
         {group.status === 'stale' && (
-          <p className="notice">Este grupo mudou no OneDrive desde a análise. Confira as cópias antes de excluir.</p>
+          <p className="notice">
+            Este grupo mudou no OneDrive desde a análise. Ele foi atualizado com a situação atual — confira as cópias antes de excluir.
+          </p>
         )}
         {group.status === 'resolved' && <p className="muted">Este grupo já foi resolvido.</p>}
         {group.status === 'skipped' && <p className="muted">Você pulou este grupo.</p>}

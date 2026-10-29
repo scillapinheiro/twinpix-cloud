@@ -58,31 +58,60 @@ describe('ActionsService', () => {
     expect(actions.history()).toHaveLength(2);
   });
 
-  it('se a cópia que fica sumiu, nada é movido e o grupo fica desatualizado', async () => {
+  it('se a cópia que fica sumiu, nada é movido e o grupo é atualizado sem ela', async () => {
     cloud.removeFile(keep);
     const r = await actions.apply(groupId, extra);
     expect(r).toEqual({ groupId, stale: true, results: [] });
     expect(cloud.calls).not.toContain('moveToTrash');
-    expect(review.view(groupId).status).toBe('stale');
+    const g = review.view(groupId);
+    expect(g.status).toBe('pending');
+    expect(g.files.map((f) => f.id).sort()).toEqual(['c1', 'c2']);
   });
 
-  it('se a cópia que fica mudou de conteúdo, nada é movido', async () => {
+  it('se a cópia que fica mudou de conteúdo, nada é movido e ela sai do grupo', async () => {
     cloud.updateFile(keep, { quickXorHash: 'editada' });
     expect((await actions.apply(groupId, extra)).stale).toBe(true);
     expect(cloud.calls).not.toContain('moveToTrash');
+    expect(review.activeFileIds(groupId)).toEqual(['c1', 'c2']);
+    expect(db.sql.prepare("SELECT quick_xor_hash h FROM files WHERE id = ?").get(keep)).toEqual({ h: 'editada' });
   });
 
-  it('se o arquivo que sai mudou, nada é movido', async () => {
+  it('se o arquivo que sai mudou, nada é movido e ele sai do grupo', async () => {
     cloud.updateFile('c1', { size: 999 });
     expect((await actions.apply(groupId, extra)).stale).toBe(true);
     expect(cloud.calls).not.toContain('moveToTrash');
+    expect(review.activeFileIds(groupId)).toEqual(['c2', 'orig']);
   });
 
-  it('se o arquivo que sai desapareceu, nada é movido e o grupo fica desatualizado', async () => {
+  it('se o arquivo que sai desapareceu, nada é movido e o grupo é atualizado', async () => {
     cloud.removeFile('c1');
     expect((await actions.apply(groupId, extra)).stale).toBe(true);
     expect(cloud.calls).not.toContain('moveToTrash');
-    expect(review.view(groupId).status).toBe('stale');
+    expect(review.view(groupId)).toMatchObject({ status: 'pending' });
+    expect(review.activeFileIds(groupId)).toEqual(['c2', 'orig']);
+  });
+
+  it('grupo desatualizado: o próximo grupo é o atualizado e a nova tentativa funciona', async () => {
+    cloud.removeFile('c2');
+    cloud.updateFile('c1', { modifiedAt: '2020-01-01T00:00:00Z' });
+    expect((await actions.apply(groupId, extra)).stale).toBe(true);
+    const g = review.current(review.view(groupId).scanId)!;
+    expect(g.id).toBe(groupId);
+    expect(g.files.map((f) => f.id)).toEqual(['c1', 'orig']);
+    expect(g.files.find((f) => f.id === 'c1')!.modifiedAt).toBe('2020-01-01T00:00:00Z');
+    const r = await actions.apply(g.id, g.preMarkedIds);
+    expect(r.stale).toBe(false);
+    expect(r.results.map((x) => x.status)).toEqual(['done']);
+    expect(review.view(groupId).status).toBe('resolved');
+  });
+
+  it('grupo desatualizado que fica com uma cópia só é dado como resolvido', async () => {
+    cloud.removeFile('c1');
+    cloud.removeFile('c2');
+    expect((await actions.apply(groupId, ['c1'])).stale).toBe(true);
+    expect(review.view(groupId).status).toBe('resolved');
+    expect(review.current(review.view(groupId).scanId)).toBeNull();
+    expect(cloud.isInTrash('orig')).toBe(false);
   });
 
   it('sem conexão na conferência: rejeita, não move e não muda o grupo', async () => {

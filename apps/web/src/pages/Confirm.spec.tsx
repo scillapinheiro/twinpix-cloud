@@ -43,10 +43,18 @@ it('depois de mover mostra o resultado de cada arquivo', async () => {
   expect(screen.getByText('tela de revisão')).toBeInTheDocument();
 });
 
-it('grupo desatualizado: avisa que nada foi movido', async () => {
+it('grupo desatualizado: avisa que nada foi movido e que o grupo foi atualizado', async () => {
   renderAt({ groupId: 7, stale: true, results: [] });
   await userEvent.click(await screen.findByRole('button', { name: 'Mover para a lixeira' }));
-  expect(await screen.findByText(/Nada foi movido/)).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      'Este grupo mudou no OneDrive desde a análise (algum arquivo foi alterado, movido ou apagado). Nada foi movido. ' +
+        'O grupo foi atualizado com a situação atual — confira de novo antes de excluir.',
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/desfazer no Histórico/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Conferir o grupo atualizado' }));
+  expect(screen.getByText('tela de revisão')).toBeInTheDocument();
 });
 
 it('erro ao mover mantém a tela e deixa tentar de novo', async () => {

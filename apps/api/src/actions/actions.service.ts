@@ -1,10 +1,11 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import type { ActionResult, ActionStatus, ApplyResult, DeletionPreview, HistoryEntry, UndoResponse } from '@twinpix/shared';
+import type { CloudItem } from '@twinpix/shared';
 import type { CloudProvider } from '../cloud/cloud-provider';
 import { ForbiddenError } from '../cloud/errors';
 import { ReviewService } from '../review/review.service';
 import type { Db } from '../storage/db';
-import { getFilesByIds, nowIso, rowToItem, type FileRow } from '../storage/rows';
+import { getFilesByIds, insertFile, nowIso, rowToItem, type FileRow } from '../storage/rows';
 import { CLOUD_PROVIDER, DB } from '../tokens';
 import { planDeletion } from './deletion-plan';
 
@@ -62,13 +63,15 @@ export class ActionsService implements OnModuleInit {
     const stored = new Map(getFilesByIds(this.db.sql, scanId, [...plan.deleteIds, ...plan.keepIds]).map((f) => [f.id, f]));
 
     // Confere o que sai E o que fica antes de mover qualquer coisa.
-    for (const id of [...plan.keepIds, ...plan.deleteIds]) {
-      const current = await this.cloud.getItem(id);
+    const fresh = new Map<string, CloudItem | null>();
+    for (const id of [...plan.keepIds, ...plan.deleteIds]) fresh.set(id, await this.cloud.getItem(id));
+    const changed = [...fresh].some(([id, current]) => {
       const before = stored.get(id)!;
-      if (!current || current.quickXorHash !== before.quickXorHash || current.size !== before.size) {
-        this.setGroupStatus(groupId, 'stale');
-        return { groupId, stale: true, results: [] };
-      }
+      return !current || current.quickXorHash !== before.quickXorHash || current.size !== before.size;
+    });
+    if (changed) {
+      this.refreshGroup(groupId, scanId, fresh);
+      return { groupId, stale: true, results: [] };
     }
 
     const keptRef = plan.keepIds[0];
@@ -164,6 +167,35 @@ export class ActionsService implements OnModuleInit {
       this.setGroupStatus(a.group_id, 'pending');
     }
     return { result, message: UNDO_MESSAGES[result] };
+  }
+
+  /**
+   * O grupo mudou no OneDrive: grava a situação atual em vez de só marcar "desatualizado", para que a
+   * próxima revisão mostre o grupo certo e uma nova tentativa possa dar certo.
+   * - arquivo que sumiu sai do grupo (e da análise, se não tiver ações registradas);
+   * - arquivo que mudou tem os dados atualizados e, se o conteúdo não bate mais com a chave do grupo
+   *   (mesmo hash + tamanho), sai do grupo;
+   * - sobrando menos de 2 cópias, não há mais o que revisar: o grupo fica resolvido.
+   */
+  private refreshGroup(groupId: number, scanId: number, fresh: Map<string, CloudItem | null>): void {
+    const sql = this.db.sql;
+    const { key } = sql.prepare('SELECT key FROM dup_groups WHERE id = ?').get(groupId) as { key: string };
+    const removeFromGroup = sql.prepare('DELETE FROM dup_group_files WHERE group_id = ? AND file_id = ?');
+    const hasActions = sql.prepare(
+      'SELECT 1 FROM actions a JOIN dup_groups g ON g.id = a.group_id WHERE g.scan_id = ? AND a.file_id = ? LIMIT 1',
+    );
+    sql.transaction(() => {
+      for (const [id, item] of fresh) {
+        if (!item) {
+          removeFromGroup.run(groupId, id);
+          if (!hasActions.get(scanId, id)) sql.prepare('DELETE FROM files WHERE scan_id = ? AND id = ?').run(scanId, id);
+          continue;
+        }
+        insertFile(sql, scanId, item, 'REPLACE');
+        if (!item.quickXorHash || `${item.quickXorHash}:${item.size}` !== key) removeFromGroup.run(groupId, id);
+      }
+      this.setGroupStatus(groupId, this.review.activeFileIds(groupId).length < 2 ? 'resolved' : 'pending');
+    })();
   }
 
   private plan(groupId: number, deleteIds: string[]) {
