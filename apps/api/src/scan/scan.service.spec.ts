@@ -77,6 +77,24 @@ describe('ScanService', () => {
     expect(scan.summary(id2)).toMatchObject({ status: 'done', filesFound: 6 });
   });
 
+  it('erro inesperado grava só frase fixa; valor antigo no banco também é saneado', async () => {
+    const { a } = tree();
+    cloud.failNext('listChildren', new Error('401 token=segredo https://graph/x'));
+    const id = scan.start([a]);
+    await scan.whenIdle(id);
+    expect(scan.summary(id)).toMatchObject({ status: 'error', error: 'A análise parou por um erro inesperado.' });
+    db.sql.prepare('UPDATE scans SET error = ? WHERE id = ?').run('texto cru qualquer', id);
+    expect(scan.summary(id).error).toBe('A análise parou por um erro inesperado.');
+  });
+
+  it('token expirado guarda a frase fixa de reconexão', async () => {
+    const { a } = tree();
+    cloud.failNext('listChildren', new ReconnectRequiredError('detalhe interno'));
+    const id = scan.start([a]);
+    await scan.whenIdle(id);
+    expect(scan.summary(id).error).toBe('A conexão com o OneDrive expirou. Conecte de novo.');
+  });
+
   it('pausar e retomar continua de onde parou, incluindo a página', async () => {
     const { a, b } = tree();
     const id = scan.start([a, b]);

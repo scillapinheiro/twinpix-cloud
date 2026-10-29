@@ -111,7 +111,7 @@ export function ScanProgress() {
             : <button type="button" className="button" onClick={() => setConfirmingCancel(true)}>Cancelar análise</button>
         )}
         {scan.status === 'needs-auth' && <a className="button primary" href="/api/auth/login">Conectar de novo</a>}
-        {scan.groupsPending + scan.groupsSkipped > 0 && (
+        {scan.status !== 'cancelled' && scan.groupsPending + scan.groupsSkipped > 0 && (
           <Link className="button primary" to={`/revisao/${scan.id}`}>
             {scan.status === 'done' ? 'Começar a revisão' : 'Começar a revisão enquanto a análise continua'}
           </Link>
@@ -119,7 +119,7 @@ export function ScanProgress() {
         {scan.status === 'done' && scan.groupsPending > 0 && (
           <Link className="button" to={`/lote/${scan.id}`}>Revisar em lote</Link>
         )}
-        {scan.probablePending + scan.probableSkipped > 0 && (
+        {scan.status !== 'cancelled' && scan.probablePending + scan.probableSkipped > 0 && (
           <Link className="button" to={`/revisao/${scan.id}?tipo=provaveis`}>Revisar prováveis cópias</Link>
         )}
         {scan.status === 'done' && clusterCount > 0 && (

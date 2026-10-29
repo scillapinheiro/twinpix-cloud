@@ -19,6 +19,12 @@ export interface ScanOptions {
 interface FolderRow { folder_id: string; path: string; page_token: string | null }
 
 @Injectable()
+export const SCAN_ERRORS = {
+  unexpected: 'A análise parou por um erro inesperado.',
+  reconnect: 'A conexão com o OneDrive expirou. Conecte de novo.',
+} as const;
+const KNOWN_SCAN_ERRORS: ReadonlySet<string> = new Set(Object.values(SCAN_ERRORS));
+
 export class ScanService implements OnModuleInit {
   private readonly running = new Map<number, Promise<void>>();
   private readonly pauseRequested = new Set<number>();
@@ -131,7 +137,7 @@ export class ScanService implements OnModuleInit {
          JOIN files f ON f.scan_id = g.scan_id AND f.id = a.file_id
          WHERE g.scan_id = ? AND a.status = 'done'`,
       ).get(scanId) as { n: number }).n,
-      error: scan.error,
+      error: scan.error && KNOWN_SCAN_ERRORS.has(scan.error) ? scan.error : scan.error ? SCAN_ERRORS.unexpected : null,
     };
   }
 
@@ -151,7 +157,7 @@ export class ScanService implements OnModuleInit {
     try {
       await this.runLoop(scanId);
     } catch (e) {
-      this.setStatus(scanId, 'error', (e as Error).message);
+      this.setStatus(scanId, 'error', SCAN_ERRORS.unexpected);
     }
   }
 
@@ -185,7 +191,7 @@ export class ScanService implements OnModuleInit {
           continue;
         }
         if (e instanceof ReconnectRequiredError) {
-          this.setStatus(scanId, 'needs-auth', e.message);
+          this.setStatus(scanId, 'needs-auth', SCAN_ERRORS.reconnect);
           return;
         }
         if (e instanceof ForbiddenError) {
@@ -193,7 +199,7 @@ export class ScanService implements OnModuleInit {
             .run(scanId, folder.folder_id);
           continue;
         }
-        this.setStatus(scanId, 'error', (e as Error).message);
+        this.setStatus(scanId, 'error', SCAN_ERRORS.unexpected);
         return;
       }
     }

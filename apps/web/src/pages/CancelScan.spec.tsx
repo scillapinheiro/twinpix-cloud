@@ -57,3 +57,19 @@ describe('cancelar análise', () => {
     expect(screen.queryByRole('button', { name: 'Cancelar análise' })).not.toBeInTheDocument();
   });
 });
+
+describe('análise cancelada', () => {
+  it('mostra o aviso e esconde os atalhos de revisão', async () => {
+    const full = { ...scan('cancelled'), groupsPending: 2, probablePending: 1 };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(full))));
+    render(
+      <MemoryRouter initialEntries={['/varredura/3']}>
+        <Routes><Route path="/varredura/:id" element={<ScanProgress />} /></Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText(/Análise cancelada\./)).toBeInTheDocument();
+    for (const name of [/Começar a revisão/, /Revisar prováveis cópias/, /Revisar em lote/, /Pastas repetidas/]) {
+      expect(screen.queryByRole('link', { name })).toBeNull();
+    }
+  });
+});
