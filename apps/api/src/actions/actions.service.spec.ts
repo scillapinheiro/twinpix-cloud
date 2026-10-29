@@ -86,6 +86,13 @@ describe('ActionsService', () => {
     expect(db.sql.prepare("SELECT quick_xor_hash h FROM files WHERE id = ?").get(keep)).toEqual({ h: 'editada' });
   });
 
+  it('grupo provável: se a cópia que fica ganhou sufixo no nome (mesmo hash e tamanho), é stale e nada é movido', async () => {
+    db.sql.prepare("UPDATE dup_groups SET kind = 'probable' WHERE id = ?").run(groupId);
+    cloud.updateFile(keep, { name: 'x (3).jpg' });
+    expect((await actions.apply(groupId, extra)).stale).toBe(true);
+    expect(cloud.calls).not.toContain('moveToTrash');
+  });
+
   it('se o arquivo que sai mudou, nada é movido e ele sai do grupo', async () => {
     cloud.updateFile('c1', { size: 999 });
     expect((await actions.apply(groupId, extra)).stale).toBe(true);

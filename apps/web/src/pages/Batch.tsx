@@ -176,7 +176,7 @@ function BatchPreviewView({ preview, scanId, probable, onStarted }: { preview: B
         <h1>{title}</h1>
         <p>Não há grupos para o lote.</p>
         {preview.tiesCount > 0 && <p className="notice">{plural(preview.tiesCount, 'grupo sem regra clara fica', 'grupos sem regra clara ficam')} para a revisão um por um.</p>}
-        <div className="row"><Link className="button primary" to={`/revisao/${scanId}`}>Revisão um por um</Link></div>
+        <div className="row"><Link className="button primary" to={`/revisao/${scanId}${probable ? '?tipo=provaveis' : ''}`}>Revisão um por um</Link></div>
       </section>
     );
   }
@@ -189,7 +189,7 @@ function BatchPreviewView({ preview, scanId, probable, onStarted }: { preview: B
           {probable ? (
             <>
               <p className="notice probable-warning" role="note">
-                <span aria-hidden="true">⚠ </span>Podem ser a original e uma versão editada. Confira antes de excluir.
+                <span aria-hidden="true">⚠ </span>São fotos que parecem regravadas (mesma imagem, arquivo um pouco diferente). Confira as miniaturas antes de marcar.
               </p>
               <p>
                 Só grupos que parecem a mesma gravação, com a cópia sem sufixo de cópia no nome. Em cada grupo, fica essa cópia; as outras

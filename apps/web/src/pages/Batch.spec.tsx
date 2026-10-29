@@ -437,10 +437,33 @@ describe('modo prováveis (?tipo=provaveis)', () => {
     renderProb();
     expect(await screen.findByRole('heading', { name: 'Lote das prováveis regravações' })).toBeInTheDocument();
     expect(calls.some((c) => c.url === '/api/scans/1/batch?kind=probable')).toBe(true);
-    expect(screen.getByRole('note')).toHaveTextContent('Podem ser a original e uma versão editada. Confira antes de excluir.');
+    expect(screen.getByRole('note')).toHaveTextContent('São fotos que parecem regravadas (mesma imagem, arquivo um pouco diferente). Confira as miniaturas antes de marcar.');
     expect(screen.getAllByRole('checkbox').every((c) => !(c as HTMLInputElement).checked)).toBe(true);
     expect(screen.getByRole('button', { name: 'Mover para a lixeira (0 arquivos)' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: /Inverter/ })).toBeNull();
+  });
+
+  it('prévia vazia no modo prováveis leva a Revisão um por um com ?tipo=provaveis', async () => {
+    const f = fetch as ReturnType<typeof vi.fn>;
+    const orig = f.getMockImplementation()!;
+    f.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/scans/1/batch?kind=probable') return new Response(JSON.stringify({ ...probPreview, lines: [], pendingCount: 0 }));
+      return orig(url, init);
+    });
+    render(<MemoryRouter initialEntries={['/lote/1?tipo=provaveis']}><Routes><Route path="/lote/:scanId" element={<Batch />} /></Routes></MemoryRouter>);
+    const link = await screen.findByRole('link', { name: 'Revisão um por um' });
+    expect(link).toHaveAttribute('href', '/revisao/1?tipo=provaveis');
+  });
+
+  it('fim de lote das prováveis: o link dos pulados leva a ?tipo=provaveis', async () => {
+    batchGet = summary({ kind: 'probable', status: 'done', doneGroups: 1, skippedGroups: 1, movedFiles: 1 });
+    renderProb();
+    await screen.findByText('2 grupos');
+    await userEvent.click(screen.getByRole('checkbox'));
+    await userEvent.click(screen.getByRole('button', { name: /Mover para a lixeira \(/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
+    const link = await screen.findByRole('link', { name: 'Revisão um por um' }, { timeout: 3000 });
+    expect(link).toHaveAttribute('href', '/revisao/1?tipo=provaveis');
   });
 
   it('ver lista mostra as miniaturas de cara e o POST leva kind=probable com os keeps das marcadas', async () => {

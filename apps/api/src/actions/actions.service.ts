@@ -90,8 +90,8 @@ export class ActionsService implements OnModuleInit {
     const changed = [...fresh].some(([id, current]) => {
       const before = stored.get(id)!;
       if (!current || current.quickXorHash !== before.quickXorHash || current.size !== before.size) return true;
-      // prováveis valem por nome-base, dimensões e data: mudou algum, o grupo precisa ser reavaliado
-      return probable && (current.width !== before.width || current.height !== before.height || current.takenAt !== before.takenAt || baseName(current.name) !== baseName(before.name));
+      // prováveis valem por nome exato (a que fica é a sem sufixo), dimensões e data: mudou algum, o grupo precisa ser reavaliado
+      return probable && (current.width !== before.width || current.height !== before.height || current.takenAt !== before.takenAt || current.name !== before.name);
     });
     if (changed) {
       this.refreshGroup(groupId, scanId, fresh);
