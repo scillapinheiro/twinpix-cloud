@@ -71,6 +71,18 @@ describe('FoldersReconcileService', () => {
     for (const it of plan.items) expect(cloud.isInTrash(it.keepId)).toBe(false);
   });
 
+  it('arquivo com ação feita (já na lixeira) fica fora do conjunto e do plano', () => {
+    const gid = (db.sql.prepare("SELECT group_id g FROM dup_group_files WHERE file_id = 'b1'").get() as { g: number }).g;
+    db.sql.prepare("INSERT INTO actions (group_id, file_id, kept_file_id, status, created_at, updated_at) VALUES (?, 'b1', 'a1', 'done', 'x', 'x')").run(gid);
+    const [c] = svc.clusters(scanId);
+    expect(c.folders.find((x) => x.path === B)!.fileCount).toBe(3);
+    expect(c.groupCount).toBe(3);
+    const plan = svc.plan(scanId, c.key, A);
+    expect(plan.items.map((i) => i.groupId)).not.toContain(gid);
+    expect(plan.deleteFiles.map((x) => x.id).sort()).toEqual(['b2', 'b3', 'b4']);
+    expect(plan.remaining.find((r) => r.path === B)!.fileCount).toBe(0);
+  });
+
   it('erros com mensagens em português', () => {
     const [c] = svc.clusters(scanId);
     expect(() => svc.plan(scanId, '["x"]', A)).toThrow(NotFoundException);
