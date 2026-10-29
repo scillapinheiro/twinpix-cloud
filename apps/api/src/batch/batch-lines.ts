@@ -1,8 +1,9 @@
 import type { BatchItem, BatchLine, CloudItem, Suggestion } from '@twinpix/shared';
+import { isLikelyResave } from '../grouping/likely-resave';
 
 export interface BatchGroupInput {
   groupId: number;
-  kind: 'identical';
+  kind: 'identical' | 'probable';
   files: CloudItem[];
   suggestion: Suggestion;
   /**
@@ -13,6 +14,7 @@ export interface BatchGroupInput {
 }
 
 const RULE_PREFIX = 'regra: ';
+const PROBABLE_REASON = 'nome sem sufixo de cópia';
 
 export function lineKeyOf(keepFolder: string, removeFolders: string[]): string {
   return JSON.stringify([keepFolder, [...removeFolders].sort()]);
@@ -25,12 +27,19 @@ export function buildBatchLines(groups: BatchGroupInput[]): { lines: BatchLine[]
 
   const ordered = [...groups].sort((a, b) => a.groupId - b.groupId);
   for (const g of ordered) {
-    if (g.kind !== 'identical' || g.files.length < 2) continue;
-    if (g.suggestion.fallback) {
+    if ((g.kind !== 'identical' && g.kind !== 'probable') || g.files.length < 2) continue;
+    const probable = g.kind === 'probable';
+    let keepId = g.suggestion.keepId;
+    if (probable) {
+      // Prováveis: só entram as regravações seguras; a cópia que fica é a do filtro (a sugestão é ignorada).
+      const verdict = isLikelyResave(g.files);
+      if (!verdict.ok) continue;
+      keepId = verdict.keepId;
+    } else if (g.suggestion.fallback) {
       tiesCount++;
       continue;
     }
-    const keep = g.files.find((f) => f.id === g.suggestion.keepId);
+    const keep = g.files.find((f) => f.id === keepId);
     // keepId fora dos arquivos do grupo (grupo mudou): pula de propósito; segue pendente para revisão manual.
     if (!keep) continue;
     const remove = g.files.filter((f) => f.id !== keep.id);
@@ -44,15 +53,16 @@ export function buildBatchLines(groups: BatchGroupInput[]): { lines: BatchLine[]
       byKey.set(key, line);
       reasons.set(key, new Set());
     }
-    const reason = g.suggestion.reason.startsWith(RULE_PREFIX)
-      ? g.suggestion.reason.slice(RULE_PREFIX.length)
-      : g.suggestion.reason;
+    const rawReason = probable ? PROBABLE_REASON : g.suggestion.reason;
+    const reason = rawReason.startsWith(RULE_PREFIX) ? rawReason.slice(RULE_PREFIX.length) : rawReason;
     reasons.get(key)!.add(reason);
     const item: BatchItem = {
       groupId: g.groupId,
       keep,
       remove,
-      keepByFolder: Object.fromEntries(
+      keepByFolder: probable
+        ? { [keep.folderPath]: keep.id }
+        : Object.fromEntries(
         [keep.folderPath, ...removeFolders]
           .map((folder): [string, string | undefined] => [folder, g.keepByFolder?.[folder] ?? (folder === keep.folderPath ? keep.id : undefined)])
           .filter((e): e is [string, string] => e[1] !== undefined),

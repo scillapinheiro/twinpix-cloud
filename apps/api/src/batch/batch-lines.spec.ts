@@ -121,4 +121,27 @@ describe('buildBatchLines', () => {
       }
     }));
   });
+  describe('grupos prováveis', () => {
+    const p = (id: string, name: string, folderPath: string, size = 1000): CloudItem => ({
+      ...f(id, folderPath, size), name, takenAt: '2015-01-01T10:00:00Z', width: 4000, height: 3000, cameraMake: 'Canon', cameraModel: 'EOS', durationMs: null,
+    } as CloudItem);
+    const pg = (groupId: number, files: CloudItem[]): BatchGroupInput => ({
+      groupId, kind: 'probable', files, suggestion: { keepId: files[files.length - 1].id, reason: 'x', fallback: true },
+    });
+
+    it('regravação segura vira linha; fica a sem sufixo, motivo fixo, sem inverter', () => {
+      const { lines, tiesCount } = buildBatchLines([pg(1, [p('b', 'x 1.jpg', '/B'), p('a', 'x.jpg', '/A')])]);
+      expect(tiesCount).toBe(0);
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toMatchObject({ keepFolder: '/A', removeFolders: ['/B'], keepOptions: ['/A'], reasons: ['nome sem sufixo de cópia'] });
+      expect(lines[0].items[0].keep.id).toBe('a');
+      expect(lines[0].items[0].keepByFolder).toEqual({ '/A': 'a' });
+    });
+
+    it('grupo reprovado no filtro é pulado sem contar empate', () => {
+      const { lines, tiesCount } = buildBatchLines([pg(1, [p('a', 'x.jpg', '/A'), p('b', 'x 1.jpg', '/B', 2000)])]);
+      expect(lines).toEqual([]);
+      expect(tiesCount).toBe(0);
+    });
+  });
 });
