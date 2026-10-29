@@ -71,6 +71,16 @@ Foram tomadas pelo Claude com a autonomia dada para a noite. A usuária pode rev
 | Mensagens do login sempre fixas em português | O endereço de retorno do login podia exibir texto de terceiros dentro do app. |
 | `npm` workspaces, em vez de `pnpm` | O `pnpm` não está instalado na máquina. |
 
+## README final (decisão da autora, 29/10/2026)
+
+Reescrever o README **uma vez só, no fim da v1**, depois de tudo pronto, mergeado na `main` e com
+as branches apagadas. Seguir o padrão dos READMEs dela
+(github.com/scillapinheiro/gama-academy-desafio-final e .../b7web-starbucks): título/logo
+centralizado, menu de links, selos (licença), imagem de mockup, seções com emoji
+(:computer: Projeto, :rocket: Tecnologias com badges `for-the-badge`, :eyes: demonstração/como
+usar, :memo: Licença) e desenvolvedora com avatar do GitHub. Mockup e detalhes ficam a critério
+do Claude. Até lá, não mexer no README além do necessário.
+
 ## Pendências conhecidas (não bloqueiam; ficaram registradas pela revisão)
 
 - Falha de configuração do app na Microsoft *depois* de um login bem-sucedido (por exemplo,

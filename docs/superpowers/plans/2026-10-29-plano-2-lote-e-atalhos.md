@@ -299,8 +299,9 @@ atualiza o handoff — o implementador só faz e2e e README).
 - e2e (modo demonstração): análise das duas pastas → `GET /api/scans/:id/batch` com ≥ 2 linhas →
   `POST` com todas → aguarda `done` → todos os grupos não-empate resolvidos e **cada grupo mantém
   uma cópia** → `POST /api/batches/:id/undo` → aguarda `undone` → `restoredFiles === movedFiles`.
-- README: seção curta "Revisar em lote" e "Atalhos".
+- README: **não mexer** (decisão da autora em 29/10: o README será reescrito uma única vez no fim
+  da v1, no padrão dos projetos dela, depois de tudo mergeado e das branches limpas).
 - Verificação: `npm test && npm run typecheck && npm run build` e smoke da demo (PORT=4400, nunca a
   4317) passando pelo lote via API.
 
-Commit: `test: lote de ponta a ponta na demo; docs: README com lote e atalhos`.
+Commit: `test: lote de ponta a ponta na demo`.
