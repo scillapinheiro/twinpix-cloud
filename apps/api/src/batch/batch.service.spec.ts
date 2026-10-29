@@ -60,6 +60,18 @@ beforeEach(async () => {
 });
 
 const lineFor = (folder: string) => batch.preview(scanId).lines.find((l) => l.removeFolders.includes(folder))!;
+/** O que o cliente envia: a ★ de cada grupo das linhas marcadas, como a prévia mostrou. */
+function keepsFor(lineKeys: string[], keepFolders: Record<string, string> = {}): Record<string, string> {
+  const keeps: Record<string, string> = {};
+  for (const l of batch.preview(scanId).lines.filter((x) => lineKeys.includes(x.key))) {
+    const folder = keepFolders[l.key] ?? l.keepFolder;
+    for (const it of l.items) keeps[it.groupId] = folder === l.keepFolder ? it.keep.id : it.keepByFolder[folder];
+  }
+  return keeps;
+}
+function startBatch(lineKeys: string[], keepFolders: Record<string, string> = {}) {
+  return batch.start(scanId, lineKeys, keepFolders, keepsFor(lineKeys, keepFolders));
+}
 function manualBatch(line: { key: string; items: Array<{ groupId: number }> }, status = 'paused', keepFolder: string | null = null): number {
   const { lastInsertRowid } = db.sql.prepare('INSERT INTO batches (scan_id, created_at, status) VALUES (?, ?, ?)').run(scanId, new Date().toISOString(), status);
   const id = Number(lastInsertRowid);
@@ -92,7 +104,7 @@ describe('BatchService', () => {
 
   it('executa só as linhas escolhidas, mantém a sugerida e registra no histórico', async () => {
     const line = lineFor('/B');
-    const s = batch.start(scanId, [line.key]);
+    const s = startBatch([line.key]);
     await batch.whenIdle(s.id);
     expect(batch.summary(s.id)).toMatchObject({ status: 'done', totalGroups: 2, doneGroups: 2, skippedGroups: 0, movedFiles: 2, movedBytes: 300, failedFiles: 0, restoredFiles: 0 });
     expect(cloud.isInTrash('b1') && cloud.isInTrash('b2')).toBe(true);
@@ -106,7 +118,7 @@ describe('BatchService', () => {
     const line = lineFor('/B');
     const gid = line.items.find((i) => i.remove[0].id === 'b1')!.groupId;
     cloud.updateFile('b1', { size: 999 });
-    const s = batch.start(scanId, [line.key]);
+    const s = startBatch([line.key]);
     await batch.whenIdle(s.id);
     expect(batch.summary(s.id)).toMatchObject({ status: 'done', doneGroups: 1, skippedGroups: 1, movedFiles: 1 });
     expect(cloud.isInTrash('b1')).toBe(false);
@@ -119,7 +131,7 @@ describe('BatchService', () => {
     const line = lineFor('/D');
     const gid = line.items[0].groupId;
     cloud.updateFile('d4', { quickXorHash: 'editada' });
-    const s = batch.start(scanId, [line.key]);
+    const s = startBatch([line.key]);
     await batch.whenIdle(s.id);
     expect(batch.summary(s.id)).toMatchObject({ status: 'done', doneGroups: 0, skippedGroups: 1, movedFiles: 0 });
     expect(cloud.calls).not.toContain('moveToTrash');
@@ -147,7 +159,7 @@ describe('BatchService', () => {
       setRules(db, [{ type: 'inFolder', path: '/B' }]);
       return real(...args);
     });
-    const s = batch.start(scanId, [line.key]);
+    const s = startBatch([line.key]);
     await batch.whenIdle(s.id);
     expect(batch.summary(s.id)).toMatchObject({ status: 'done', doneGroups: 0, skippedGroups: 2, movedFiles: 0 });
     expect(cloud.calls).not.toContain('moveToTrash');
@@ -169,7 +181,7 @@ describe('BatchService', () => {
   it('sem internet no meio: espera e termina', async () => {
     const line = lineFor('/B');
     cloud.failNext('getItem', new OfflineError(), 2);
-    const s = batch.start(scanId, [line.key]);
+    const s = startBatch([line.key]);
     await batch.whenIdle(s.id);
     expect(batch.summary(s.id)).toMatchObject({ status: 'done', doneGroups: 2, movedFiles: 2 });
     await expectEveryGroupKeepsACopy();
@@ -177,7 +189,7 @@ describe('BatchService', () => {
 
   it('pausar e continuar', async () => {
     const line = lineFor('/B');
-    const s = batch.start(scanId, [line.key]);
+    const s = startBatch([line.key]);
     batch.pause(s.id);
     await batch.whenIdle(s.id);
     expect(batch.summary(s.id).status).toBe('paused');
@@ -199,17 +211,17 @@ describe('BatchService', () => {
 
   it('só um lote por vez; chaves desconhecidas e lista vazia dão 400', async () => {
     const line = lineFor('/B');
-    expect(() => batch.start(scanId, ['nada'])).toThrow('A prévia mudou. Abra o lote de novo.');
-    expect(() => batch.start(scanId, [])).toThrow('Escolha pelo menos uma linha.');
-    const s = batch.start(scanId, [line.key]);
-    expect(() => batch.start(scanId, [lineFor('/C').key])).toThrow('Já existe um lote em andamento.');
+    expect(() => startBatch(['nada'])).toThrow('A prévia mudou. Abra o lote de novo.');
+    expect(() => startBatch([])).toThrow('Escolha pelo menos uma linha.');
+    const s = startBatch([line.key]);
+    expect(() => startBatch([lineFor('/C').key])).toThrow('Já existe um lote em andamento.');
     await batch.whenIdle(s.id);
     await expectEveryGroupKeepsACopy();
   });
 
   it('desfazer restaura tudo e os grupos voltam a pendente', async () => {
     const line = lineFor('/B');
-    const s = batch.start(scanId, [line.key]);
+    const s = startBatch([line.key]);
     await batch.whenIdle(s.id);
     expect(batch.undo(s.id).status).toBe('undoing');
     await batch.whenIdle(s.id);
@@ -222,7 +234,7 @@ describe('BatchService', () => {
 
   it('arquivo que saiu da lixeira conta em notRestoredFiles', async () => {
     const line = lineFor('/B');
-    const s = batch.start(scanId, [line.key]);
+    const s = startBatch([line.key]);
     await batch.whenIdle(s.id);
     cloud.purgeFromTrash('b1');
     batch.undo(s.id);
@@ -246,7 +258,7 @@ describe('BatchService', () => {
 
   it('desfazer sem internet: espera em waiting-network, volta a undoing e termina', async () => {
     const line = lineFor('/B');
-    const s = batch.start(scanId, [line.key]);
+    const s = startBatch([line.key]);
     await batch.whenIdle(s.id);
     const seen: string[] = [];
     const b2 = new BatchService(db, review, actions, {
@@ -263,7 +275,7 @@ describe('BatchService', () => {
 
   it('reinício durante o desfazer (undoing ou waiting-network) continua o desfazer', async () => {
     const line = lineFor('/B');
-    const s = batch.start(scanId, [line.key]);
+    const s = startBatch([line.key]);
     await batch.whenIdle(s.id);
     for (const st of ['undoing', 'waiting-network']) {
       db.sql.prepare('UPDATE batches SET status = ? WHERE id = ?').run(st, s.id);
@@ -280,7 +292,7 @@ describe('BatchService', () => {
 
   it('pausar durante o desfazer dá 400', async () => {
     const line = lineFor('/B');
-    const s = batch.start(scanId, [line.key]);
+    const s = startBatch([line.key]);
     await batch.whenIdle(s.id);
     db.sql.prepare("UPDATE batches SET status = 'undoing' WHERE id = ?").run(s.id);
     expect(() => batch.pause(s.id)).toThrow('Não dá para pausar enquanto desfaz.');
@@ -288,13 +300,64 @@ describe('BatchService', () => {
 
   it('desfazer ignora ações que já foram desfeitas à mão', async () => {
     const line = lineFor('/B');
-    const s = batch.start(scanId, [line.key]);
+    const s = startBatch([line.key]);
     await batch.whenIdle(s.id);
     const first = (db.sql.prepare("SELECT id FROM actions WHERE batch_id = ? ORDER BY id").get(s.id) as { id: number }).id;
     await actions.undo(first);
     batch.undo(s.id);
     await batch.whenIdle(s.id);
     expect(batch.summary(s.id)).toMatchObject({ status: 'undone', restoredFiles: 2, notRestoredFiles: 0 });
+  });
+
+  describe('a ★ enviada é exatamente a da prévia', () => {
+    const nBatches = () => (db.sql.prepare('SELECT COUNT(*) n FROM batches').get() as { n: number }).n;
+
+    it('caminho feliz: fixa keep_id = a ★ enviada', () => {
+      const line = lineFor('/B');
+      const keeps = keepsFor([line.key]);
+      const s = batch.start(scanId, [line.key], {}, keeps);
+      const rows = db.sql.prepare('SELECT group_id, keep_id FROM batch_groups WHERE batch_id = ? ORDER BY seq').all(s.id) as Array<{ group_id: number; keep_id: string }>;
+      expect(Object.fromEntries(rows.map((r) => [r.group_id, r.keep_id]))).toEqual(keeps);
+    });
+
+    it('grupo entrou na linha depois da prévia: 400 e nada é criado', async () => {
+      // Um grupo resolvido à mão fica fora da prévia; desfeito em outra aba, volta para a mesma linha.
+      const before = lineFor('/B');
+      const gid = before.items[0].groupId;
+      const r = await actions.apply(gid, before.items[0].remove.map((f) => f.id));
+      const seen = lineFor('/B');
+      expect(seen.items.map((i) => i.groupId)).not.toContain(gid);
+      const keeps = keepsFor([seen.key]);
+      await actions.undo(r.results[0].actionId!);
+      expect(lineFor('/B').items.map((i) => i.groupId)).toContain(gid);
+      expect(() => batch.start(scanId, [seen.key], {}, keeps)).toThrow('A prévia mudou. Abra o lote de novo.');
+      expect(nBatches()).toBe(0);
+    });
+
+    it('★ mudou depois da prévia: 400 e nada é criado', () => {
+      const line = lineFor('/D');
+      const keeps = keepsFor([line.key], { [line.key]: '/D' });
+      expect(Object.values(keeps)).toEqual(['d4']);
+      // Na prévia que a autora viu, a ★ em /D era d4x; hoje a regra escolhe d4.
+      const seen = { [line.items[0].groupId]: 'd4x' };
+      expect(() => batch.start(scanId, [line.key], { [line.key]: '/D' }, seen)).toThrow('A prévia mudou. Abra o lote de novo.');
+      expect(nBatches()).toBe(0);
+    });
+
+    it('grupo enviado fora das linhas marcadas, grupo faltando ou keeps inválido: 400', () => {
+      const b = lineFor('/B');
+      const c = lineFor('/C');
+      const keeps = keepsFor([b.key]);
+      const extra = { ...keeps, ...keepsFor([c.key]) };
+      expect(() => batch.start(scanId, [b.key], {}, extra)).toThrow('A prévia mudou. Abra o lote de novo.');
+      const missing = { ...keeps };
+      delete missing[b.items[0].groupId];
+      expect(() => batch.start(scanId, [b.key], {}, missing)).toThrow('A prévia mudou. Abra o lote de novo.');
+      for (const bad of [undefined, null, [], 'x', { [b.items[0].groupId]: 5 }]) {
+        expect(() => batch.start(scanId, [b.key], {}, bad as never)).toThrow('A prévia mudou. Abra o lote de novo.');
+      }
+      expect(nBatches()).toBe(0);
+    });
   });
 
   describe('inverter (escolher a pasta que fica)', () => {
@@ -309,14 +372,14 @@ describe('BatchService', () => {
 
     it('pasta fora das opções (ou de linha não marcada) dá 400 e nada é criado', () => {
       const line = lineFor('/B');
-      expect(() => batch.start(scanId, [line.key], { [line.key]: '/Z' })).toThrow('Pasta escolhida inválida. Abra o lote de novo.');
-      expect(() => batch.start(scanId, [line.key], { [lineFor('/C').key]: '/A' })).toThrow('Pasta escolhida inválida. Abra o lote de novo.');
+      expect(() => startBatch([line.key], { [line.key]: '/Z' })).toThrow('Pasta escolhida inválida. Abra o lote de novo.');
+      expect(() => startBatch([line.key], { [lineFor('/C').key]: '/A' })).toThrow('Pasta escolhida inválida. Abra o lote de novo.');
       expect(db.sql.prepare('SELECT COUNT(*) n FROM batches').get()).toEqual({ n: 0 });
     });
 
     it('linha invertida move as cópias da pasta sugerida e mantém a da pasta escolhida', async () => {
       const line = lineFor('/B');
-      const s = batch.start(scanId, [line.key], { [line.key]: '/B' });
+      const s = startBatch([line.key], { [line.key]: '/B' });
       await batch.whenIdle(s.id);
       expect(batch.summary(s.id)).toMatchObject({ status: 'done', doneGroups: 2, skippedGroups: 0, movedFiles: 2 });
       expect(cloud.isInTrash('a1') && cloud.isInTrash('a2')).toBe(true);
@@ -326,7 +389,7 @@ describe('BatchService', () => {
 
     it('escolher a própria pasta sugerida equivale a não inverter', async () => {
       const line = lineFor('/B');
-      const s = batch.start(scanId, [line.key], { [line.key]: line.keepFolder });
+      const s = startBatch([line.key], { [line.key]: line.keepFolder });
       await batch.whenIdle(s.id);
       expect(cloud.isInTrash('b1') && cloud.isInTrash('b2')).toBe(true);
       expect(cloud.isInTrash('a1') || cloud.isInTrash('a2')).toBe(false);
@@ -335,7 +398,7 @@ describe('BatchService', () => {
 
     it('pasta escolhida com 2 cópias: a regra desempata dentro dela e as outras saem', async () => {
       const line = lineFor('/D');
-      const s = batch.start(scanId, [line.key], { [line.key]: '/D' });
+      const s = startBatch([line.key], { [line.key]: '/D' });
       await batch.whenIdle(s.id);
       expect(batch.summary(s.id)).toMatchObject({ status: 'done', doneGroups: 1, movedFiles: 2 });
       expect(cloud.isInTrash('a4') && cloud.isInTrash('d4x')).toBe(true);
@@ -375,7 +438,7 @@ describe('BatchService', () => {
         setRules(db, [{ type: 'inFolder', path: '/B' }]);
         return real(...args);
       });
-      const s = batch.start(scanId, [line.key], { [line.key]: '/B' });
+      const s = startBatch([line.key], { [line.key]: '/B' });
       await batch.whenIdle(s.id);
       expect(batch.summary(s.id)).toMatchObject({ doneGroups: 0, skippedGroups: 2, movedFiles: 0 });
       expect(cloud.calls).not.toContain('moveToTrash');
@@ -392,7 +455,7 @@ describe('BatchService', () => {
 
     it('a cópia que fica é fixada ao iniciar (keep_id = a ★ da prévia)', () => {
       const line = lineFor('/D');
-      const s = batch.start(scanId, [line.key], { [line.key]: '/D' });
+      const s = startBatch([line.key], { [line.key]: '/D' });
       const rows = db.sql.prepare('SELECT keep_id, keep_folder FROM batch_groups WHERE batch_id = ?').all(s.id);
       expect(rows).toEqual([{ keep_id: 'd4', keep_folder: '/D' }]);
     });
@@ -416,7 +479,7 @@ describe('BatchService', () => {
         setRules(db, [{ type: 'largestSize' }]);
         return real(...args);
       });
-      const s = batch.start(scanId, [line.key], { [line.key]: '/D' });
+      const s = startBatch([line.key], { [line.key]: '/D' });
       await batch.whenIdle(s.id);
       expect(batch.summary(s.id)).toMatchObject({ doneGroups: 0, skippedGroups: 1, movedFiles: 0 });
       expect(cloud.calls).not.toContain('moveToTrash');
@@ -446,7 +509,7 @@ describe('BatchService: cópia fixada sem pasta escolhida', () => {
     const line = batch.preview(scanId).lines[0];
     const globalKeep = line.items[0].keep.id;
     expect(globalKeep).toBe('e1');
-    const s = batch.start(scanId, [line.key]);
+    const s = startBatch([line.key]);
     const pinned = db.sql.prepare('SELECT keep_id FROM batch_groups WHERE batch_id = ?').get(s.id) as { keep_id: string };
     expect(pinned.keep_id).toBe(globalKeep);
     await batch.whenIdle(s.id);

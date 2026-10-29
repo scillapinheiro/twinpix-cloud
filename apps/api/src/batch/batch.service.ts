@@ -64,7 +64,11 @@ export class BatchService implements OnModuleInit {
     return { scanId, lines, tiesCount, pendingCount: ids.length };
   }
 
-  start(scanId: number, lineKeys: string[], keepFolders: Record<string, string> = {}): BatchSummary {
+  /**
+   * `keeps`: para cada grupo das linhas marcadas, a ★ que a autora viu na prévia. O lote roda exatamente
+   * esse conjunto; se a prévia de agora diverge (grupo a mais ou a menos, ★ diferente), recusa.
+   */
+  start(scanId: number, lineKeys: string[], keepFolders: Record<string, string> = {}, keeps?: Record<string, string>): BatchSummary {
     if (!lineKeys.length) throw new BadRequestException('Escolha pelo menos uma linha.');
     const active = this.db.sql
       .prepare("SELECT 1 FROM batches WHERE status IN ('running', 'waiting-network', 'undoing') LIMIT 1")
@@ -84,6 +88,19 @@ export class BatchService implements OnModuleInit {
       }
       if (folder !== line.keepFolder) keepFor.set(key, folder);
     }
+    // Sem pasta escolhida, fixa a sugestão global (o que processGroup compara); com pasta, a cópia daquela pasta.
+    const pinnedKeepId = (item: { keep: { id: string }; keepByFolder: Record<string, string> }, folder?: string): string =>
+      (folder !== undefined ? item.keepByFolder[folder] : undefined) ?? item.keep.id;
+    const changed = () => new BadRequestException('A prévia mudou. Abra o lote de novo.');
+    if (keeps === null || typeof keeps !== 'object' || Array.isArray(keeps)) throw changed();
+    const fresh = new Map<string, string>();
+    for (const line of chosen) {
+      for (const item of line!.items) fresh.set(String(item.groupId), pinnedKeepId(item, keepFor.get(line!.key)));
+    }
+    const sent = Object.entries(keeps);
+    if (sent.length !== fresh.size || sent.some(([gid, keepId]) => typeof keepId !== 'string' || fresh.get(gid) !== keepId)) {
+      throw changed();
+    }
 
     const sql = this.db.sql;
     const id = sql.transaction(() => {
@@ -91,14 +108,11 @@ export class BatchService implements OnModuleInit {
         .prepare("INSERT INTO batches (scan_id, created_at, status) VALUES (?, ?, 'running')")
         .run(scanId, nowIso());
       const batchId = Number(lastInsertRowid);
-      // Sem pasta escolhida, fixa a sugestão global (o que processGroup compara); com pasta, a cópia daquela pasta.
-      const pinnedKeepId = (item: { keep: { id: string }; keepByFolder: Record<string, string> }, folder?: string): string =>
-        (folder !== undefined ? item.keepByFolder[folder] : undefined) ?? item.keep.id;
       let seq = 0;
       for (const line of chosen) {
         for (const item of line!.items) {
           sql.prepare("INSERT INTO batch_groups (batch_id, group_id, line_key, seq, status, keep_folder, keep_id) VALUES (?, ?, ?, ?, 'pending', ?, ?)")
-            .run(batchId, item.groupId, line!.key, seq++, keepFor.get(line!.key) ?? null, pinnedKeepId(item, keepFor.get(line!.key)));
+            .run(batchId, item.groupId, line!.key, seq++, keepFor.get(line!.key) ?? null, keeps[String(item.groupId)]);
         }
       }
       return batchId;

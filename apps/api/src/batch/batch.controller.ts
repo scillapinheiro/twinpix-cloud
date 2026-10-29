@@ -13,10 +13,11 @@ export class BatchController {
 
   @Post('scans/:id/batch')
   @HttpCode(200)
-  start(@Param('id', ParseIntPipe) id: number, @Body() body: { lineKeys?: string[]; keepFolders?: Record<string, string> }): BatchSummary {
+  start(@Param('id', ParseIntPipe) id: number, @Body() body: { lineKeys?: string[]; keepFolders?: Record<string, string>; keeps?: Record<string, string> }): BatchSummary {
     // Ausente = sem escolhas; qualquer outra coisa que não seja objeto simples o serviço recusa com 400.
     const keepFolders = body && 'keepFolders' in body ? (body.keepFolders as Record<string, string>) : undefined;
-    return this.batch.start(id, Array.isArray(body?.lineKeys) ? body.lineKeys : [], keepFolders);
+    // keeps (grupo → ★ vista na prévia) é obrigatório; ausente ou inválido o serviço recusa com 400.
+    return this.batch.start(id, Array.isArray(body?.lineKeys) ? body.lineKeys : [], keepFolders, body?.keeps);
   }
 
   @Get('batches')

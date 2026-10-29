@@ -222,7 +222,12 @@ function BatchPreviewView({ preview, scanId, onStarted }: { preview: BatchPrevie
           inverted={inverted.map((l) => ({ key: l.key, folder: folderOf(l), groups: l.groupCount }))}
           onCancel={cancel}
           onConfirm={async () => {
-            const b = await apiFetch<BatchSummary>(`/api/scans/${scanId}/batch`, { method: 'POST', body: { lineKeys: chosen.map((l) => l.key), ...(inverted.length ? { keepFolders: Object.fromEntries(inverted.map((l) => [l.key, folderOf(l)])) } : {}) } });
+            // A ★ de cada grupo das linhas marcadas, a mesma do "ver lista": o servidor recusa se a prévia mudou.
+            const keeps = Object.fromEntries(chosen.flatMap((l) => l.items.map((it) => [it.groupId, keepIdFor(l, it, folderOf(l))])));
+            const b = await apiFetch<BatchSummary>(`/api/scans/${scanId}/batch`, {
+              method: 'POST',
+              body: { lineKeys: chosen.map((l) => l.key), ...(inverted.length ? { keepFolders: Object.fromEntries(inverted.map((l) => [l.key, folderOf(l)])) } : {}), keeps },
+            });
             onStarted(b);
           }}
         />

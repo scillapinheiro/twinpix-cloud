@@ -123,7 +123,7 @@ it('inverter troca o texto e o ver lista, e o POST leva keepFolders', async () =
   expect(screen.getByRole('dialog')).toHaveTextContent('fica em /Backup celular 2015');
   await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
   await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
-  expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body!)).toEqual({ lineKeys: ['A|B', 'C|D'], keepFolders: { 'A|B': '/Backup celular 2015' } });
+  expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body!)).toEqual({ lineKeys: ['A|B', 'C|D'], keepFolders: { 'A|B': '/Backup celular 2015' }, keeps: { 1: 'r1' } });
 });
 
 it('Marcar todas / Desmarcar todas', async () => {
@@ -138,7 +138,7 @@ it('Marcar todas / Desmarcar todas', async () => {
   await userEvent.click(screen.getByRole('button', { name: /Mover para a lixeira \(/ }));
   await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
   await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
-  expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body!)).toEqual({ lineKeys: ['C|D'] });
+  expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body!)).toEqual({ lineKeys: ['C|D'], keeps: {} });
 });
 
 it('Marcar todas remarca tudo e mantém a inversão', async () => {
@@ -165,7 +165,7 @@ it('o modal confirma e envia as lineKeys marcadas uma vez só, mesmo com clique 
   await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument());
   const posts = calls.filter((c) => c.method === 'POST');
   expect(posts).toHaveLength(1);
-  expect(JSON.parse(posts[0].body!)).toEqual({ lineKeys: ['A|B'] });
+  expect(JSON.parse(posts[0].body!)).toEqual({ lineKeys: ['A|B'], keeps: { 1: 'k1' } });
 });
 
 it('mostra erro no modal e deixa tentar de novo', async () => {
@@ -281,7 +281,7 @@ it('mais de uma pasta de saída mostra o seletor "Manter em:" e o POST leva a es
   expect(screen.getByRole('dialog')).toHaveTextContent('fica em /C');
   await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
   await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
-  expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body!)).toEqual({ lineKeys: ['A|B'], keepFolders: { 'A|B': '/C' } });
+  expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body!)).toEqual({ lineKeys: ['A|B'], keepFolders: { 'A|B': '/C' }, keeps: { 1: 'r2' } });
 });
 
 it('não oferece inverter se a prévia não diz qual cópia ficaria na outra pasta', async () => {
@@ -304,5 +304,28 @@ it('inverter e depois desmarcar a linha: o POST não leva keepFolders', async ()
   await userEvent.click(screen.getByRole('button', { name: /Mover para a lixeira \(/ }));
   await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
   await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
-  expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body!)).toEqual({ lineKeys: ['C|D'] });
+  expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body!)).toEqual({ lineKeys: ['C|D'], keeps: {} });
+});
+
+it('o POST leva a ★ de cada grupo só das linhas marcadas, igual ao "ver lista"', async () => {
+  const cd = { ...preview.lines[1], items: [{
+    groupId: 2,
+    keep: cloudItem({ id: 'c1', folderPath: '/Casa' }),
+    remove: [cloudItem({ id: 'd1', folderPath: '/Antigas' })],
+    keepByFolder: { '/Casa': 'c1', '/Antigas': 'd1' },
+  }] };
+  const f = fetch as ReturnType<typeof vi.fn>;
+  const orig = f.getMockImplementation()!;
+  f.mockImplementation(async (url: string, init?: RequestInit) =>
+    url === '/api/scans/1/batch' && init?.method === 'GET' ? new Response(JSON.stringify({ ...preview, lines: [preview.lines[0], cd] })) : orig(url, init));
+  renderBatch();
+  await screen.findByText('140 grupos');
+  await userEvent.click(screen.getAllByRole('checkbox')[0]);
+  await userEvent.click(screen.getAllByRole('button', { name: /Inverter/ })[1]);
+  await userEvent.click(screen.getAllByRole('button', { name: 'ver lista' })[1]);
+  expect(screen.getByText(/★ fica/).closest('.batch-file')).toHaveTextContent('/Antigas');
+  await userEvent.click(screen.getByRole('button', { name: /Mover para a lixeira \(/ }));
+  await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
+  await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
+  expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body!)).toEqual({ lineKeys: ['C|D'], keepFolders: { 'C|D': '/Antigas' }, keeps: { 2: 'd1' } });
 });

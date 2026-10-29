@@ -97,7 +97,15 @@ describe('API em modo demonstração', () => {
     if (inverted) keepFolders[inverted.key] = inverted.keepOptions.find((f) => f !== inverted.keepFolder && inverted.items.every((it) => it.keepByFolder[f]))!;
     expect(Object.keys(keepFolders)).toHaveLength(1);
 
-    const sent = (await api().post(`/api/scans/${started.id}/batch`, { lineKeys: preview.lines.map((l: BatchLine) => l.key), keepFolders }).expect(200)).body as BatchSummary;
+    // A ★ de cada grupo, exatamente como a prévia mostrou (o que o cliente envia).
+    const keeps: Record<string, string> = {};
+    for (const l of preview.lines) {
+      const folder = keepFolders[l.key] ?? l.keepFolder;
+      for (const it of l.items) keeps[it.groupId] = folder === l.keepFolder ? it.keep.id : it.keepByFolder[folder];
+    }
+    // Sem as ★, recusa: o lote só roda o que a autora viu.
+    await api().post(`/api/scans/${started.id}/batch`, { lineKeys: preview.lines.map((l: BatchLine) => l.key), keepFolders }).expect(400);
+    const sent = (await api().post(`/api/scans/${started.id}/batch`, { lineKeys: preview.lines.map((l: BatchLine) => l.key), keepFolders, keeps }).expect(200)).body as BatchSummary;
     let summary = sent;
     for (let i = 0; i < 200 && summary.status !== 'done'; i++) {
       await new Promise((r) => setTimeout(r, 20));
