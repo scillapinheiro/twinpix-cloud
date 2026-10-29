@@ -136,8 +136,13 @@ A sugestão sempre mostra o **motivo** ("regra: mais antiga").
 - Sem estudo de identidade completo: só o essencial para uma v1 "bonitinha".
 - **Fonte principal: Nunito** (arredondada, legível), usada no texto e no nome/logo
   "TwinPix Cloud"; embutida no app (funciona sem internet).
-- Visual **arredondado** (cantos generosos, sombras suaves), paleta curta: azul principal,
-  vermelho só para excluir, laranja para diferenças, verde para "sugerida para manter".
+- Visual **arredondado** (cantos generosos, sombras suaves). **Paleta "Violeta e menta"**
+  (escolhida pela autora em 29/10/2026 entre três opções): principal violeta `#6D4FD8`
+  (hover `#5A3EC0`), "sugerida para manter" menta `#137A67` sobre `#E3F6F1`, fundo `#F6F4FE`,
+  bordas `#E4DEFA`; vermelho só para excluir, laranja só para diferenças.
+- A cor principal aparece de fato: título "TwinPix Cloud", botões de ação principal
+  preenchidos (Nova análise, Iniciar análise, Continuar revisão, Próximo grupo), faixa no topo,
+  barra de progresso, links e foco; borda menta no cartão "Sugerida para manter".
 - Botões de ação lado a lado (ex.: tela inicial: Ver análise · Continuar revisão · Nova análise).
 - Telas de análise e histórico continuam como páginas (não modais).
 
