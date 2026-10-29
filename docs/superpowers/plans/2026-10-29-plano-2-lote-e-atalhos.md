@@ -291,13 +291,57 @@ Commit: `feat(web): atalhos de teclado na revisão (Enter, P, ←)`.
 
 ---
 
+### Task 8: "Inverter" — escolher em qual pasta a cópia fica, por linha do lote
+
+*(Pedido da autora em 29/10/2026: a regra olha o arquivo, não a organização das pastas; às vezes a
+cópia sugerida está "solta" e a que sairia está numa pasta organizada.)*
+
+**Files:** `packages/shared/index.d.ts`, `apps/api/src/batch/batch-lines.ts` (+spec),
+`apps/api/src/batch/batch.service.ts`/`batch.controller.ts` (+spec), `apps/api/src/storage/schema.ts`
+e `db.ts` (migração), `apps/web/src/pages/Batch.tsx`, `components/BatchConfirmDialog.tsx` (+spec).
+
+**Interfaces:**
+- `BatchLine.keepOptions: string[]` = `[keepFolder, ...removeFolders]` (todas as pastas onde cada
+  grupo da linha tem cópia — por construção da linha, todo grupo tem cópia em cada uma delas).
+- `POST /api/scans/:id/batch` aceita `{ lineKeys: string[]; keepFolders?: Record<string, string> }`
+  (chave da linha → pasta escolhida). Pasta fora de `keepOptions` da linha → 400
+  `'Pasta escolhida inválida. Abra o lote de novo.'`. Sem entrada = pasta sugerida.
+- `batch_groups.keep_folder TEXT NULL` (no CREATE e na migração idempotente).
+
+**Execução (BatchService):** igual à atual, exceto quando o grupo tem `keep_folder`:
+- continua exigindo que a chave natural da linha (`lineKeyOf` da sugestão atual) seja a gravada
+  e que não haja empate — a composição do grupo não pode ter mudado;
+- `candidatos` = arquivos ativos do grupo cuja pasta é `keep_folder`; nenhum → `skipped`;
+- a cópia que fica = `suggestKeep(candidatos, regras).keepId` (desempate dentro da pasta escolhida);
+- `deleteIds` = todos os outros arquivos ativos; o `expect` dentro da trava confere de novo
+  (mesma chave natural, mesma cópia escolhida ainda presente); sempre via `ActionsService.apply`.
+
+**Interface (Batch.tsx):**
+- Em cada linha: se `removeFolders.length === 1`, botão **"⇄ Inverter: manter em <pasta>"**
+  (e, invertida, "⇄ Voltar à sugestão: manter em <pasta>"); se houver mais pastas, um seletor
+  rotulado **"Manter em:"** com as `keepOptions`.
+- A linha mostra o resultado escolhido: "fica em X · sai de Y, Z" e um selo discreto
+  "escolhido por você" quando diferente da sugestão; o "ver lista" mostra os arquivos já na
+  escolha atual (fica = a cópia na pasta escolhida).
+- O modal de confirmação mostra, para linhas alteradas, "fica em <pasta escolhida>".
+- O POST envia `keepFolders` só das linhas marcadas e alteradas.
+
+**Testes:** `keepOptions` na prévia; API recusa pasta inválida; lote com uma linha invertida move
+as cópias da pasta sugerida e mantém a da pasta escolhida (e a asserção de segurança "todo grupo
+mantém uma cópia" continua); grupo que mudou de composição é pulado também com inversão; interface:
+inverter troca o texto e o "ver lista", e o POST leva `keepFolders`.
+
+Commit: `feat: lote permite escolher em qual pasta a cópia fica (inverter)`.
+
+---
+
 ### Task 7: Teste de ponta a ponta do lote, README e handoff
 
 **Files:** `apps/api/src/app.e2e.spec.ts` (novo caso), `README.md`, `docs/HANDOFF.md` (o controlador
 atualiza o handoff — o implementador só faz e2e e README).
 
 - e2e (modo demonstração): análise das duas pastas → `GET /api/scans/:id/batch` com ≥ 2 linhas →
-  `POST` com todas → aguarda `done` → todos os grupos não-empate resolvidos e **cada grupo mantém
+  `POST` com todas (uma delas invertida via `keepFolders`) → aguarda `done` → todos os grupos não-empate resolvidos e **cada grupo mantém
   uma cópia** → `POST /api/batches/:id/undo` → aguarda `undone` → `restoredFiles === movedFiles`.
 - README: **não mexer** (decisão da autora em 29/10: o README será reescrito uma única vez no fim
   da v1, no padrão dos projetos dela, depois de tudo mergeado e das branches limpas).
