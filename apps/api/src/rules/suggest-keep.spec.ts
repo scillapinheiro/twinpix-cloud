@@ -91,6 +91,22 @@ describe('suggestKeep', () => {
   });
 });
 
+describe('deeperFolder', () => {
+  it('vence quem está em mais subpastas e informa o motivo', () => {
+    const s = suggestKeep(
+      [f({ id: 'a', folderPath: '/Imagens' }), f({ id: 'b', folderPath: '/Imagens/Viagem/2019' }), f({ id: 'c', folderPath: '/Imagens/Viagem' })],
+      [{ type: 'deeperFolder' }],
+    );
+    expect(s).toEqual({ keepId: 'b', reason: 'regra: está numa pasta mais organizada (dentro de mais subpastas)', fallback: false });
+  });
+
+  it('raiz tem zero segmentos e é aceita pela validação', () => {
+    const s = suggestKeep([f({ id: 'a', folderPath: '/' }), f({ id: 'b', folderPath: '/X' })], [{ type: 'deeperFolder' }]);
+    expect(s.keepId).toBe('b');
+    expect(isValidRules([{ type: 'deeperFolder' }])).toBe(true);
+  });
+});
+
 describe('isValidRules', () => {
   it('aceita lista válida e recusa formato errado', () => {
     expect(isValidRules([{ type: 'inFolder', path: '/A' }, { type: 'oldestTaken' }])).toBe(true);

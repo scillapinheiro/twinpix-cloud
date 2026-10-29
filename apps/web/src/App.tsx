@@ -5,6 +5,7 @@ import { FolderClusters } from './pages/FolderClusters';
 import { History } from './pages/History';
 import { Home } from './pages/Home';
 import { Review } from './pages/Review';
+import { Rules } from './pages/Rules';
 import { ScanProgress } from './pages/ScanProgress';
 
 export function App() {
@@ -14,6 +15,8 @@ export function App() {
         <Link to="/" className="brand">TwinPix Cloud</Link>
         <nav>
           <Link to="/historico">Histórico</Link>
+          {' '}
+          <Link to="/regras">Regras</Link>
         </nav>
       </header>
       <main className="page">
@@ -26,6 +29,7 @@ export function App() {
           <Route path="/lote/:scanId" element={<Batch />} />
           <Route path="/pastas-repetidas/:scanId" element={<FolderClusters />} />
           <Route path="/historico" element={<History />} />
+          <Route path="/regras" element={<Rules />} />
         </Routes>
       </main>
     </HashRouter>

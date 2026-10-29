@@ -22,6 +22,7 @@ export function criterionLabel(c: RuleCriterion): string {
     case 'inFolder': return `está na pasta ${c.path}`;
     case 'notInFolder': return `não está na pasta ${c.path}`;
     case 'noCopySuffix': return 'nome sem sufixo de cópia';
+    case 'deeperFolder': return 'está numa pasta mais organizada (dentro de mais subpastas)';
   }
 }
 
@@ -48,6 +49,8 @@ function score(c: RuleCriterion, file: RuleFile): number {
       return isInsideFolder(file.folderPath, c.path) ? 0 : 1;
     case 'noCopySuffix':
       return hasCopySuffix(file.name) ? 0 : 1;
+    case 'deeperFolder':
+      return file.folderPath.split('/').filter(Boolean).length;
   }
 }
 
@@ -72,7 +75,7 @@ export function suggestKeep(files: RuleFile[], rules: RuleCriterion[]): Suggesti
   return { keepId: first.id, reason: 'regra: primeira em ordem alfabética', fallback: true };
 }
 
-const SIMPLE = new Set(['largestResolution', 'largestSize', 'oldestTaken', 'oldestModified', 'noCopySuffix']);
+const SIMPLE = new Set(['largestResolution', 'largestSize', 'oldestTaken', 'oldestModified', 'noCopySuffix', 'deeperFolder']);
 
 export function isValidRules(value: unknown): value is RuleCriterion[] {
   if (!Array.isArray(value)) return false;

@@ -59,7 +59,8 @@ export type RuleCriterion =
   | { type: 'oldestModified' }
   | { type: 'inFolder'; path: string }
   | { type: 'notInFolder'; path: string }
-  | { type: 'noCopySuffix' };
+  | { type: 'noCopySuffix' }
+  | { type: 'deeperFolder' };
 
 export interface Suggestion {
   keepId: string;
