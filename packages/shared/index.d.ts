@@ -148,7 +148,7 @@ export interface BatchLine {
   key: string;
   keepFolder: string;
   removeFolders: string[];
-  /** [keepFolder, ...removeFolders]: pastas onde dá para escolher manter a cópia. */
+  /** keepFolder + as pastas que saem em que todo grupo da linha tem uma cópia escolhida pela regra (sem empate). */
   keepOptions: string[];
   reasons: string[];
   groupCount: number;

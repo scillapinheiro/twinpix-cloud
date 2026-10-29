@@ -40,6 +40,16 @@ describe('buildBatchLines', () => {
     expect(lines[0].fileCount).toBe(2);
   });
 
+  it('pasta em que a cópia só sairia por ordem alfabética (sem keepByFolder em algum item) não é oferecida', () => {
+    const { lines } = buildBatchLines([
+      { ...g(1, [f('a', '/A'), f('b', '/B'), f('c', '/B'), f('d', '/C')], 'a'), keepByFolder: { '/A': 'a', '/C': 'd' } },
+      { ...g(2, [f('e', '/A'), f('h', '/B'), f('i', '/C')], 'e'), keepByFolder: { '/A': 'e', '/B': 'h', '/C': 'i' } },
+    ]);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].removeFolders).toEqual(['/B', '/C']);
+    expect(lines[0].keepOptions).toEqual(['/A', '/C']);
+  });
+
   it('keepOptions = pasta que fica + pastas que saem, e cada item traz a cópia que ficaria em cada pasta', () => {
     const { lines } = buildBatchLines([{ ...g(1, [f('a', '/A'), f('b', '/B'), f('c', '/B')], 'a'), keepByFolder: { '/A': 'a', '/B': 'c' } }]);
     expect(lines[0].keepOptions).toEqual(['/A', '/B']);
@@ -99,7 +109,8 @@ describe('buildBatchLines', () => {
           const keep = src.files.find((x) => x.id === src.suggestion.keepId)!;
           const removeIds = item.remove.map((r) => r.id);
           expect(item.keep).toEqual(keep);
-          expect(line.keepOptions).toEqual([line.keepFolder, ...line.removeFolders]);
+          // Sem keepByFolder, nenhuma outra pasta sabe qual cópia ficaria: só a sugerida é oferecida.
+          expect(line.keepOptions).toEqual([line.keepFolder]);
           for (const folder of line.keepOptions) expect(src.files.some((x) => x.folderPath === folder)).toBe(true);
           expect(line.keepFolder).toBe(keep.folderPath);
           expect(src.suggestion.fallback).toBe(false);

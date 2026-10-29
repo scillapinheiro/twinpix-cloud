@@ -56,7 +56,10 @@ export class BatchService implements OnModuleInit {
       const v = this.review.view(id);
       const keepByFolder: Record<string, string> = {};
       for (const folder of new Set(v.files.map((f) => f.folderPath))) {
-        keepByFolder[folder] = suggestKeep(v.files.filter((f) => f.folderPath === folder), rules).keepId;
+        const inFolder = v.files.filter((f) => f.folderPath === folder);
+        const s = suggestKeep(inFolder, rules);
+        // 2+ cópias empatadas na pasta (só a ordem alfabética decide): essa pasta não é oferecida para manter.
+        if (inFolder.length === 1 || !s.fallback) keepByFolder[folder] = s.keepId;
       }
       return { groupId: id, kind: 'identical', files: v.files, suggestion: v.suggestion, keepByFolder };
     });

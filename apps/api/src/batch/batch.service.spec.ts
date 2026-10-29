@@ -488,6 +488,33 @@ describe('BatchService', () => {
   });
 });
 
+describe('BatchService: empate dentro da pasta escolhida', () => {
+  it('pasta com 2 cópias empatadas (só a ordem alfabética decide) não é oferecida nem aceita', async () => {
+    db = new Db(':memory:');
+    cloud = new FakeCloudProvider();
+    const E = cloud.addFolder(cloud.rootId, 'E');
+    const F = cloud.addFolder(cloud.rootId, 'F');
+    const old = { takenAt: '2010-01-01T00:00:00Z', createdAt: '2010-01-01T00:00:00Z', modifiedAt: '2010-01-01T00:00:00Z' };
+    const nw = { takenAt: '2020-01-01T00:00:00Z', createdAt: '2020-01-01T00:00:00Z', modifiedAt: '2020-01-01T00:00:00Z' };
+    cloud.addFile(E.id, { id: 'e1', name: 'm.jpg', quickXorHash: 'hm', size: 100, ...old });
+    cloud.addFile(F.id, { id: 'f1', name: 'x.jpg', quickXorHash: 'hm', size: 100, ...nw });
+    cloud.addFile(F.id, { id: 'f2', name: 'y.jpg', quickXorHash: 'hm', size: 100, ...nw });
+    const scan = new ScanService(db, cloud, { offlineRetryMs: 0 });
+    scanId = scan.start([E, F]);
+    await scan.whenIdle(scanId);
+    review = new ReviewService(db);
+    actions = new ActionsService(db, cloud, review);
+    batch = makeBatch();
+
+    const line = batch.preview(scanId).lines[0];
+    expect(line).toMatchObject({ keepFolder: '/E', removeFolders: ['/F'], keepOptions: ['/E'] });
+    expect(line.items[0].keepByFolder).toEqual({ '/E': 'e1' });
+    expect(() => batch.start(scanId, [line.key], { [line.key]: '/F' }, { [line.items[0].groupId]: 'f1' }))
+      .toThrow('Pasta escolhida inválida. Abra o lote de novo.');
+    expect(db.sql.prepare('SELECT COUNT(*) n FROM batches').get()).toEqual({ n: 0 });
+  });
+});
+
 describe('BatchService: cópia fixada sem pasta escolhida', () => {
   it('duas cópias idênticas na pasta sugerida: fixa a sugestão global e move as outras (não pula)', async () => {
     db = new Db(':memory:');

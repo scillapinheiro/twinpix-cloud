@@ -5,7 +5,10 @@ export interface BatchGroupInput {
   kind: 'identical';
   files: CloudItem[];
   suggestion: Suggestion;
-  /** Cópia que ficaria se a pasta indicada fosse escolhida (calculada com as regras). */
+  /**
+   * Cópia que ficaria se a pasta indicada fosse escolhida (calculada com as regras). Pasta ausente =
+   * não dá para escolher (ex.: 2+ cópias nela empatadas, só a ordem alfabética decidiria).
+   */
   keepByFolder?: Record<string, string>;
 }
 
@@ -62,7 +65,11 @@ export function buildBatchLines(groups: BatchGroupInput[]): { lines: BatchLine[]
   }
 
   const lines = [...byKey.values()];
-  for (const l of lines) l.reasons = [...reasons.get(l.key)!].sort();
+  for (const l of lines) {
+    l.reasons = [...reasons.get(l.key)!].sort();
+    // Só oferece trocar para uma pasta se todos os grupos da linha sabem qual cópia ficaria nela.
+    l.keepOptions = [l.keepFolder, ...l.removeFolders.filter((folder) => folder !== l.keepFolder && l.items.every((it) => it.keepByFolder[folder] !== undefined))];
+  }
   lines.sort((a, b) => b.bytes - a.bytes || b.groupCount - a.groupCount || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   return { lines, tiesCount };
 }

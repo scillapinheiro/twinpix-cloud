@@ -329,3 +329,16 @@ it('o POST leva a ★ de cada grupo só das linhas marcadas, igual ao "ver lista
   await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
   expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body!)).toEqual({ lineKeys: ['C|D'], keepFolders: { 'C|D': '/Antigas' }, keeps: { 2: 'd1' } });
 });
+
+it('pasta fora de keepOptions (empate dentro dela) não é oferecida, mas continua listada em "sai de"', async () => {
+  const base = preview.lines[0];
+  const line = { ...base, keepOptions: ['/Viagem Praia'], items: [{ ...base.items[0], keepByFolder: { '/Viagem Praia': 'k1' } }] };
+  const f = fetch as ReturnType<typeof vi.fn>;
+  const orig = f.getMockImplementation()!;
+  f.mockImplementation(async (url: string, init?: RequestInit) =>
+    url === '/api/scans/1/batch' && init?.method === 'GET' ? new Response(JSON.stringify({ ...preview, lines: [line] })) : orig(url, init));
+  renderBatch();
+  await screen.findByText('140 grupos');
+  expect(screen.queryByRole('button', { name: /Inverter/ })).toBeNull();
+  expect(document.querySelector('.batch-line-head')).toHaveTextContent('sai de /Backup celular 2015');
+});

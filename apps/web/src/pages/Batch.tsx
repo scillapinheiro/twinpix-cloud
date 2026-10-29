@@ -22,6 +22,16 @@ function keepIdFor(line: BatchLine, it: BatchItem, folder: string): string {
 function offeredFolders(l: BatchLine): string[] {
   return l.keepOptions.filter((f) => f === l.keepFolder || l.items.every((it) => it.keepByFolder[f]));
 }
+/** Pastas de onde sai alguma cópia, com a pasta escolhida para manter. */
+function outFoldersFor(l: BatchLine, folder: string): string[] {
+  if (folder === l.keepFolder) return l.removeFolders;
+  const out = new Set<string>();
+  for (const it of l.items) {
+    const keepId = keepIdFor(l, it, folder);
+    for (const f of [it.keep, ...it.remove]) if (f.id !== keepId) out.add(f.folderPath);
+  }
+  return [...out].sort();
+}
 function lineStats(l: BatchLine, folder: string): { files: number; bytes: number } {
   if (folder === l.keepFolder) return { files: l.fileCount, bytes: l.bytes };
   let files = 0;
@@ -173,7 +183,7 @@ function BatchPreviewView({ preview, scanId, onStarted }: { preview: BatchPrevie
           {preview.lines.map((l: BatchLine) => {
             const keepFolder = folderOf(l);
             const offered = offeredFolders(l);
-            const outFolders = l.keepOptions.filter((f) => f !== keepFolder);
+            const outFolders = outFoldersFor(l, keepFolder);
             const changed = keepFolder !== l.keepFolder;
             const st = lineStats(l, keepFolder);
             return (
