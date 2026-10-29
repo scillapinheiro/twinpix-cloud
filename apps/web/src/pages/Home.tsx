@@ -59,8 +59,8 @@ export function Home() {
       )}
       <div className="row">
         {latest && <Link className="button" to={`/varredura/${latest.id}`}>Ver análise</Link>}
-        {latest && latest.groupsPending > 0 && <Link className="button primary" to={`/revisao/${latest.id}`}>Continuar revisão</Link>}
-        {latest && latest.probablePending > 0 && <Link className="button" to={`/revisao/${latest.id}?tipo=provaveis`}>Revisar prováveis cópias</Link>}
+        {latest && latest.groupsPending + latest.groupsSkipped > 0 && <Link className="button primary" to={`/revisao/${latest.id}`}>Continuar revisão</Link>}
+        {latest && latest.probablePending + latest.probableSkipped > 0 && <Link className="button" to={`/revisao/${latest.id}?tipo=provaveis`}>Revisar prováveis cópias</Link>}
         <Link className="button primary" to="/pastas">Nova análise</Link>
       </div>
     </section>

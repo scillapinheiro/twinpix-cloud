@@ -64,7 +64,11 @@ export function ScanProgress() {
         <li>Pastas analisadas: {scan.foldersDone} de {scan.foldersTotal}</li>
         <li>Fotos e vídeos encontrados: {scan.filesFound}</li>
         <li>Grupos de cópias idênticas: {scan.groupsTotal} ({scan.groupsPending} para revisar, {scan.groupsSkipped} pulados)</li>
-        <li>Prováveis cópias: {scan.probableTotal} ({scan.probablePending} para revisar)</li>
+        <li>
+          {done
+            ? `Prováveis cópias: ${scan.probableTotal} (${scan.probablePending} para revisar, ${scan.probableSkipped} pulados)`
+            : 'Prováveis cópias: calculadas ao fim da análise'}
+        </li>
         <li>Espaço liberado: {formatBytes(scan.bytesFreed)}</li>
         <li>
           Não analisados (o OneDrive não informou a impressão digital do arquivo): {scan.unanalyzedCount}
@@ -86,7 +90,7 @@ export function ScanProgress() {
           <button type="button" className="button" onClick={() => act('resume')}>Continuar análise</button>
         )}
         {scan.status === 'needs-auth' && <a className="button primary" href="/api/auth/login">Conectar de novo</a>}
-        {scan.groupsPending > 0 && (
+        {scan.groupsPending + scan.groupsSkipped > 0 && (
           <Link className="button primary" to={`/revisao/${scan.id}`}>
             {scan.status === 'done' ? 'Começar a revisão' : 'Começar a revisão enquanto a análise continua'}
           </Link>
@@ -94,7 +98,7 @@ export function ScanProgress() {
         {scan.status === 'done' && scan.groupsPending > 0 && (
           <Link className="button" to={`/lote/${scan.id}`}>Revisar em lote</Link>
         )}
-        {scan.probablePending > 0 && (
+        {scan.probablePending + scan.probableSkipped > 0 && (
           <Link className="button" to={`/revisao/${scan.id}?tipo=provaveis`}>Revisar prováveis cópias</Link>
         )}
         {scan.status === 'done' && clusterCount > 0 && (
