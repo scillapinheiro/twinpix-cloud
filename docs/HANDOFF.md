@@ -25,7 +25,7 @@ A implementação foi dividida em planos:
   necessário, e uma **revisão final do conjunto** seguida de uma onda de correções re-revisada.
 - **Branch `plano-1-identicas` no GitHub**, ainda **não juntada na `main`**. A decisão de
   juntar é da usuária.
-- **Verificação final:** `npm test` (API 148 testes, web 24), `npm run typecheck` e
+- **Verificação final:** `npm test` (API 148 testes, web 24; após os ajustes de interface, web 33), `npm run typecheck` e
   `npm run build` passam. O modo demonstração foi testado de ponta a ponta pela API compilada:
   análise, grupo, mover para a lixeira, histórico e desfazer.
 - **Nada foi feito no OneDrive real.** Todos os testes usam o provedor falso.
@@ -35,6 +35,12 @@ A implementação foi dividida em planos:
   permissões delegadas `Files.ReadWrite`, `offline_access` e `User.Read`. O Client ID está
   no `.env` da raiz (fora do git, permissão 600).
 - **O login real ainda não foi testado.**
+
+- **Ajustes de interface pedidos pela autora após testar a demo (29/10/2026, manhã)** — spec §7
+  atualizada e implementados: confirmação e resultado em **modal** sobre a revisão, cartões em
+  tela cheia (2→2, 3→3, 4+→2 por linha, 1 no celular), selo só "★ Sugerida para manter" com a
+  regra numa faixa de legenda, barra de ações fixa no rodapé, botões da tela inicial lado a
+  lado, visual arredondado com a fonte **Nunito** (embutida). Testes: API 148, web 33.
 
 ### Como experimentar
 
