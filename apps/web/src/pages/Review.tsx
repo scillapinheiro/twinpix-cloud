@@ -6,6 +6,7 @@ import { FileCard } from '../components/FileCard';
 import { ApiError, apiFetch } from '../lib/api';
 import { FIELD_LABELS, differingFields, fieldValue, type FieldKey } from '../lib/differing-fields';
 import { formatBytes } from '../lib/format';
+import { ignoreShortcut, isNativeActivator } from '../lib/shortcuts';
 
 export function Review() {
   const { scanId, groupId } = useParams();
@@ -21,6 +22,28 @@ export function Review() {
   const deleteButton = useRef<HTMLButtonElement>(null);
 
   const shownId = useRef<number | null>(null);
+  const inFlight = useRef(false);
+  const shortcuts = useRef<{ open: () => void; skip: () => void; back: () => void } | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const keys = shortcuts.current;
+      if (!keys || ignoreShortcut(e)) return;
+      if (e.key === 'Enter') {
+        if (isNativeActivator(e)) return;
+        e.preventDefault();
+        keys.open();
+      } else if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        keys.skip();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        keys.back();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   function show(g: GroupView | null) {
     shownId.current = g?.id ?? null;
@@ -50,6 +73,7 @@ export function Review() {
   const cardFields = many ? allFields.filter((k) => diffs.has(k)) : allFields;
   const commonFields = many ? allFields.filter((k) => !diffs.has(k)) : [];
 
+  shortcuts.current = null;
   if (error) return <p className="alert">{error}</p>;
   if (group === undefined) return <p>Carregando…</p>;
   if (group === null) {
@@ -83,10 +107,14 @@ export function Review() {
     navigate(g ? `/revisao/${scanId}/grupo/${g.id}` : `/revisao/${scanId}`, { replace: true });
   }
   async function skip() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     try {
       goTo(await apiFetch<GroupView | null>(`/api/groups/${group!.id}/skip`, { method: 'POST' }));
     } catch (e) {
       setError((e as ApiError).message);
+    } finally {
+      inFlight.current = false;
     }
   }
   async function afterApply(stale: boolean) {
@@ -102,13 +130,24 @@ export function Review() {
     }
   }
   async function back() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     try {
       const prev = await apiFetch<GroupView | null>(`/api/groups/${group!.id}/previous`);
       if (prev) goTo(prev);
     } catch (e) {
       setError((e as ApiError).message);
+    } finally {
+      inFlight.current = false;
     }
   }
+  const canDelete = marked.size > 0 && group.status !== 'resolved';
+  // Com o modal aberto, as teclas pertencem a ele.
+  shortcuts.current = confirming ? null : {
+    open: () => { if (canDelete) setConfirming(true); },
+    skip: () => void skip(),
+    back: () => { if (group.position > 1) void back(); },
+  };
 
   return (
     <>
@@ -170,17 +209,21 @@ export function Review() {
       )}
 
       <div className="action-bar">
-        <button type="button" className="button" onClick={back} disabled={group.position <= 1}>← Voltar</button>
-        <button type="button" className="button" onClick={skip}>Pular</button>
+        <button type="button" className="button" onClick={back} disabled={group.position <= 1} aria-keyshortcuts="ArrowLeft">← Voltar</button>
+        <button type="button" className="button" onClick={skip} aria-keyshortcuts="P">
+          Pular <kbd className="key-hint" aria-hidden="true">P</kbd>
+        </button>
         <button
           type="button"
           ref={deleteButton}
           className="button danger"
-          disabled={marked.size === 0 || group.status === 'resolved'}
+          disabled={!canDelete}
+          aria-keyshortcuts="Enter"
           onClick={() => setConfirming(true)}
         >
-          Excluir marcadas ({marked.size})
+          Excluir marcadas ({marked.size}) <kbd className="key-hint" aria-hidden="true">Enter</kbd>
         </button>
+        <span className="shortcut-legend muted">Atalhos: Enter confirma · P pula · ← volta</span>
       </div>
     </section>
 

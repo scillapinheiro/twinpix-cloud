@@ -2,6 +2,7 @@ import type { ApplyResult, DeletionPreview } from '@twinpix/shared';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes } from '../lib/format';
+import { ignoreShortcut, isNativeActivator } from '../lib/shortcuts';
 
 interface Props {
   groupId: number;
@@ -31,21 +32,39 @@ export function ConfirmDialog({ groupId, deleteIds, onCancel, onDone }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
 
+  const busyRef = useRef(false);
+  const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyRef.current = (e) => {
+    if (e.key === 'Escape') {
+      if (canCancel) onCancel();
+      return;
+    }
+    // Enter em botão já o aciona sozinho; aqui só vale com o foco no próprio diálogo ou fora de botões.
+    if (e.key !== 'Enter' || ignoreShortcut(e) || isNativeActivator(e)) return;
+    if (result) {
+      e.preventDefault();
+      onDone(result.stale);
+    } else if (preview && !busy && !busyRef.current) {
+      e.preventDefault();
+      void apply();
+    }
+  };
   useEffect(() => {
-    if (!canCancel) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
+    const onKey = (e: KeyboardEvent) => keyRef.current(e);
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [canCancel, onCancel]);
+  }, []);
 
   async function apply() {
-    if (busy) return;
+    if (busy || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setApplyError(null);
     try {
       setResult(await apiFetch<ApplyResult>(`/api/groups/${groupId}/apply`, { method: 'POST', body: { deleteIds } }));
     } catch (e) {
       setApplyError((e as ApiError).message);
+      busyRef.current = false;
       setBusy(false);
     }
   }
@@ -79,6 +98,7 @@ export function ConfirmDialog({ groupId, deleteIds, onCancel, onDone }: Props) {
             <div className="row">
               <button type="button" className="button primary" onClick={() => onDone(result.stale)}>
                 {result.stale ? 'Conferir o grupo atualizado' : 'Próximo grupo'}
+                {' '}<kbd className="key-hint" aria-hidden="true">Enter</kbd>
               </button>
             </div>
           </>
@@ -103,7 +123,9 @@ export function ConfirmDialog({ groupId, deleteIds, onCancel, onDone }: Props) {
             <div className="row">
               <button type="button" className="button" onClick={onCancel} disabled={busy}>Voltar</button>
               {preview && (
-                <button type="button" className="button danger" disabled={busy} onClick={apply}>Mover para a lixeira</button>
+                <button type="button" className="button danger" disabled={busy} onClick={apply}>
+                  Mover para a lixeira <kbd className="key-hint" aria-hidden="true">Enter</kbd>
+                </button>
               )}
             </div>
           </>

@@ -88,3 +88,6 @@ th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border);
 .batch-items { margin: 8px 0 0 32px; padding-left: 16px; word-break: break-word; }
 .batch-total { flex: 1; font-weight: 700; }
 .batch-link { font-size: 0.9rem; margin-left: 8px; }
+
+.key-hint { font: inherit; font-size: 0.75em; opacity: 0.7; border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; margin-left: 4px; }
+.shortcut-legend { margin-left: auto; font-size: 0.85em; }

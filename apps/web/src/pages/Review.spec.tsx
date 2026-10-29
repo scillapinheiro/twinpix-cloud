@@ -1,5 +1,5 @@
 import type { GroupView } from '@twinpix/shared';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { vi } from 'vitest';
@@ -237,4 +237,111 @@ it('grupo desatualizado mostra o aviso de que foi atualizado', async () => {
     </MemoryRouter>,
   );
   expect(await screen.findByText(/Ele foi atualizado com a situação atual/)).toBeInTheDocument();
+});
+
+describe('atalhos de teclado', () => {
+  const prev: GroupView = { ...group, id: 6, position: 11 };
+  let calls: string[];
+  let marks: string[];
+
+  beforeEach(() => {
+    calls = [];
+    marks = ['b'];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/thumbnail')) return new Response(JSON.stringify({ url: null }));
+      calls.push(`${init?.method ?? 'GET'} ${url}`);
+      if (url.endsWith('/preview')) {
+        return new Response(JSON.stringify({ groupId: 7, deleteFiles: [group.files[1]], keepFiles: [group.files[0]], bytes: 1_000_000 }));
+      }
+      if (url.endsWith('/apply')) {
+        await new Promise((r) => setTimeout(r, 20));
+        return new Response(JSON.stringify({ groupId: 7, stale: false, results: [{ actionId: 1, fileId: 'b', fileName: 'x 1.jpg', status: 'done', error: null }] }));
+      }
+      if (url.endsWith('/previous')) return new Response(JSON.stringify(prev));
+      return new Response(JSON.stringify({ ...group, preMarkedIds: marks }));
+    }));
+  });
+
+  const count = (re: RegExp) => calls.filter((c) => re.test(c)).length;
+
+  it('mostra as dicas e a legenda', async () => {
+    renderReview();
+    await screen.findByText(/Grupo 12 de 445/);
+    expect(screen.getByText('Atalhos: Enter confirma · P pula · ← volta')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pular' })).toHaveTextContent('Pular P');
+  });
+
+  it('Enter abre o modal, não confirma sozinho; Enter de novo confirma uma vez e Enter leva ao próximo grupo', async () => {
+    renderReview();
+    await screen.findByText(/Grupo 12 de 445/);
+    await userEvent.keyboard('{Enter}');
+    await screen.findByRole('dialog');
+    await screen.findByText(/1 arquivo vai para a lixeira/);
+    expect(count(/\/apply$/)).toBe(0);
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{Enter}');
+    expect(await screen.findByText('Resultado')).toBeInTheDocument();
+    expect(count(/\/apply$/)).toBe(1);
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(count(/\/apply$/)).toBe(1);
+  });
+
+  it('Enter com o botão focado aciona só uma vez (abre o modal sem confirmar)', async () => {
+    renderReview();
+    (await screen.findByRole('button', { name: 'Excluir marcadas (1)' })).focus();
+    await userEvent.keyboard('{Enter}');
+    await screen.findByRole('dialog');
+    await screen.findByText(/1 arquivo vai para a lixeira/);
+    expect(count(/\/apply$/)).toBe(0);
+  });
+
+  it('Enter mantido pressionado (repeat) não confirma', async () => {
+    renderReview();
+    await screen.findByText(/Grupo 12 de 445/);
+    await userEvent.keyboard('{Enter}');
+    await screen.findByText(/1 arquivo vai para a lixeira/);
+    fireEvent.keyDown(document.body, { key: 'Enter', repeat: true });
+    fireEvent.keyDown(document.body, { key: 'Enter', repeat: true });
+    expect(count(/\/apply$/)).toBe(0);
+  });
+
+  it('Enter não faz nada com 0 marcadas', async () => {
+    marks = [];
+    renderReview();
+    await screen.findByText(/Grupo 12 de 445/);
+    await userEvent.keyboard('{Enter}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('P pula e ← volta', async () => {
+    renderReview();
+    await screen.findByText(/Grupo 12 de 445/);
+    await userEvent.keyboard('p');
+    await waitFor(() => expect(count(/\/groups\/7\/skip$/)).toBe(1));
+    await userEvent.keyboard('{ArrowLeft}');
+    await waitFor(() => expect(count(/\/groups\/7\/previous$/)).toBe(1));
+    expect(await screen.findByText(/Grupo 11 de 445/)).toBeInTheDocument();
+  });
+
+  it('teclas são ignoradas com foco em campo de texto, com Ctrl e com o modal aberto (P)', async () => {
+    render(
+      <MemoryRouter initialEntries={['/revisao/1']}>
+        <input aria-label="busca" />
+        <Routes><Route path="/revisao/:scanId" element={<Review />} /></Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByText(/Grupo 12 de 445/);
+    await userEvent.click(screen.getByLabelText('busca'));
+    await userEvent.keyboard('p{Enter}{ArrowLeft}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(calls.filter((c) => /skip|previous|preview/.test(c))).toEqual([]);
+    (document.activeElement as HTMLElement).blur();
+    await userEvent.keyboard('{Control>}p{/Control}');
+    expect(calls.filter((c) => /skip/.test(c))).toEqual([]);
+    await userEvent.keyboard('{Enter}');
+    await screen.findByRole('dialog');
+    await userEvent.keyboard('p');
+    expect(calls.filter((c) => /skip/.test(c))).toEqual([]);
+  });
 });
