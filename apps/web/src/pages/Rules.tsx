@@ -2,6 +2,7 @@ import type { RuleCriterion } from '@twinpix/shared';
 import { useEffect, useState } from 'react';
 import { ApiError, apiFetch } from '../lib/api';
 
+/** Mantenha igual ao DEFAULT_RULES de apps/api/src/rules/suggest-keep.ts. */
 const DEFAULT_RULES: RuleCriterion[] = [{ type: 'noCopySuffix' }, { type: 'oldestTaken' }, { type: 'oldestModified' }];
 
 type SimpleType = Exclude<RuleCriterion['type'], 'inFolder' | 'notInFolder'>;
@@ -23,11 +24,15 @@ export function ruleLabel(c: RuleCriterion): string {
   }
 }
 
-const ADD_OPTIONS: { value: string; label: string }[] = [
-  ...SIMPLE_OPTIONS.map((o) => ({ value: o.type, label: o.label })),
-  { value: 'inFolder', label: 'está na pasta…' },
-  { value: 'notInFolder', label: 'não está na pasta…' },
-];
+/** Critérios simples que ainda não estão na lista (os de pasta podem repetir com outro caminho). */
+function addOptions(rules: RuleCriterion[]): { value: string; label: string }[] {
+  const used = new Set(rules.map((r) => r.type));
+  return [
+    ...SIMPLE_OPTIONS.filter((o) => !used.has(o.type)).map((o) => ({ value: o.type, label: o.label })),
+    { value: 'inFolder', label: 'está na pasta…' },
+    { value: 'notInFolder', label: 'não está na pasta…' },
+  ];
+}
 
 export function Rules() {
   const [rules, setRules] = useState<RuleCriterion[] | null>(null);
@@ -52,12 +57,12 @@ export function Rules() {
   };
 
   function add() {
-    if (newType === 'inFolder' || newType === 'notInFolder') {
+    if (selectedType === 'inFolder' || selectedType === 'notInFolder') {
       const path = newPath.trim();
       if (!path.startsWith('/')) { setAddError('Escreva o caminho começando com "/", por exemplo /Imagens/Viagem.'); return; }
-      change([...rules!, { type: newType, path }]);
+      change([...rules!, { type: selectedType, path }]);
     } else {
-      change([...rules!, { type: newType } as RuleCriterion]);
+      change([...rules!, { type: selectedType } as RuleCriterion]);
     }
     setAdding(false); setNewPath(''); setAddError(null);
   }
@@ -72,7 +77,9 @@ export function Rules() {
     }
   }
 
-  const needsPath = newType === 'inFolder' || newType === 'notInFolder';
+  const options = addOptions(rules);
+  const selectedType = options.some((o) => o.value === newType) ? newType : options[0].value;
+  const needsPath = selectedType === 'inFolder' || selectedType === 'notInFolder';
 
   return (
     <section className="card">
@@ -96,8 +103,8 @@ export function Rules() {
         <div className="row rule-add">
           <label>
             Critério{' '}
-            <select value={newType} onChange={(e) => { setNewType(e.target.value); setAddError(null); }}>
-              {ADD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            <select value={selectedType} onChange={(e) => { setNewType(e.target.value); setAddError(null); }}>
+              {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </label>
           {needsPath && (

@@ -25,6 +25,23 @@ function view(status: ScanSummary['status']) {
 }
 
 describe('cancelar análise', () => {
+  it('cancelamento recusado mostra a mensagem na própria tela e mantém a página', async () => {
+    const fetchMock = vi.fn(async (url: string) => url.endsWith('/cancel')
+      ? new Response(JSON.stringify({ message: 'Há um lote aberto desta análise.' }), { status: 400 })
+      : new Response(JSON.stringify(scan('paused'))));
+    vi.stubGlobal('fetch', fetchMock);
+    render(
+      <MemoryRouter initialEntries={['/varredura/3']}>
+        <Routes><Route path="/varredura/:id" element={<ScanProgress />} /></Routes>
+      </MemoryRouter>,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancelar análise' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar cancelar análise' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Há um lote aberto desta análise.');
+    expect(screen.getByRole('heading', { name: 'Análise' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancelar análise' })).toBeInTheDocument();
+  });
+
   it('confirma em dois cliques, cancela e volta à tela inicial', async () => {
     const fetchMock = view('paused');
     await userEvent.click(await screen.findByRole('button', { name: 'Cancelar análise' }));

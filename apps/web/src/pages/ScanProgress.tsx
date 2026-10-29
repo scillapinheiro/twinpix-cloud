@@ -22,6 +22,7 @@ export function ScanProgress() {
   const [unanalyzed, setUnanalyzed] = useState<CloudItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [clusterCount, setClusterCount] = useState(0);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -50,12 +51,13 @@ export function ScanProgress() {
   }
 
   async function cancel() {
+    setCancelError(null);
     try {
       await apiFetch<ScanSummary>(`/api/scans/${id}/cancel`, { method: 'POST' });
       navigate('/');
     } catch (e) {
       setConfirmingCancel(false);
-      setError((e as ApiError).message);
+      setCancelError((e as ApiError).message);
     }
   }
 
@@ -97,6 +99,7 @@ export function ScanProgress() {
           {unanalyzed.map((f) => <li key={f.id}>{f.folderPath}/{f.name}</li>)}
         </ul>
       )}
+      {cancelError && <p className="alert" role="alert">{cancelError}</p>}
       <div className="row">
         {scan.status === 'running' && <button type="button" className="button" onClick={() => act('pause')}>Pausar</button>}
         {(scan.status === 'paused' || scan.status === 'error' || scan.status === 'needs-auth') && (

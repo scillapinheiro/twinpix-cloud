@@ -47,3 +47,14 @@ it('recusa lista vazia sem chamar o servidor e volta ao padrão', async () => {
   expect(screen.getByText(/1\. nome sem sufixo/)).toBeInTheDocument();
   expect(screen.getAllByRole('listitem')).toHaveLength(3);
 });
+
+it('não oferece critério simples que já está na lista, mas deixa repetir pasta', async () => {
+  setup();
+  await screen.findByText(/1\. nome sem sufixo/);
+  await userEvent.click(screen.getByRole('button', { name: 'Adicionar regra' }));
+  const labels = Array.from(screen.getByLabelText('Critério').querySelectorAll('option')).map((o) => o.textContent);
+  expect(labels.some((l) => l?.startsWith('nome sem sufixo'))).toBe(false);
+  expect(labels).toContain('maior resolução');
+  expect(labels).toContain('está na pasta…');
+  expect(labels).toContain('não está na pasta…');
+});

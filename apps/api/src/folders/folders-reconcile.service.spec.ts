@@ -39,6 +39,14 @@ beforeEach(async () => {
 });
 
 describe('FoldersReconcileService', () => {
+  it('análise cancelada: prévia do lote, conjuntos de pastas e início do lote de pastas dão 400', () => {
+    db.sql.prepare("UPDATE scans SET status = 'cancelled' WHERE id = ?").run(scanId);
+    const msg = 'Esta análise foi cancelada.';
+    expect(() => batch.preview(scanId)).toThrow(msg);
+    expect(() => svc.clusters(scanId)).toThrow(msg);
+    expect(() => batch.startFolders(scanId, {} as never, [])).toThrow(msg);
+  });
+
   it('lista um conjunto "contained" para as duas pastas', () => {
     const cs = svc.clusters(scanId);
     expect(cs).toHaveLength(1);
