@@ -101,6 +101,19 @@ Com o OneDrive de verdade (só depois de combinar a pasta de teste):
   grupos sem duas cópias ativas (sem mudar o status deles; voltam após desfazer).
 - Testes: API 285, web 114.
 
+### Validação com dados reais (29/10/2026, 17h — listagens do rclone, só leitura)
+| Pasta | Fotos e vídeos (out → agora) | Cópias idênticas sobrando (out → agora) |
+|---|---|---|
+| Imagens/Imagens da Câmera | 24.477 → 24.076 | 390 → **0** |
+| Minhas imagens | 6.292 → 5.764 | 481 → **0** |
+- Todas as cópias idênticas de fotos e vídeos dessas duas pastas foram resolvidas pela autora com o
+  app. Restam 2 pares de arquivos de DVD (.BUP/.IFO, que são backups um do outro por definição — fora
+  do escopo) e 2 arquivos sem hash.
+- Contrato com o OneDrive real (pasta `/TwinPix Teste`): passou — listar, mapear, mover para a
+  lixeira, restaurar; a pasta ficou idêntica. Comando: `TWINPIX_TEST_FOLDER='/TwinPix Teste'
+  TWINPIX_CLIENT_ID='<id>' npm run contract -w apps/api` (usa o login salvo em `~/.twinpix-cloud`).
+- Script: `npx tsx apps/api/scripts/validate-listing.ts <listagem.json> [...]` (listagens nunca no git).
+
 ## Decisões tomadas durante a implementação
 
 Foram tomadas pelo Claude com a autonomia dada para a noite. A usuária pode rever qualquer uma.
