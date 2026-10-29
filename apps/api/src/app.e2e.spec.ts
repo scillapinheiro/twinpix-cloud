@@ -241,6 +241,57 @@ describe('API em modo demonstração', () => {
     expect(hashes.filter((h) => h.startsWith('demo-prov-'))).toEqual([]);
   });
 
+  it('lote das prováveis: só a regravação; a cópia com sufixo vai para a lixeira; editados ficam; desfazer restaura', async () => {
+    const root = (await api().get('/api/folders/root')).body;
+    const folders = (await api().get(`/api/folders/${encodeURIComponent(root.id)}/children`)).body;
+    const started = (await api().post('/api/scans', { roots: folders })).body as ScanSummary;
+    const done = await waitDone(started.id);
+    const base = `/api/scans/${started.id}/batch`;
+    await api().get(`${base}?kind=xyz`).expect(400);
+
+    const preview = (await api().get(`${base}?kind=probable`)).body as BatchPreview;
+    const items = preview.lines.flatMap((l: BatchLine) => l.items);
+    expect(items).toHaveLength(1);
+    expect(items[0].keep.name).toBe('IMG_20160701_100000.jpg');
+    expect(items[0].remove.map((f) => f.name)).toEqual(['IMG_20160701_100000 1.jpg']);
+    // Os pares editados (foto e vídeo) ficam de fora e continuam pendentes um por um.
+    expect(done.probableTotal).toBeGreaterThanOrEqual(3);
+    expect(preview.pendingCount).toBeGreaterThanOrEqual(2);
+
+    const keeps: Record<string, string> = {};
+    for (const it of items) keeps[it.groupId] = it.keep.id;
+    const lineKeys = preview.lines.map((l: BatchLine) => l.key);
+    await api().post(`${base}?kind=probable`, { lineKeys }).expect(400);
+    const sent = (await api().post(`${base}?kind=probable`, { lineKeys, keeps }).expect(200)).body as BatchSummary;
+    let summary = sent;
+    for (let i = 0; i < 200 && summary.status !== 'done'; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+      summary = (await api().get(`/api/batches/${sent.id}`)).body;
+    }
+    expect(summary.status).toBe('done');
+    expect(summary).toMatchObject({ kind: 'probable', totalGroups: 1, doneGroups: 1, movedFiles: 1, failedFiles: 0 });
+
+    const cloud = app.get<FakeCloudProvider>(CLOUD_PROVIDER, { strict: false });
+    expect(cloud.isInTrash(items[0].remove[0].id)).toBe(true);
+    expect(cloud.isInTrash(items[0].keep.id)).toBe(false);
+
+    // O par editado continua para o um por um, sem pré-marcação.
+    const group = (await api().get(`/api/scans/${started.id}/groups/current?kind=probable`)).body as GroupView;
+    expect(group.files.map((f) => f.name).join('|')).not.toContain('IMG_20160701_100000');
+    expect(group.preMarkedIds).toEqual([]);
+    expect(((await api().get(`${base}?kind=probable`)).body as BatchPreview).lines).toHaveLength(0);
+
+    await api().post(`/api/batches/${sent.id}/undo`).expect(200);
+    let undone = summary;
+    for (let i = 0; i < 200 && undone.status !== 'undone'; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+      undone = (await api().get(`/api/batches/${sent.id}`)).body;
+    }
+    expect(undone.status).toBe('undone');
+    expect(undone.restoredFiles).toBe(1);
+    expect(cloud.isInTrash(items[0].remove[0].id)).toBe(false);
+  });
+
   it('id de análise não numérico devolve 400 nas rotas de pastas repetidas', async () => {
     await api().get('/api/scans/abc/folder-clusters').expect(400);
     await api().get('/api/scans/abc/folder-clusters/plan?key=x&keep=y').expect(400);

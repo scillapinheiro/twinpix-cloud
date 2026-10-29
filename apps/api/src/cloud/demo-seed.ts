@@ -46,6 +46,10 @@ export function seedDemo(p: FakeCloudProvider): void {
   const editada = { takenAt: '2016-06-01T12:00:00Z', width: 4000, height: 3000, ...samsung };
   p.addFile(c2016.id, { name: 'IMG_20160601_120000.jpg', size: 2_900_000, quickXorHash: 'demo-prov-foto-a', ...editada });
   p.addFile(c2016.id, { name: 'IMG_20160601_120000 1.jpg', size: 1_400_000, quickXorHash: 'demo-prov-foto-b', ...editada });
+  // Regravação (mesma foto salva de novo: tamanhos a ≤ 2%): entra no lote das prováveis.
+  const regravada = { takenAt: '2016-07-01T10:00:00Z', width: 4000, height: 3000, ...samsung };
+  p.addFile(c2016.id, { name: 'IMG_20160701_100000.jpg', size: 2_000_000, quickXorHash: 'demo-prov-regrava-a', ...regravada });
+  p.addFile(c2016.id, { name: 'IMG_20160701_100000 1.jpg', size: 2_020_000, quickXorHash: 'demo-prov-regrava-b', ...regravada });
   const clipe = { kind: 'video' as const, width: 1920, height: 1080, takenAt: '2016-06-02T09:00:00Z', ...samsung };
   p.addFile(c2016.id, { name: 'VID_20160602_090000.mp4', size: 52_000_000, quickXorHash: 'demo-prov-video-a', durationMs: 31_000, ...clipe });
   p.addFile(c2016.id, { name: 'VID_20160602_090000 1.mp4', size: 30_000_000, quickXorHash: 'demo-prov-video-b', durationMs: 31_500, ...clipe });
