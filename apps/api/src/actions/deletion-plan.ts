@@ -1,4 +1,9 @@
-export class UnsafeDeletionError extends Error {}
+export class UnsafeDeletionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnsafeDeletionError';
+  }
+}
 
 export function planDeletion(
   groupFileIds: string[],

@@ -24,27 +24,46 @@ describe('planDeletion', () => {
     expect(planDeletion(['a', 'b'], ['a', 'a']).deleteIds).toEqual(['a']);
   });
 
+  it('o erro tem nome próprio', () => {
+    expect(new UnsafeDeletionError('x').name).toBe('UnsafeDeletionError');
+  });
+
   it('propriedade: ou recusa, ou sempre sobra pelo menos uma cópia do grupo', () => {
+    let accepted = 0;
+    let refused = 0;
+    const scenario = fc
+      .uniqueArray(fc.string({ minLength: 1, maxLength: 4 }), { minLength: 1, maxLength: 8 })
+      .chain((group) =>
+        fc.record({
+          group: fc.constant(group),
+          // a seleção vem do próprio grupo (às vezes com repetidos), e às vezes ganha um intruso
+          selection: fc.subarray(group).chain((sub) => fc.shuffledSubarray([...sub, ...sub], { minLength: sub.length })),
+          outsider: fc.option(fc.string({ minLength: 1, maxLength: 4 }).filter((x) => !group.includes(x)), { freq: 4 }),
+        }),
+      );
     fc.assert(
-      fc.property(
-        fc.uniqueArray(fc.string({ minLength: 1, maxLength: 4 }), { minLength: 1, maxLength: 8 }),
-        fc.array(fc.string({ minLength: 1, maxLength: 4 }), { maxLength: 10 }),
-        (group, selection) => {
-          try {
-            const plan = planDeletion(group, selection);
-            const all = new Set([...plan.deleteIds, ...plan.keepIds]);
-            return (
-              plan.keepIds.length > 0 &&
-              plan.deleteIds.every((id) => group.includes(id)) &&
-              plan.deleteIds.every((id) => !plan.keepIds.includes(id)) &&
-              all.size === group.length
-            );
-          } catch (e) {
-            return e instanceof UnsafeDeletionError;
-          }
-        },
-      ),
+      fc.property(scenario, ({ group, selection, outsider }) => {
+        const chosen = outsider === null ? selection : [...selection, outsider];
+        try {
+          const plan = planDeletion(group, chosen);
+          accepted += 1;
+          const all = new Set([...plan.deleteIds, ...plan.keepIds]);
+          return (
+            outsider === null &&
+            plan.keepIds.length > 0 &&
+            plan.deleteIds.every((id) => group.includes(id)) &&
+            plan.deleteIds.every((id) => !plan.keepIds.includes(id)) &&
+            all.size === group.length
+          );
+        } catch (e) {
+          refused += 1;
+          return e instanceof UnsafeDeletionError;
+        }
+      }),
       { numRuns: 500 },
     );
+    // garante que os dois caminhos foram de fato exercitados
+    expect(accepted).toBeGreaterThan(50);
+    expect(refused).toBeGreaterThan(50);
   });
 });
