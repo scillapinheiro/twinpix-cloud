@@ -44,3 +44,15 @@ it('mostra lotes, rótulo "lote #N" e desfaz o lote após confirmar', async () =
   expect(await screen.findByText(/Lote desfeito\./)).toBeInTheDocument();
   expect(calls).toContain('POST /api/batches/4/undo');
 });
+
+it('lote com erro mostra a frase do servidor e oferece desfazer', async () => {
+  const batch = { id: 4, scanId: 1, status: 'error', createdAt: '2026-10-29T10:00:00Z', totalGroups: 2, doneGroups: 1, skippedGroups: 0, movedFiles: 1, movedBytes: 1000, failedFiles: 0, restoredFiles: 0, notRestoredFiles: 0, error: 'Reconecte o OneDrive para terminar de desfazer o lote.' };
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/batches') return new Response(JSON.stringify([batch]));
+    return new Response('[]');
+  }));
+  render(<MemoryRouter><History /></MemoryRouter>);
+  expect(await screen.findByText('Reconecte o OneDrive para terminar de desfazer o lote.')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Conectar de novo' })).toHaveAttribute('href', '/api/auth/login');
+  expect(screen.getByRole('button', { name: 'Desfazer este lote' })).toBeInTheDocument();
+});

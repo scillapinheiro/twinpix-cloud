@@ -207,7 +207,7 @@ it('retoma o progresso de um lote em andamento ao recarregar', async () => {
   expect(await screen.findByText(/Sem conexão\. Continua sozinho quando a internet voltar\./)).toBeInTheDocument();
 });
 
-it('needs-auth mostra Conectar de novo e não Continuar; error não mostra texto cru; espera de rede tem Pausar', async () => {
+it('needs-auth mostra Conectar de novo e não Continuar; error mostra a frase do servidor; espera de rede tem Pausar', async () => {
   const f = fetch as ReturnType<typeof vi.fn>;
   const orig = f.getMockImplementation()!;
   let st: BatchSummary = summary({ status: 'needs-auth' });
@@ -219,10 +219,14 @@ it('needs-auth mostra Conectar de novo e não Continuar; error não mostra texto
   expect(screen.getByRole('button', { name: 'Já conectei, continuar' })).toBeInTheDocument();
   unmount();
   st = summary({ status: 'running' });
-  batchGet = summary({ status: 'error', error: 'SQLITE_BOOM' });
+  batchGet = summary({ status: 'error', error: 'Reconecte o OneDrive para terminar de desfazer o lote.' });
   const r2 = render(<MemoryRouter initialEntries={['/lote/1']}><Routes><Route path="/lote/:scanId" element={<Batch />} /></Routes></MemoryRouter>);
   expect(await screen.findByText(/O lote parou por um erro\. Os arquivos já movidos/, undefined, { timeout: 3000 })).toBeInTheDocument();
-  expect(screen.queryByText(/SQLITE_BOOM/)).toBeNull();
+  expect(screen.getByText('Reconecte o OneDrive para terminar de desfazer o lote.')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Conectar de novo' })).toHaveAttribute('href', '/api/auth/login');
+  await userEvent.click(screen.getByRole('button', { name: 'Desfazer este lote' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Confirmar desfazer' }));
+  await waitFor(() => expect(calls.some((c) => c.url === '/api/batches/9/undo' && c.method === 'POST')).toBe(true));
   r2.unmount();
   st = summary({ status: 'waiting-network' });
   renderBatch();

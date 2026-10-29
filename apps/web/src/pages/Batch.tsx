@@ -296,6 +296,7 @@ function BatchProgress({ initial, scanId }: { initial: BatchSummary; scanId: str
       <p className={bad ? 'alert' : undefined} role="status">
         {BATCH_STATUS_TEXT[b.status]}
       </p>
+      {b.error && <p className={bad ? 'alert' : 'notice'}>{b.error}</p>}
       <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso do lote">
         <div style={{ width: `${pct}%` }} />
       </div>
@@ -324,9 +325,10 @@ function BatchProgress({ initial, scanId }: { initial: BatchSummary; scanId: str
             <button type="button" className="link" onClick={() => void act('resume')}>Já conectei, continuar</button>
           </>
         )}
+        {b.status === 'error' && <a className="button primary" href="/api/auth/login">Conectar de novo</a>}
         {finished && pending > 0 && <Link className="button primary" to={`/revisao/${scanId}`}>Revisão um por um</Link>}
         {finished && <Link className="button" to="/historico">Ver histórico</Link>}
-        {b.status === 'done' && b.movedFiles > 0 && <UndoBatchButton onUndo={() => act('undo')} />}
+        {(b.status === 'done' || b.status === 'error') && b.movedFiles > 0 && <UndoBatchButton onUndo={() => act('undo')} />}
       </div>
     </section>
   );

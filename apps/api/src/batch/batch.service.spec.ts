@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionsService } from '../actions/actions.service';
-import { OfflineError } from '../cloud/errors';
+import { OfflineError, ReconnectRequiredError } from '../cloud/errors';
 import { FakeCloudProvider } from '../cloud/fake-cloud-provider';
 import { ReviewService } from '../review/review.service';
 import { setRules } from '../review/rules-settings';
@@ -307,6 +307,55 @@ describe('BatchService', () => {
     batch.undo(s.id);
     await batch.whenIdle(s.id);
     expect(batch.summary(s.id)).toMatchObject({ status: 'undone', restoredFiles: 2, notRestoredFiles: 0 });
+  });
+
+  describe('mensagens de erro: só frases fixas em português, nunca a exceção crua', () => {
+    it('erro inesperado num grupo: pulado, e o erro guardado é a frase fixa', async () => {
+      const line = lineFor('/B');
+      vi.spyOn(actions, 'apply').mockRejectedValueOnce(new Error('SQLITE_BOOM'));
+      const s = startBatch([line.key]);
+      await batch.whenIdle(s.id);
+      expect(batch.summary(s.id)).toMatchObject({
+        status: 'done', skippedGroups: 1, doneGroups: 1,
+        error: 'Um grupo foi pulado por um erro inesperado e volta para a revisão um por um.',
+      });
+      await expectEveryGroupKeepsACopy();
+    });
+
+    it('erro inesperado que derruba a execução: status error com a frase fixa', async () => {
+      const line = lineFor('/B');
+      vi.spyOn(batch as unknown as { setGroupStatus: () => void }, 'setGroupStatus').mockImplementation(() => { throw new Error('SQLITE_BOOM'); });
+      const s = startBatch([line.key]);
+      await batch.whenIdle(s.id);
+      expect(batch.summary(s.id)).toMatchObject({ status: 'error', error: 'O lote parou por um erro inesperado.' });
+    });
+
+    it('conexão expirada na execução: needs-auth sem texto cru', async () => {
+      const line = lineFor('/B');
+      vi.spyOn(actions, 'apply').mockRejectedValueOnce(new ReconnectRequiredError('token xyz revogado'));
+      const s = startBatch([line.key]);
+      await batch.whenIdle(s.id);
+      const sum = batch.summary(s.id);
+      expect(sum.status).toBe('needs-auth');
+      expect(sum.error ?? '').not.toContain('xyz');
+    });
+
+    it('desfazer: conexão expirada para em error com a frase fixa; erro inesperado conta como não restaurado', async () => {
+      const line = lineFor('/B');
+      const s = startBatch([line.key]);
+      await batch.whenIdle(s.id);
+      const spy = vi.spyOn(actions, 'undo').mockRejectedValueOnce(new ReconnectRequiredError('token xyz revogado'));
+      batch.undo(s.id);
+      await batch.whenIdle(s.id);
+      expect(batch.summary(s.id)).toMatchObject({ status: 'error', error: 'Reconecte o OneDrive para terminar de desfazer o lote.' });
+      spy.mockRejectedValueOnce(new Error('SQLITE_BOOM'));
+      batch.undo(s.id);
+      await batch.whenIdle(s.id);
+      expect(batch.summary(s.id)).toMatchObject({
+        status: 'undone', notRestoredFiles: 1, restoredFiles: 1,
+        error: 'Algum arquivo não foi restaurado por um erro inesperado. Confira no Histórico.',
+      });
+    });
   });
 
   describe('a ★ enviada é exatamente a da prévia', () => {

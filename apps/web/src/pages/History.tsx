@@ -71,6 +71,8 @@ export function History() {
                   {b.movedFiles} {b.movedFiles === 1 ? 'arquivo movido' : 'arquivos movidos'} · {formatBytes(b.movedBytes)}
                   {b.restoredFiles > 0 && ` · ${b.restoredFiles} restaurados`}
                 </span>
+                {b.error && <p className={b.status === 'error' ? 'alert' : 'notice'}>{b.error}</p>}
+                {b.status === 'error' && <a className="button primary" href="/api/auth/login">Conectar de novo</a>}
                 {UNDOABLE.includes(b.status) && b.movedFiles > 0 && <UndoBatchButton onUndo={() => undoBatch(b.id)} />}
               </li>
             ))}

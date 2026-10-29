@@ -17,6 +17,14 @@ export interface BatchOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
+/** Únicas frases gravadas em batches.error (a tela mostra como estão; nunca a exceção crua). */
+export const BATCH_ERRORS = {
+  unexpected: 'O lote parou por um erro inesperado.',
+  groupSkipped: 'Um grupo foi pulado por um erro inesperado e volta para a revisão um por um.',
+  undoReconnect: 'Reconecte o OneDrive para terminar de desfazer o lote.',
+  notRestored: 'Algum arquivo não foi restaurado por um erro inesperado. Confira no Histórico.',
+} as const;
+
 interface BatchGroupRow { group_id: number; line_key: string; keep_folder: string | null; keep_id: string | null }
 
 @Injectable()
@@ -224,8 +232,8 @@ export class BatchService implements OnModuleInit {
   private async runApply(id: number): Promise<void> {
     try {
       await this.applyLoop(id);
-    } catch (e) {
-      this.setStatus(id, 'error', (e as Error).message);
+    } catch {
+      this.setStatus(id, 'error', BATCH_ERRORS.unexpected);
     }
   }
 
@@ -257,10 +265,11 @@ export class BatchService implements OnModuleInit {
           continue;
         }
         if (e instanceof ReconnectRequiredError) {
-          this.setStatus(id, 'needs-auth', e.message);
+          // O texto do status já diz que a conexão expirou e a tela mostra "Conectar de novo".
+          this.setStatus(id, 'needs-auth');
           return;
         }
-        sql.prepare('UPDATE batches SET error = ? WHERE id = ?').run((e as Error).message, id);
+        sql.prepare('UPDATE batches SET error = ? WHERE id = ?').run(BATCH_ERRORS.groupSkipped, id);
         this.setGroupStatus(id, next.group_id, 'skipped');
       }
     }
@@ -306,8 +315,8 @@ export class BatchService implements OnModuleInit {
   private async runUndo(id: number): Promise<void> {
     try {
       await this.undoLoop(id);
-    } catch (e) {
-      this.setStatus(id, 'error', (e as Error).message);
+    } catch {
+      this.setStatus(id, 'error', BATCH_ERRORS.unexpected);
     }
   }
 
@@ -338,10 +347,10 @@ export class BatchService implements OnModuleInit {
           }
           if (e instanceof ReconnectRequiredError) {
             // 'error' (e não 'needs-auth') para que "continuar" nunca relance a execução no lugar do desfazer.
-            this.setStatus(id, 'error', `Reconecte o OneDrive para terminar de desfazer o lote. ${e.message}`);
+            this.setStatus(id, 'error', BATCH_ERRORS.undoReconnect);
             return;
           }
-          sql.prepare('UPDATE batches SET not_restored = not_restored + 1, error = ? WHERE id = ?').run((e as Error).message, id);
+          sql.prepare('UPDATE batches SET not_restored = not_restored + 1, error = ? WHERE id = ?').run(BATCH_ERRORS.notRestored, id);
           break;
         }
       }
