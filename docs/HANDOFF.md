@@ -55,8 +55,8 @@ O teste de contrato com o OneDrive real (pulado no `npm test`) passou em 29/10 �
 
 - Scratchpad da sessão de 29/10 (~24 MB, inclui listagens reais do rclone com nomes de fotos da
   autora em `listagens/`, dados de smoke, capturas da demo e o `playwright-core` em `pw/`):
-  `/tmp/claude-1001/-home-ene-twinpix-cloud/ac224d97-fcea-4504-a54e-ed9e3309c86a/scratchpad/`.
-  Pode ser apagado inteiro com `rm -rf` nesse caminho; nada dele é necessário ao projeto.
+  pasta temporária da sessão do Claude Code em `/tmp` (some ao reiniciar o computador).
+  Pode ser apagada inteira; nada dela é necessário ao projeto.
 - `.superpowers/` pode ser apagado quando a autora não quiser mais o histórico das revisões.
 
 ### Como experimentar
@@ -201,7 +201,6 @@ Pendências de revisão adiadas (não bloqueiam, só se a autora quiser):
 - **Nunca mover, apagar ou alterar nada no OneDrive** durante o desenvolvimento,
   exceto na pasta de teste combinada: `/TwinPix Teste` (contém teste.jpg, "teste 1.jpg" e outra.jpg).
 - Nunca ler, mostrar ou commitar o `.env`.
-- Não mexer no backup do notebook (`/home/ene/backup-notebook/`), que é outro assunto.
 - Nunca usar a porta 4317 (app da autora).
 - Listagens reais e nomes de fotos da autora nunca vão para o git (o repositório é público).
 - A autonomia da noite de 29/10 **não vale automaticamente** para as próximas sessões:
@@ -211,12 +210,12 @@ Pendências de revisão adiadas (não bloqueiam, só se a autora quiser):
 
 ```
 Vamos continuar o projeto TwinPix Cloud (app local para achar fotos e vídeos repetidos no OneDrive).
-Diretório: /home/ene/twinpix-cloud — branch main (repositório público no GitHub:
+Diretório: ~/twinpix-cloud — branch main (repositório público no GitHub:
 https://github.com/scillapinheiro/twinpix-cloud). A v1 está concluída e testada por mim.
 Antes de qualquer comando, diga o que pretende ler/verificar e espere minha autorização.
 Depois de autorizado, leia nesta ordem:
 1. as instruções globais e a memória do projeto (twinpix-cloud, commits-sem-coautoria);
-2. /home/ene/twinpix-cloud/docs/HANDOFF.md;
+2. ~/twinpix-cloud/docs/HANDOFF.md;
 3. a spec, se precisar: docs/superpowers/specs/2026-10-29-twinpix-cloud-design.md.
 Confira o estado real (git status, branch, últimos commits) sem mudar nada e me resuma em poucas
 linhas. Não faça commit, push nem mudanças sem eu pedir. Nunca mexa no meu OneDrive fora da pasta
