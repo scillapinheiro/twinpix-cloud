@@ -158,7 +158,6 @@ export class ActionsService implements OnModuleInit {
       | undefined;
     if (!a) throw new NotFoundException('Ação não encontrada.');
     if (a.status !== 'done') throw new BadRequestException('Só dá para desfazer arquivos que foram para a lixeira.');
-    if (a.error === ALREADY_GONE_NOTE) return { result: 'not-in-trash', message: UNDO_MESSAGES['not-in-trash'] };
     const result = await this.cloud.restore(a.file_id);
     if (result === 'restored') {
       this.setActionStatus(a.id, 'undone', null);

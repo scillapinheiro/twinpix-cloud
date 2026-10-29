@@ -140,15 +140,24 @@ describe('ActionsService', () => {
     expect(actions.history().filter((h) => h.file.id === 'c1')).toHaveLength(1);
   });
 
-  it('já não estava no OneDrive: registra com nota e desfazer não chama restore', async () => {
+  it('já não estava no OneDrive: registra com nota e desfazer tenta restaurar e informa', async () => {
     const spy = vi.spyOn(cloud, 'moveToTrash').mockResolvedValueOnce('already-gone');
     const r = await actions.apply(groupId, ['c1']);
     spy.mockRestore();
     expect(r.results[0]).toMatchObject({ status: 'done', error: 'Já não estava no OneDrive.' });
-    const before = cloud.calls.filter((c) => c === 'restore').length;
     const u = await actions.undo(r.results[0].actionId);
     expect(u.result).toBe('not-in-trash');
-    expect(cloud.calls.filter((c) => c === 'restore').length).toBe(before);
+    expect(cloud.calls).toContain('restore');
+  });
+
+  it('DELETE repetido após 503 respondeu 404, mas o arquivo está na lixeira: desfazer restaura', async () => {
+    const real = cloud.moveToTrash.bind(cloud);
+    vi.spyOn(cloud, 'moveToTrash').mockImplementationOnce(async (id) => { await real(id); return 'already-gone'; });
+    const r = await actions.apply(groupId, ['c1']);
+    expect(r.results[0].error).toBe('Já não estava no OneDrive.');
+    const u = await actions.undo(r.results[0].actionId);
+    expect(u.result).toBe('restored');
+    expect(cloud.isInTrash('c1')).toBe(false);
   });
 
   it('desfazer simultâneo a apply deixa o grupo consistente', async () => {
