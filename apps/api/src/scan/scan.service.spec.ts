@@ -105,6 +105,9 @@ describe('ScanService', () => {
     const id = scan.start([a, b]);
     await scan.whenIdle(id);
     expect(scan.summary(id).status).toBe('done');
+    const forbidden = db.sql.prepare("SELECT folder_id FROM scan_folders WHERE scan_id = ? AND status = 'forbidden'").all(id);
+    expect(forbidden).toEqual([{ folder_id: a.id }]);
+    expect(scan.summary(id).filesFound).toBe(4);
   });
 
   it('grupos ganham posição pela ordem de descoberta e não se repetem', async () => {
@@ -113,9 +116,14 @@ describe('ScanService', () => {
     await scan.whenIdle(id);
     const rows = db.sql.prepare('SELECT key, position FROM dup_groups WHERE scan_id = ? ORDER BY position').all(id);
     expect(rows).toEqual([
-      { key: 'h1:10', position: 1 },
-      { key: 'h2:20', position: 2 },
+      // B é processada antes de Sub, então h2:20 é descoberto primeiro; a posição é fixa desde a inserção
+      { key: 'h2:20', position: 1 },
+      { key: 'h1:10', position: 2 },
     ]);
+    // retomar/reexecutar não muda posições já gravadas
+    scan.resume(id);
+    await scan.whenIdle(id);
+    expect(db.sql.prepare('SELECT key, position FROM dup_groups WHERE scan_id = ? ORDER BY position').all(id)).toEqual(rows);
   });
 
   it('latest devolve a varredura mais recente', async () => {

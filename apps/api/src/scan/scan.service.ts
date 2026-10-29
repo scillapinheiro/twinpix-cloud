@@ -118,6 +118,14 @@ export class ScanService implements OnModuleInit {
   }
 
   private async run(scanId: number): Promise<void> {
+    try {
+      await this.runLoop(scanId);
+    } catch (e) {
+      this.setStatus(scanId, 'error', (e as Error).message);
+    }
+  }
+
+  private async runLoop(scanId: number): Promise<void> {
     this.setStatus(scanId, 'running');
     for (;;) {
       if (this.pauseRequested.delete(scanId)) {
@@ -128,7 +136,7 @@ export class ScanService implements OnModuleInit {
         .prepare("SELECT folder_id, path, page_token FROM scan_folders WHERE scan_id = ? AND status = 'pending' ORDER BY seq LIMIT 1")
         .get(scanId) as FolderRow | undefined;
       if (!folder) {
-        this.regroup(scanId, true);
+        this.regroup(scanId);
         this.setStatus(scanId, 'done');
         return;
       }
@@ -187,14 +195,14 @@ export class ScanService implements OnModuleInit {
       .run(scanId, folderId, path, n);
   }
 
-  private regroup(scanId: number, final = false): void {
+  private regroup(scanId: number): void {
     const sql = this.db.sql;
     const files = sql
       .prepare('SELECT id, quick_xor_hash AS quickXorHash, size FROM files WHERE scan_id = ? AND quick_xor_hash IS NOT NULL ORDER BY folder_path, name')
       .all(scanId) as Array<{ id: string; quickXorHash: string; size: number }>;
     const order = new Map(files.map((f, i) => [f.id, i]));
     const firstIndex = (ids: string[]) => Math.min(...ids.map((id) => order.get(id) ?? Infinity));
-    // ordem de descoberta: pela menor pasta/nome de cada grupo
+    // grupos novos desta chamada: pela menor pasta/nome; a posição, uma vez gravada, nunca muda
     const groups = groupIdentical(files).sort((x, y) => firstIndex(x.fileIds) - firstIndex(y.fileIds));
     sql.transaction(() => {
       for (const g of groups) {
@@ -211,12 +219,6 @@ export class ScanService implements OnModuleInit {
         for (const fileId of g.fileIds) {
           sql.prepare('INSERT OR IGNORE INTO dup_group_files (group_id, file_id) VALUES (?, ?)').run(row.id, fileId);
         }
-      }
-      // Ao concluir, a revisão segue a ordem de pasta/nome, não a ordem em que as pastas terminaram.
-      if (final) {
-        groups.forEach((g, i) => {
-          sql.prepare("UPDATE dup_groups SET position = ? WHERE scan_id = ? AND kind = 'identical' AND key = ?").run(i + 1, scanId, g.key);
-        });
       }
     })();
   }
