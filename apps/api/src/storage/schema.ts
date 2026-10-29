@@ -4,7 +4,9 @@ CREATE TABLE IF NOT EXISTS scans (
   created_at TEXT NOT NULL,
   status TEXT NOT NULL,
   error TEXT,
-  cursor_group_id INTEGER
+  cursor_group_id INTEGER,
+  cursor_probable_id INTEGER,
+  probable_done INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS scan_roots (
   scan_id INTEGER NOT NULL REFERENCES scans(id),

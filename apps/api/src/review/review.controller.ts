@@ -1,10 +1,16 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
 import type { GroupView, RuleCriterion } from '@twinpix/shared';
 import { isValidRules } from '../rules/suggest-keep';
 import type { Db } from '../storage/db';
 import { DB } from '../tokens';
 import { ReviewService } from './review.service';
 import { getRules, setRules } from './rules-settings';
+
+function parseKind(kind: string | undefined): 'identical' | 'probable' {
+  if (kind === undefined || kind === 'identical') return 'identical';
+  if (kind === 'probable') return 'probable';
+  throw new BadRequestException('Tipo de grupo inválido.');
+}
 
 @Controller()
 export class ReviewController {
@@ -14,14 +20,14 @@ export class ReviewController {
   ) {}
 
   @Get('scans/:id/groups/current')
-  current(@Param('id', ParseIntPipe) id: number): GroupView | null {
-    return this.review.current(id);
+  current(@Param('id', ParseIntPipe) id: number, @Query('kind') kind?: string): GroupView | null {
+    return this.review.current(id, parseKind(kind));
   }
 
   @Post('scans/:id/unskip')
   @HttpCode(204)
-  unskip(@Param('id', ParseIntPipe) id: number): void {
-    this.review.unskipAll(id);
+  unskip(@Param('id', ParseIntPipe) id: number, @Query('kind') kind?: string): void {
+    this.review.unskipAll(id, parseKind(kind));
   }
 
   @Get('groups/:id')

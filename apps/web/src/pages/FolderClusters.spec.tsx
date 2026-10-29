@@ -42,7 +42,7 @@ beforeEach(() => {
     if (url === '/api/scans/1/folder-clusters/apply') return new Response(JSON.stringify(summary));
     if (url === '/api/batches') return new Response(JSON.stringify(batchList));
     if (url === '/api/batches/7') return new Response(JSON.stringify(batchGet));
-    if (url === '/api/scans/1') return new Response(JSON.stringify({ id: 1, status: 'done', groupsPending: 0, roots: [], foldersDone: 1, foldersTotal: 1, filesFound: 1, groupsTotal: 1, groupsSkipped: 0, bytesFreed: 0, unanalyzedCount: 0, error: null }));
+    if (url === '/api/scans/1') return new Response(JSON.stringify({ id: 1, status: 'done', groupsPending: 0, roots: [], foldersDone: 1, foldersTotal: 1, filesFound: 1, groupsTotal: 1, groupsSkipped: 0, probableTotal: 0, probablePending: 0, probableSkipped: 0, bytesFreed: 0, unanalyzedCount: 0, error: null }));
     return new Response('{}', { status: 404 });
   }));
 });
@@ -315,7 +315,7 @@ describe('entrada em ScanProgress', () => {
   it('não aparece com análise em andamento', async () => {
     const base = globalThis.fetch as unknown as (u: string, i?: RequestInit) => Promise<Response>;
     vi.stubGlobal('fetch', vi.fn(async (u: string, i?: RequestInit) => (u === '/api/scans/1'
-      ? new Response(JSON.stringify({ id: 1, status: 'paused', groupsPending: 0, roots: [], foldersDone: 0, foldersTotal: 1, filesFound: 0, groupsTotal: 0, groupsSkipped: 0, bytesFreed: 0, unanalyzedCount: 0, error: null }))
+      ? new Response(JSON.stringify({ id: 1, status: 'paused', groupsPending: 0, roots: [], foldersDone: 0, foldersTotal: 1, filesFound: 0, groupsTotal: 0, groupsSkipped: 0, probableTotal: 0, probablePending: 0, probableSkipped: 0, bytesFreed: 0, unanalyzedCount: 0, error: null }))
       : base(u, i))));
     renderScan();
     await screen.findByText('Análise pausada.');

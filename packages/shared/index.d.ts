@@ -43,6 +43,9 @@ export interface ScanSummary {
   groupsTotal: number;
   groupsPending: number;
   groupsSkipped: number;
+  probableTotal: number;
+  probablePending: number;
+  probableSkipped: number;
   bytesFreed: number;
   error: string | null;
 }
@@ -69,9 +72,9 @@ export interface Suggestion {
 export interface GroupView {
   id: number;
   scanId: number;
-  kind: 'identical';
+  kind: 'identical' | 'probable';
   status: GroupStatus;
-  /** Posição 1-based entre todos os grupos da varredura. */
+  /** Posição 1-based entre os grupos do mesmo tipo na varredura. */
   position: number;
   total: number;
   files: CloudItem[];

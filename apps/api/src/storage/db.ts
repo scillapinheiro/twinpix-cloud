@@ -34,6 +34,12 @@ export class Db {
     if (!hasColumn('batch_groups', 'delete_ids')) {
       this.sql.exec('ALTER TABLE batch_groups ADD COLUMN delete_ids TEXT');
     }
+    if (!hasColumn('scans', 'cursor_probable_id')) {
+      this.sql.exec('ALTER TABLE scans ADD COLUMN cursor_probable_id INTEGER');
+    }
+    if (!hasColumn('scans', 'probable_done')) {
+      this.sql.exec('ALTER TABLE scans ADD COLUMN probable_done INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   close(): void {

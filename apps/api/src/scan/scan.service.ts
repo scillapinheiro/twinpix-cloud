@@ -3,6 +3,7 @@ import type { CloudFolder, CloudItem, ScanStatus, ScanSummary } from '@twinpix/s
 import type { CloudProvider } from '../cloud/cloud-provider';
 import { ForbiddenError, OfflineError, ReconnectRequiredError } from '../cloud/errors';
 import { groupIdentical } from '../grouping/group-identical';
+import { groupProbable } from '../grouping/group-probable';
 import type { Db } from '../storage/db';
 import { insertFile, nowIso, rowToItem, type FileRow } from '../storage/rows';
 import { CLOUD_PROVIDER, DB } from '../tokens';
@@ -35,6 +36,9 @@ export class ScanService implements OnModuleInit {
       .prepare("SELECT id FROM scans WHERE status IN ('running', 'waiting-network')")
       .all() as Array<{ id: number }>;
     for (const { id } of rows) this.launch(id);
+    // análises concluídas antes das prováveis cópias existirem
+    const legacy = this.db.sql.prepare("SELECT id FROM scans WHERE status = 'done' AND probable_done = 0").all() as Array<{ id: number }>;
+    for (const { id } of legacy) this.computeProbable(id);
   }
 
   start(roots: CloudFolder[]): number {
@@ -92,9 +96,12 @@ export class ScanService implements OnModuleInit {
       foldersTotal: count('SELECT COUNT(*) n FROM scan_folders WHERE scan_id = ?'),
       filesFound: count('SELECT COUNT(*) n FROM files WHERE scan_id = ?'),
       unanalyzedCount: count('SELECT COUNT(*) n FROM files WHERE scan_id = ? AND quick_xor_hash IS NULL'),
-      groupsTotal: count('SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ?'),
-      groupsPending: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND status IN ('pending', 'stale')"),
-      groupsSkipped: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND status = 'skipped'"),
+      groupsTotal: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'identical'"),
+      groupsPending: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'identical' AND status IN ('pending', 'stale')"),
+      groupsSkipped: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'identical' AND status = 'skipped'"),
+      probableTotal: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'probable'"),
+      probablePending: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'probable' AND status IN ('pending', 'stale')"),
+      probableSkipped: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'probable' AND status = 'skipped'"),
       bytesFreed: (sql.prepare(
         `SELECT COALESCE(SUM(f.size), 0) n FROM actions a
          JOIN dup_groups g ON g.id = a.group_id
@@ -137,6 +144,7 @@ export class ScanService implements OnModuleInit {
         .get(scanId) as FolderRow | undefined;
       if (!folder) {
         this.regroup(scanId);
+        this.computeProbable(scanId);
         this.setStatus(scanId, 'done');
         return;
       }
@@ -225,6 +233,37 @@ export class ScanService implements OnModuleInit {
           sql.prepare("UPDATE dup_groups SET status = 'pending' WHERE id = ? AND status IN ('resolved', 'skipped')").run(row.id);
         }
       }
+    })();
+  }
+
+  /** Prováveis cópias: calculadas uma vez, com a análise concluída, só com arquivos ainda ativos. */
+  private computeProbable(scanId: number): void {
+    const sql = this.db.sql;
+    const rows = sql
+      .prepare(
+        `SELECT * FROM files f WHERE f.scan_id = ?
+           AND NOT EXISTS (SELECT 1 FROM actions a WHERE a.file_id = f.id AND a.status IN ('done','pending'))
+         ORDER BY folder_path, name`,
+      )
+      .all(scanId) as FileRow[];
+    const groups = groupProbable(rows.map(rowToItem));
+    sql.transaction(() => {
+      for (const g of groups) {
+        let row = sql.prepare("SELECT id FROM dup_groups WHERE scan_id = ? AND kind = 'probable' AND key = ?").get(scanId, g.key) as
+          | { id: number }
+          | undefined;
+        if (!row) {
+          const { n } = sql.prepare('SELECT COALESCE(MAX(position), 0) + 1 n FROM dup_groups WHERE scan_id = ?').get(scanId) as { n: number };
+          const { lastInsertRowid } = sql
+            .prepare("INSERT INTO dup_groups (scan_id, kind, key, position, status) VALUES (?, 'probable', ?, ?, 'pending')")
+            .run(scanId, g.key, n);
+          row = { id: Number(lastInsertRowid) };
+        }
+        for (const fileId of g.fileIds) {
+          sql.prepare('INSERT OR IGNORE INTO dup_group_files (group_id, file_id) VALUES (?, ?)').run(row.id, fileId);
+        }
+      }
+      sql.prepare('UPDATE scans SET probable_done = 1 WHERE id = ?').run(scanId);
     })();
   }
 
