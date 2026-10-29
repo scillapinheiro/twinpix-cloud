@@ -71,4 +71,13 @@ describe('ReviewService', () => {
       .run(g.id, g.preMarkedIds[0], g.suggestion.keepId);
     expect(review.activeFileIds(g.id)).toEqual([g.suggestion.keepId]);
   });
+
+  it('arquivo levado para a lixeira por outra análise também sai do grupo', async () => {
+    const g = review.current(scanId)!;
+    db.sql.prepare("INSERT INTO dup_groups (scan_id, kind, key, position, status) VALUES (?, 'identical', 'outra', 99, 'pending')").run(scanId);
+    const other = (db.sql.prepare("SELECT id FROM dup_groups WHERE key = 'outra'").get() as { id: number }).id;
+    db.sql.prepare("INSERT INTO actions (group_id, file_id, kept_file_id, status, created_at, updated_at) VALUES (?, ?, ?, 'pending', 'x', 'x')")
+      .run(other, g.preMarkedIds[0], g.suggestion.keepId);
+    expect(review.activeFileIds(g.id)).toEqual([g.suggestion.keepId]);
+  });
 });

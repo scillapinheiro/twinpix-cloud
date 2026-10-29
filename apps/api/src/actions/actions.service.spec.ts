@@ -107,6 +107,31 @@ describe('ActionsService', () => {
     expect(cloud.isInTrash('orig')).toBe(false);
   });
 
+  it('duas análises da mesma pasta, apply em paralelo com escolhas opostas: sempre sobra uma cópia', async () => {
+    class SlowCloud extends FakeCloudProvider {
+      override async getItem(id: string) { await new Promise((r) => setTimeout(r, 0)); return super.getItem(id); }
+      override async moveToTrash(id: string) { await new Promise((r) => setTimeout(r, 0)); return super.moveToTrash(id); }
+    }
+    const db2 = new Db(':memory:');
+    const slow = new SlowCloud();
+    const a = slow.addFolder(slow.rootId, 'A');
+    slow.addFile(a.id, { id: 'orig', name: 'x.jpg', quickXorHash: 'h', size: 500 });
+    slow.addFile(a.id, { id: 'c1', name: 'x 1.jpg', quickXorHash: 'h', size: 500 });
+    const scan = new ScanService(db2, slow, { offlineRetryMs: 0 });
+    const s1 = scan.start([a]);
+    await scan.whenIdle(s1);
+    const s2 = scan.start([a]);
+    await scan.whenIdle(s2);
+    const rv = new ReviewService(db2);
+    const act = new ActionsService(db2, slow, rv);
+    const g1 = rv.current(s1)!;
+    const g2 = rv.current(s2)!;
+    expect(g1.id).not.toBe(g2.id);
+    const settled = await Promise.allSettled([act.apply(g1.id, ['c1']), act.apply(g2.id, ['orig'])]);
+    expect(['orig', 'c1'].some((id) => !slow.isInTrash(id))).toBe(true);
+    expect(settled.filter((x) => x.status === 'fulfilled' && !x.value.stale && x.value.results.length > 0)).toHaveLength(1);
+  });
+
   it('apply duplicado com os mesmos IDs não gera duas ações para o mesmo arquivo', async () => {
     const [a, b] = await Promise.all([actions.apply(groupId, ['c1']), actions.apply(groupId, ['c1']).catch((e) => e)]);
     expect(a.results).toHaveLength(1);

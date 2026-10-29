@@ -36,22 +36,20 @@ export class ActionsService implements OnModuleInit {
     return { groupId, deleteFiles, keepFiles, bytes: deleteFiles.reduce((s, f) => s + f.size, 0) };
   }
 
-  private readonly locks = new Map<number, Promise<unknown>>();
+  private lock: Promise<unknown> = Promise.resolve();
 
-  /** Serializa operações do mesmo grupo (apply/undo) dentro do processo. */
-  private withGroupLock<T>(groupId: number, fn: () => Promise<T>): Promise<T> {
-    const prev = this.locks.get(groupId) ?? Promise.resolve();
-    const run = prev.then(fn, fn);
-    const tail = run.catch(() => undefined);
-    this.locks.set(groupId, tail);
-    void tail.then(() => {
-      if (this.locks.get(groupId) === tail) this.locks.delete(groupId);
-    });
+  /**
+   * Serializa TODAS as operações que mexem no OneDrive (apply/undo/acerto do diário), de qualquer
+   * grupo e de qualquer análise: o mesmo arquivo pode estar em grupos de análises diferentes.
+   */
+  private withLock<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.lock.then(fn, fn);
+    this.lock = run.catch(() => undefined);
     return run;
   }
 
   apply(groupId: number, deleteIds: string[]): Promise<ApplyResult> {
-    return this.withGroupLock(groupId, () => this.applyLocked(groupId, deleteIds));
+    return this.withLock(() => this.applyLocked(groupId, deleteIds));
   }
 
   private async applyLocked(groupId: number, deleteIds: string[]): Promise<ApplyResult> {
@@ -126,9 +124,9 @@ export class ActionsService implements OnModuleInit {
   }
 
   undo(actionId: number): Promise<UndoResponse> {
-    const row = this.db.sql.prepare('SELECT group_id FROM actions WHERE id = ?').get(actionId) as { group_id: number } | undefined;
+    const row = this.db.sql.prepare('SELECT id FROM actions WHERE id = ?').get(actionId);
     if (!row) throw new NotFoundException('Ação não encontrada.');
-    return this.withGroupLock(row.group_id, () => this.undoLocked(actionId));
+    return this.withLock(() => this.undoLocked(actionId));
   }
 
   private async undoLocked(actionId: number): Promise<UndoResponse> {
