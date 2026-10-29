@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { ForbiddenError, OfflineError, ReconnectRequiredError } from '../cloud/errors';
 import { FakeCloudProvider } from '../cloud/fake-cloud-provider';
 import { Db } from '../storage/db';
+import { insertFile } from '../storage/rows';
 import { ScanService } from './scan.service';
 
 let db: Db;
@@ -124,6 +125,24 @@ describe('ScanService', () => {
     scan.resume(id);
     await scan.whenIdle(id);
     expect(db.sql.prepare('SELECT key, position FROM dup_groups WHERE scan_id = ? ORDER BY position').all(id)).toEqual(rows);
+  });
+
+  it('cópia nova encontrada depois de o grupo ser resolvido ou pulado reabre o grupo', async () => {
+    const { a, b } = tree();
+    const id = scan.start([a, b]);
+    await scan.whenIdle(id);
+    db.sql.prepare("UPDATE dup_groups SET status = 'resolved' WHERE scan_id = ? AND key = 'h2:20'").run(id);
+    db.sql.prepare("UPDATE dup_groups SET status = 'skipped' WHERE scan_id = ? AND key = 'h1:10'").run(id);
+    // uma página seguinte trouxe mais uma cópia de y.jpg (h2:20); nada novo para h1:10
+    const extra = cloud.addFile(b.id, { name: 'y 2.jpg', quickXorHash: 'h2', size: 20 });
+    insertFile(db.sql, id, extra);
+    scan.resume(id);
+    await scan.whenIdle(id);
+    const statuses = db.sql.prepare('SELECT key, status FROM dup_groups WHERE scan_id = ? ORDER BY key').all(id);
+    expect(statuses).toEqual([
+      { key: 'h1:10', status: 'skipped' },
+      { key: 'h2:20', status: 'pending' },
+    ]);
   });
 
   it('latest devolve a varredura mais recente', async () => {

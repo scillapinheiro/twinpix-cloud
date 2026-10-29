@@ -216,8 +216,13 @@ export class ScanService implements OnModuleInit {
             .run(scanId, g.key, n);
           row = { id: Number(lastInsertRowid) };
         }
+        let added = 0;
         for (const fileId of g.fileIds) {
-          sql.prepare('INSERT OR IGNORE INTO dup_group_files (group_id, file_id) VALUES (?, ?)').run(row.id, fileId);
+          added += sql.prepare('INSERT OR IGNORE INTO dup_group_files (group_id, file_id) VALUES (?, ?)').run(row.id, fileId).changes;
+        }
+        // cópia nova num grupo já resolvido ou pulado: volta para a revisão
+        if (added > 0) {
+          sql.prepare("UPDATE dup_groups SET status = 'pending' WHERE id = ? AND status IN ('resolved', 'skipped')").run(row.id);
         }
       }
     })();
