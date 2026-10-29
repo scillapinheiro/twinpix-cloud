@@ -328,6 +328,14 @@ describe('BatchService', () => {
   });
 
   describe('mensagens de erro: só frases fixas em português, nunca a exceção crua', () => {
+    it('texto desconhecido gravado em batches.error aparece como a frase genérica', async () => {
+      const line = lineFor('/B');
+      const s = startBatch([line.key]);
+      await batch.whenIdle(s.id);
+      db.sql.prepare('UPDATE batches SET error = ? WHERE id = ?').run('SQLITE_BOOM: detalhe', s.id);
+      expect(batch.summary(s.id).error).toBe('O lote parou por um erro inesperado.');
+    });
+
     it('erro inesperado num grupo: pulado, e o erro guardado é a frase fixa', async () => {
       const line = lineFor('/B');
       vi.spyOn(actions, 'apply').mockRejectedValueOnce(new Error('SQLITE_BOOM'));
@@ -335,7 +343,7 @@ describe('BatchService', () => {
       await batch.whenIdle(s.id);
       expect(batch.summary(s.id)).toMatchObject({
         status: 'done', skippedGroups: 1, doneGroups: 1,
-        error: 'Um grupo foi pulado por um erro inesperado e volta para a revisão um por um.',
+        error: 'Um item foi pulado por um erro inesperado e volta para a revisão um por um.',
       });
       await expectEveryGroupKeepsACopy();
     });

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes } from '../lib/format';
+import { plural } from '../lib/plural';
 
 export function Home() {
   const [auth, setAuth] = useState<AuthStatus | null>(null);
@@ -27,11 +28,7 @@ export function Home() {
     return (
       <section className="card">
         <h1>Falta configurar</h1>
-        <p>
-          Para conectar ao OneDrive, registre o app no Microsoft Entra e coloque o Client ID no arquivo
-          <code> .env </code> da pasta do projeto, na linha <code>TWINPIX_CLIENT_ID=</code>. O passo a passo está no README.
-        </p>
-        <p>Enquanto isso, você pode experimentar com <code>npm run demo</code>.</p>
+        <p>O TwinPix ainda não está ligado a uma conta da Microsoft. Siga o passo "Usar com o seu OneDrive" do guia.</p>
       </section>
     );
   }
@@ -53,7 +50,7 @@ export function Home() {
       {auth.demo && <p className="notice">Modo demonstração: os arquivos são fictícios e nada acontece no seu OneDrive.</p>}
       {latest && (
         <p>
-          Última análise: {latest.filesFound} arquivos, {latest.groupsPending} grupos para revisar,
+          Última análise: {plural(latest.filesFound, 'arquivo', 'arquivos')}, {plural(latest.groupsPending, 'grupo', 'grupos')} para revisar,
           {' '}{formatBytes(latest.bytesFreed)} liberados.
         </p>
       )}

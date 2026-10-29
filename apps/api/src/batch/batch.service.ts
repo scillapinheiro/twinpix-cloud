@@ -20,10 +20,12 @@ export interface BatchOptions {
 /** Únicas frases gravadas em batches.error (a tela mostra como estão; nunca a exceção crua). */
 export const BATCH_ERRORS = {
   unexpected: 'O lote parou por um erro inesperado.',
-  groupSkipped: 'Um grupo foi pulado por um erro inesperado e volta para a revisão um por um.',
+  groupSkipped: 'Um item foi pulado por um erro inesperado e volta para a revisão um por um.',
   undoReconnect: 'Reconecte o OneDrive para terminar de desfazer o lote.',
   notRestored: 'Algum arquivo não foi restaurado por um erro inesperado. Confira no Histórico.',
 } as const;
+
+const KNOWN_BATCH_ERRORS: ReadonlySet<string> = new Set(Object.values(BATCH_ERRORS));
 
 export const BATCH_OPEN_MESSAGE = 'Já existe um lote pausado ou em andamento. Termine ou desfaça esse lote primeiro.';
 
@@ -269,7 +271,7 @@ export class BatchService implements OnModuleInit {
       failedFiles: actionCount('failed'),
       restoredFiles: actionCount('undone'),
       notRestoredFiles: b.not_restored,
-      error: b.error,
+      error: b.error && KNOWN_BATCH_ERRORS.has(b.error) ? b.error : b.error ? BATCH_ERRORS.unexpected : null,
     };
   }
 

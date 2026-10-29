@@ -2,6 +2,7 @@ import type { CloudFolder, NestedRoot, ScanSummary } from '@twinpix/shared';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, apiFetch } from '../lib/api';
+import { plural } from '../lib/plural';
 
 export function FolderPicker() {
   const navigate = useNavigate();
@@ -114,7 +115,7 @@ export function FolderPicker() {
       ))}
 
       <button type="button" className="button primary" disabled={chosen.length === 0 || busy} onClick={start}>
-        Iniciar análise ({chosen.length} {chosen.length === 1 ? 'pasta' : 'pastas'})
+        Iniciar análise ({plural(chosen.length, 'pasta', 'pastas')})
       </button>
     </section>
   );

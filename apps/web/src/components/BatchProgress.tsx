@@ -103,7 +103,7 @@ export function BatchProgress({ initial, scanId, title = BATCH_TITLE[initial.kin
         {finished && pending > 0 && <Link className="button primary" to={`/revisao/${scanId}`}>Revisão um por um</Link>}
         {finished && afterFinish}
         {finished && <Link className="button" to="/historico">Ver histórico</Link>}
-        {(b.status === 'done' || b.status === 'error') && b.movedFiles > 0 && <UndoBatchButton onUndo={() => act('undo')} />}
+        {(b.status === 'done' || b.status === 'paused' || b.status === 'error') && b.movedFiles > 0 && <UndoBatchButton onUndo={() => act('undo')} />}
       </div>
     </section>
   );

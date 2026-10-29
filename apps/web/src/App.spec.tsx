@@ -7,7 +7,7 @@ it('sem Client ID mostra como configurar', async () => {
     new Response(JSON.stringify({ configured: false, connected: false, accountName: null, demo: false }), { status: 200 }),
   ));
   render(<App />);
-  expect(await screen.findByText(/TWINPIX_CLIENT_ID/)).toBeInTheDocument();
+  expect(await screen.findByText(/Usar com o seu OneDrive/)).toBeInTheDocument();
 });
 
 it('desconectado mostra o botão de conectar', async () => {

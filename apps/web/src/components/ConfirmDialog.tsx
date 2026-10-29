@@ -2,6 +2,7 @@ import type { ApplyResult, DeletionPreview } from '@twinpix/shared';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes } from '../lib/format';
+import { plural } from '../lib/plural';
 import { ignoreShortcut, isNativeActivator } from '../lib/shortcuts';
 
 interface Props {
@@ -114,7 +115,7 @@ export function ConfirmDialog({ groupId, deleteIds, onCancel, onDone }: Props) {
             {preview && (
               <>
                 <p>
-                  <strong>{n} {n === 1 ? 'arquivo vai' : 'arquivos vão'} para a lixeira do OneDrive</strong>, liberando {formatBytes(preview.bytes)}.
+                  <strong>{plural(n, 'arquivo vai', 'arquivos vão')} para a lixeira do OneDrive</strong>, liberando {formatBytes(preview.bytes)}.
                   Nada é apagado de vez: você pode restaurar pelo Histórico ou pela lixeira do OneDrive.
                 </p>
                 <h2>Vão para a lixeira</h2>

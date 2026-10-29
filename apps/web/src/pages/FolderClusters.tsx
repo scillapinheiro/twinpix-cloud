@@ -50,7 +50,7 @@ export function FolderClusters() {
         initial={batch}
         scanId={String(batch.scanId)}
         notice={other ? OTHER_BATCH_NOTICE : undefined}
-        afterFinish={<button type="button" className="button primary" onClick={() => { setBatch(null); void load(); }}>Próximo conjunto</button>}
+        afterFinish={batch.kind === 'folders' ? <button type="button" className="button primary" onClick={() => { setBatch(null); void load(); }}>Próximo conjunto</button> : undefined}
       />
     );
   }
@@ -210,11 +210,11 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
             {two ? (
               <>
                 <strong>Situação:</strong> {situationLine}<br />
-                {cluster.groupCount} arquivos estão nas duas · {uniqueOf(0)} só na primeira · {uniqueOf(1)} só na segunda.
+                {plural(cluster.groupCount, 'arquivo está', 'arquivos estão')} nas duas · {uniqueOf(0)} só na primeira · {uniqueOf(1)} só na segunda.
               </>
             ) : (
               <>
-                <strong>Resumo:</strong> {cluster.groupCount} arquivos se repetem entre as pastas. Existem <strong>{plural(cluster.uniqueFiles, 'arquivo único', 'arquivos únicos')}</strong>{' '}
+                <strong>Resumo:</strong> {plural(cluster.groupCount, 'arquivo se repete', 'arquivos se repetem')} entre as pastas. Existem <strong>{plural(cluster.uniqueFiles, 'arquivo único', 'arquivos únicos')}</strong>{' '}
                 ({folders.map((f, i) => `${f.uniqueCount} na ${ordinal(i)}`).join(', ')}) que <strong>nunca</strong> serão tocados.
               </>
             )}

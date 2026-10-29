@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ApiError } from '../lib/api';
 import { formatBytes } from '../lib/format';
+import { plural } from '../lib/plural';
 
 interface Props {
   files: number;
@@ -49,12 +50,12 @@ export function BatchConfirmDialog({ files, groups, bytes, inverted = [], onConf
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="batch-confirm-title" tabIndex={-1} ref={dialogRef}>
         <h1 id="batch-confirm-title">Confirmar lote</h1>
         <p>
-          <strong>{files} {files === 1 ? 'arquivo de' : 'arquivos de'} {groups} {groups === 1 ? 'grupo vai' : 'grupos vão'} para a lixeira do OneDrive</strong>,
+          <strong>{plural(files, 'arquivo', 'arquivos')} de {plural(groups, 'grupo vai', 'grupos vão')} para a lixeira do OneDrive</strong>,
           {' '}liberando {formatBytes(bytes)}. Em cada grupo fica a cópia sugerida{inverted.length > 0 ? ', exceto onde você escolheu outra pasta' : ''}. Nada é apagado de vez.
         </p>
         {inverted.length > 0 && (
           <ul>
-            {inverted.map((i) => <li key={i.key}>{i.groups === 1 ? '1 grupo' : `${i.groups} grupos`}: fica em <strong>{i.folder}</strong></li>)}
+            {inverted.map((i) => <li key={i.key}>{plural(i.groups, 'grupo', 'grupos')}: fica em <strong>{i.folder}</strong></li>)}
           </ul>
         )}
         {error && <p className="alert" role="alert">{error}</p>}

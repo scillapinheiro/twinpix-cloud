@@ -399,3 +399,12 @@ it('lote das idênticas aberto tem prioridade sobre um de pastas e lote terminad
   expect(await screen.findByRole('heading', { name: 'Lote das idênticas' })).toBeInTheDocument();
   expect(screen.queryByText('Termine ou desfaça este lote antes de começar outro.')).toBeNull();
 });
+
+it('lote pausado com arquivos movidos oferece "Desfazer este lote"', async () => {
+  const f = fetch as ReturnType<typeof vi.fn>;
+  const orig = f.getMockImplementation()!;
+  f.mockImplementation(async (url: string, init?: RequestInit) =>
+    url === '/api/batches' ? new Response(JSON.stringify([summary({ status: 'paused' })])) : orig(url, init));
+  renderBatch();
+  expect(await screen.findByRole('button', { name: 'Desfazer este lote' })).toBeInTheDocument();
+});

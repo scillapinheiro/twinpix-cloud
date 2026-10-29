@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { BATCH_STATUS_TEXT, UndoBatchButton } from '../components/BatchBits';
 import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes, formatDate } from '../lib/format';
+import { plural } from '../lib/plural';
 
 const UNDOABLE = ['done', 'paused', 'error'];
 
@@ -68,8 +69,8 @@ export function History() {
                 <strong>{b.kind === 'folders' ? 'Pastas' : 'Lote'} #{b.id}</strong> · {formatDate(b.createdAt)} · {BATCH_STATUS_TEXT[b.status]}
                 <br />
                 <span className="muted">
-                  {b.movedFiles} {b.movedFiles === 1 ? 'arquivo movido' : 'arquivos movidos'} · {formatBytes(b.movedBytes)}
-                  {b.restoredFiles > 0 && ` · ${b.restoredFiles} restaurados`}
+                  {plural(b.movedFiles, 'arquivo movido', 'arquivos movidos')} · {formatBytes(b.movedBytes)}
+                  {b.restoredFiles > 0 && ` · ${plural(b.restoredFiles, 'restaurado', 'restaurados')}`}
                 </span>
                 {b.error && <p className={b.status === 'error' ? 'alert' : 'notice'}>{b.error}</p>}
                 {b.status === 'error' && <a className="button primary" href="/api/auth/login">Conectar de novo</a>}

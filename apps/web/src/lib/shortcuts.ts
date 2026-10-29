@@ -1,5 +1,5 @@
-/** Campos em que a tecla é texto digitado; caixas de marcar e opções deixam o atalho passar. */
-const TEXT_INPUT_TYPES = new Set(['text', 'search', 'email', 'url', 'tel', 'password', 'number']);
+/** Campos em que a tecla é texto digitado ou ajuste de valor; caixas de marcar e opções deixam o atalho passar. */
+const TEXT_INPUT_TYPES = new Set(['text', 'search', 'email', 'url', 'tel', 'password', 'number', 'date', 'datetime-local', 'month', 'week', 'time', 'range', 'color', 'file']);
 
 function isTextField(el: Element): boolean {
   if (el instanceof HTMLInputElement) return TEXT_INPUT_TYPES.has(el.type);
