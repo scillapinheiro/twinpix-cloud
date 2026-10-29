@@ -1,3 +1,4 @@
+import { baseName } from '../grouping/name-base';
 import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import type { ActionResult, GroupView, ActionStatus, ApplyResult, DeletionPreview, HistoryEntry, UndoResponse } from '@twinpix/shared';
 import type { BatchKind, CloudItem } from '@twinpix/shared';
@@ -83,9 +84,12 @@ export class ActionsService implements OnModuleInit {
     // Confere o que sai E o que fica antes de mover qualquer coisa.
     const fresh = new Map<string, CloudItem | null>();
     for (const id of [...plan.keepIds, ...plan.deleteIds]) fresh.set(id, await this.cloud.getItem(id));
+    const probable = (this.db.sql.prepare('SELECT kind FROM dup_groups WHERE id = ?').get(groupId) as { kind: string }).kind === 'probable';
     const changed = [...fresh].some(([id, current]) => {
       const before = stored.get(id)!;
-      return !current || current.quickXorHash !== before.quickXorHash || current.size !== before.size;
+      if (!current || current.quickXorHash !== before.quickXorHash || current.size !== before.size) return true;
+      // prováveis valem por nome-base, dimensões e data: mudou algum, o grupo precisa ser reavaliado
+      return probable && (current.width !== before.width || current.height !== before.height || current.takenAt !== before.takenAt || baseName(current.name) !== baseName(before.name));
     });
     if (changed) {
       this.refreshGroup(groupId, scanId, fresh);
@@ -202,7 +206,13 @@ export class ActionsService implements OnModuleInit {
    */
   private refreshGroup(groupId: number, scanId: number, fresh: Map<string, CloudItem | null>): void {
     const sql = this.db.sql;
-    const { key } = sql.prepare('SELECT key FROM dup_groups WHERE id = ?').get(groupId) as { key: string };
+    const { key, kind } = sql.prepare('SELECT key, kind FROM dup_groups WHERE id = ?').get(groupId) as { key: string; kind: string };
+    // prováveis: o arquivo continua no grupo se ainda casar com nome-base, dimensões e data da chave
+    const matchesProbable = (i: CloudItem): boolean => {
+      if (i.width == null || i.height == null || i.takenAt == null) return false;
+      const prefix = `p:${i.kind}:${baseName(i.name)}:${i.width}x${i.height}:${i.takenAt}`;
+      return key === prefix || key.startsWith(`${prefix}:`);
+    };
     const removeFromGroup = sql.prepare('DELETE FROM dup_group_files WHERE group_id = ? AND file_id = ?');
     const hasActions = sql.prepare(
       'SELECT 1 FROM actions a JOIN dup_groups g ON g.id = a.group_id WHERE g.scan_id = ? AND a.file_id = ? LIMIT 1',
@@ -215,7 +225,8 @@ export class ActionsService implements OnModuleInit {
           continue;
         }
         insertFile(sql, scanId, item, 'REPLACE');
-        if (!item.quickXorHash || `${item.quickXorHash}:${item.size}` !== key) removeFromGroup.run(groupId, id);
+        const stays = kind === 'probable' ? matchesProbable(item) : !!item.quickXorHash && `${item.quickXorHash}:${item.size}` === key;
+        if (!stays) removeFromGroup.run(groupId, id);
       }
       this.setGroupStatus(groupId, this.review.activeFileIds(groupId).length < 2 ? 'resolved' : 'pending');
     })();

@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS actions (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS actions_file ON actions (file_id, status);
 CREATE TABLE IF NOT EXISTS batches (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   scan_id INTEGER NOT NULL REFERENCES scans(id),

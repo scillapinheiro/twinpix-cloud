@@ -246,22 +246,22 @@ export class ScanService implements OnModuleInit {
          ORDER BY folder_path, name`,
       )
       .all(scanId) as FileRow[];
-    const groups = groupProbable(rows.map(rowToItem));
+    const order = new Map(rows.map((r, i) => [r.id, i]));
+    const firstIndex = (ids: string[]) => Math.min(...ids.map((id) => order.get(id) ?? Infinity));
+    const groups = groupProbable(rows.map(rowToItem)).sort((x, y) => firstIndex(x.fileIds) - firstIndex(y.fileIds));
+    // Roda uma vez por análise: de propósito não reabre nem poda grupos já existentes.
+    const find = sql.prepare("SELECT id FROM dup_groups WHERE scan_id = ? AND kind = 'probable' AND key = ?");
+    const nextPos = sql.prepare('SELECT COALESCE(MAX(position), 0) + 1 n FROM dup_groups WHERE scan_id = ?');
+    const insertGroup = sql.prepare("INSERT INTO dup_groups (scan_id, kind, key, position, status) VALUES (?, 'probable', ?, ?, 'pending')");
+    const insertFileRow = sql.prepare('INSERT OR IGNORE INTO dup_group_files (group_id, file_id) VALUES (?, ?)');
     sql.transaction(() => {
       for (const g of groups) {
-        let row = sql.prepare("SELECT id FROM dup_groups WHERE scan_id = ? AND kind = 'probable' AND key = ?").get(scanId, g.key) as
-          | { id: number }
-          | undefined;
+        let row = find.get(scanId, g.key) as { id: number } | undefined;
         if (!row) {
-          const { n } = sql.prepare('SELECT COALESCE(MAX(position), 0) + 1 n FROM dup_groups WHERE scan_id = ?').get(scanId) as { n: number };
-          const { lastInsertRowid } = sql
-            .prepare("INSERT INTO dup_groups (scan_id, kind, key, position, status) VALUES (?, 'probable', ?, ?, 'pending')")
-            .run(scanId, g.key, n);
-          row = { id: Number(lastInsertRowid) };
+          const { n } = nextPos.get(scanId) as { n: number };
+          row = { id: Number(insertGroup.run(scanId, g.key, n).lastInsertRowid) };
         }
-        for (const fileId of g.fileIds) {
-          sql.prepare('INSERT OR IGNORE INTO dup_group_files (group_id, file_id) VALUES (?, ?)').run(row.id, fileId);
-        }
+        for (const fileId of g.fileIds) insertFileRow.run(row.id, fileId);
       }
       sql.prepare('UPDATE scans SET probable_done = 1 WHERE id = ?').run(scanId);
     })();

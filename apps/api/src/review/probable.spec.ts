@@ -8,6 +8,8 @@ import { FakeCloudProvider } from '../cloud/fake-cloud-provider';
 import { FoldersReconcileService } from '../folders/folders-reconcile.service';
 import { ScanService } from '../scan/scan.service';
 import { Db } from '../storage/db';
+import { BadRequestException } from '@nestjs/common';
+import { ReviewController } from './review.controller';
 import { ReviewService } from './review.service';
 
 let db: Db;
@@ -106,13 +108,74 @@ describe('prováveis cópias', () => {
     expect(scan.summary(scanId).probableSkipped).toBe(0);
   });
 
-  it('grupo com menos de 2 ativos é pulado e marcado como resolvido', () => {
-    const first = review.current(scanId, 'probable')!;
-    db.sql.prepare("INSERT INTO actions (group_id, file_id, kept_file_id, status, created_at, updated_at) VALUES (?, ?, ?, 'done', 'x', 'x')")
-      .run(first.id, first.files[0].id, first.files[1].id);
+  it('grupo com menos de 2 ativos é pulado pelo current sem mudar o status; desfazer o traz de volta', async () => {
+    // grupo provável extra {i1a, i1b, p3c}: não; usa os existentes: identical i1 {i1a,i1b} e provável novo com i1a
+    const first = review.current(scanId)!;
+    const [x, y] = first.files.map((f) => f.id);
+    const gid = Number(db.sql.prepare("INSERT INTO dup_groups (scan_id, kind, key, position, status) VALUES (?, 'probable', 'p:extra', 99, 'pending')").run(scanId).lastInsertRowid);
+    db.sql.prepare('INSERT INTO dup_group_files (group_id, file_id) VALUES (?, ?), (?, ?)').run(gid, x, gid, 'p1a');
+    const r = await actions.apply(gid, [x]);
+    expect(r.results[0].status).toBe('done');
+    const status = () => (db.sql.prepare('SELECT status s FROM dup_groups WHERE id = ?').get(first.id) as { s: string }).s;
+    expect(review.activeFileIds(first.id)).toEqual([y]);
+    expect(review.current(scanId)!.id).not.toBe(first.id);
+    expect(status()).toBe('pending');
+    await actions.undo(r.results[0].actionId);
+    // o cursor está no segundo grupo; ao esgotá-lo, volta ao primeiro (de novo elegível)
+    const second = review.current(scanId)!;
+    expect(review.skip(second.id)!.id).toBe(first.id);
+  });
+
+  it('sem nenhum grupo elegível o current devolve null (revisão concluída)', async () => {
+    for (const g of db.sql.prepare("SELECT id FROM dup_groups WHERE kind = 'probable'").all() as Array<{ id: number }>) {
+      const v = review.view(g.id);
+      await actions.apply(g.id, v.files.filter((f) => f.id !== v.suggestion.keepId).map((f) => f.id));
+    }
+    expect(review.current(scanId, 'probable')).toBeNull();
+  });
+
+  it('apply obsoleto num provável: arquivo com hash alterado não esvazia o grupo', async () => {
     const g = review.current(scanId, 'probable')!;
-    expect(g.id).not.toBe(first.id);
-    expect((db.sql.prepare('SELECT status s FROM dup_groups WHERE id = ?').get(first.id) as { s: string }).s).toBe('resolved');
+    const [a, b] = g.files.map((f) => f.id);
+    cloud.updateFile(a, { quickXorHash: 'mudou' });
+    const r = await actions.apply(g.id, [b]);
+    expect(r.stale).toBe(true);
+    expect(cloud.calls).not.toContain('moveToTrash');
+    expect(review.activeFileIds(g.id).sort()).toEqual([a, b].sort());
+    expect(review.view(g.id).status).toBe('pending');
+  });
+
+  it('apply obsoleto num provável: arquivo cuja data mudou sai do grupo; sobrando 1, resolve', async () => {
+    const g = review.current(scanId, 'probable')!;
+    const [a, b] = g.files.map((f) => f.id);
+    cloud.updateFile(a, { takenAt: '1999-01-01T00:00:00Z' });
+    expect((await actions.apply(g.id, [b])).stale).toBe(true);
+    expect(review.activeFileIds(g.id)).toEqual([b]);
+    expect(review.view(g.id).status).toBe('resolved');
+  });
+
+  it('backfill não mexe nas idênticas (status, posição, cursor)', () => {
+    review.current(scanId);
+    const snap = () => JSON.stringify([
+      db.sql.prepare("SELECT id, status, position FROM dup_groups WHERE kind = 'identical' ORDER BY id").all(),
+      db.sql.prepare('SELECT cursor_group_id c FROM scans').all(),
+    ]);
+    const before = snap();
+    db.sql.prepare('UPDATE scans SET probable_done = 0').run();
+    scan.onModuleInit();
+    expect(snap()).toBe(before);
+  });
+
+  it('rota: kind=probable em current e unskip; kind inválido dá 400', () => {
+    const c = new ReviewController(review, db);
+    expect(c.current(scanId, 'probable')!.kind).toBe('probable');
+    expect(c.current(scanId)!.kind).toBe('identical');
+    const g = c.current(scanId, 'probable')!;
+    review.skip(g.id);
+    c.unskip(scanId, 'probable');
+    expect(scan.summary(scanId).probableSkipped).toBe(0);
+    expect(() => c.current(scanId, 'x')).toThrow(BadRequestException);
+    expect(() => c.unskip(scanId, 'x')).toThrow(BadRequestException);
   });
 
   it('lote e pastas ignoram prováveis', async () => {

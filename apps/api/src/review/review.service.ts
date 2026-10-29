@@ -66,20 +66,15 @@ export class ReviewService {
     const cursorPos = cursor.c
       ? ((sql.prepare('SELECT position p FROM dup_groups WHERE id = ?').get(cursor.c) as { p: number } | undefined)?.p ?? 0)
       : 0;
-    const pick = (q: string, ...p: unknown[]) => sql.prepare(q).get(...p) as { id: number } | undefined;
-    for (;;) {
-      const next =
-        pick("SELECT id FROM dup_groups WHERE scan_id = ? AND kind = ? AND status IN ('pending','stale') AND position >= ? ORDER BY position LIMIT 1", scanId, kind, cursorPos) ??
-        pick("SELECT id FROM dup_groups WHERE scan_id = ? AND kind = ? AND status IN ('pending','stale') ORDER BY position LIMIT 1", scanId, kind);
-      if (!next) return null;
-      // um arquivo pode ter saído por outro grupo: com menos de 2 ativos não há o que revisar
-      if (this.activeFileIds(next.id).length < 2) {
-        sql.prepare("UPDATE dup_groups SET status = 'resolved' WHERE id = ?").run(next.id);
-        continue;
-      }
-      sql.prepare(`UPDATE scans SET ${col} = ? WHERE id = ?`).run(next.id, scanId);
-      return this.view(next.id);
-    }
+    // grupos com menos de 2 ativos (um arquivo saiu por outro grupo) são pulados sem mudar o status
+    const pending = (sql
+      .prepare("SELECT id, position FROM dup_groups WHERE scan_id = ? AND kind = ? AND status IN ('pending','stale') ORDER BY position")
+      .all(scanId, kind) as Array<{ id: number; position: number }>);
+    const ordered = [...pending.filter((g) => g.position >= cursorPos), ...pending.filter((g) => g.position < cursorPos)];
+    const next = ordered.find((g) => this.activeFileIds(g.id).length >= 2);
+    if (!next) return null;
+    sql.prepare(`UPDATE scans SET ${col} = ? WHERE id = ?`).run(next.id, scanId);
+    return this.view(next.id);
   }
 
   skip(groupId: number): GroupView | null {
