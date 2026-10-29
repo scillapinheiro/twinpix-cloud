@@ -59,20 +59,19 @@ export function groupProbable(files: CloudItem[]): ProbableGroup[] {
       continue;
     }
     const sorted = [...members].sort(
+      // Desempate por id: ids são únicos aqui porque a entrada já foi deduplicada.
       (a, b) => (a.durationMs as number) - (b.durationMs as number) || (a.id < b.id ? -1 : 1),
     );
     let chain: Candidate[] = [];
-    let index = 0;
     for (const f of sorted) {
       const last = chain[chain.length - 1];
       if (last && (f.durationMs as number) - (last.durationMs as number) > VIDEO_DURATION_TOLERANCE_MS) {
-        emit(`${key}:${index}`, chain);
-        index++;
+        emit(`${key}:${chain[0].id}`, chain);
         chain = [];
       }
       chain.push(f);
     }
-    emit(`${key}:${index}`, chain);
+    if (chain.length) emit(`${key}:${chain[0].id}`, chain);
   }
   return result.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }

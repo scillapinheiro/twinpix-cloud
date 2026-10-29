@@ -123,7 +123,18 @@ describe('groupProbable', () => {
       video('d', 5200),
     ]);
     expect(g.map((x) => x.fileIds)).toEqual([['a', 'b'], ['c', 'd']]);
-    expect(new Set(g.map((x) => x.key)).size).toBe(2);
+    expect(g.map((x) => x.key)).toEqual([
+      `p:video:filme.mp4:100x50:${T}:a`,
+      `p:video:filme.mp4:100x50:${T}:c`,
+    ]);
+  });
+
+  it('inserir um vídeo isolado abaixo de uma cadeia não muda a chave dela', () => {
+    const chain = [video('b', 5000), video('c', 5500)];
+    const before = groupProbable(chain);
+    const after = groupProbable([...chain, video('a', 1000)]);
+    expect(after).toEqual(before);
+    expect(before[0].key).toBe(`p:video:filme.mp4:100x50:${T}:b`);
   });
 
   it('fotos e vídeos com o mesmo nome-base não se misturam', () => {
@@ -146,7 +157,7 @@ describe('groupProbable', () => {
       fc.record({
         id: fc.integer({ min: 0, max: 30 }),
         name: fc.constantFrom('a.jpg', 'a 1.jpg', 'A (2).JPG', 'a-1.jpg', 'b.jpg', 'b 1.jpg', 'a.mp4', 'a 1.mp4'),
-        hash: fc.constantFrom('h1', 'h2', 'h3', null),
+        hash: fc.constantFrom('h1', 'h2', 'h3', null, ''),
         w: fc.constantFrom(1, 2),
         taken: fc.constantFrom(T, 'T2', null),
         dur: fc.constantFrom(0, 500, 1400, 3000, null),
@@ -184,8 +195,16 @@ describe('groupProbable', () => {
             expect(m.takenAt).not.toBeNull();
             expect(m.takenAt).toBe(first.takenAt);
           }
-          const hashes = new Set(ms.map((m) => m.quickXorHash));
+          const hashes = new Set(ms.map((m) => m.quickXorHash || null));
           expect(hashes.size >= 2 || hashes.has(null)).toBe(true);
+          if (first.kind === 'video') {
+            const durs = ms.map((m) => m.durationMs);
+            for (const d of durs) expect(d).not.toBeNull();
+            const sorted = (durs as number[]).sort((x, y) => x - y);
+            for (let i = 1; i < sorted.length; i++) {
+              expect(sorted[i] - sorted[i - 1]).toBeLessThanOrEqual(1000);
+            }
+          }
         }
       }),
       { numRuns: 200 },
