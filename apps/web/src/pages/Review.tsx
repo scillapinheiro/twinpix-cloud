@@ -14,6 +14,10 @@ export function Review() {
   const [marked, setMarked] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadStale, setReloadStale] = useState<boolean | null>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const focusHeader = useRef(false);
   const deleteButton = useRef<HTMLButtonElement>(null);
 
   const shownId = useRef<number | null>(null);
@@ -29,6 +33,13 @@ export function Review() {
     const path = groupId ? `/api/groups/${groupId}` : `/api/scans/${scanId}/groups/current`;
     apiFetch<GroupView | null>(path).then(show).catch((e: ApiError) => setError(e.message));
   }, [scanId, groupId]);
+
+  useEffect(() => {
+    if (focusHeader.current && group) {
+      focusHeader.current = false;
+      headerRef.current?.focus();
+    }
+  }, [group]);
 
   const diffs = useMemo(() => differingFields(group?.files ?? []), [group]);
   const allFields = useMemo<FieldKey[]>(() => {
@@ -79,10 +90,15 @@ export function Review() {
     }
   }
   async function afterApply(stale: boolean) {
+    setReloadStale(null);
     try {
+      focusHeader.current = true;
       goTo(await apiFetch<GroupView | null>(stale ? `/api/groups/${group!.id}` : `/api/scans/${scanId}/groups/current`));
     } catch (e) {
-      setError((e as ApiError).message);
+      focusHeader.current = false;
+      setError(null);
+      setReloadStale(stale);
+      setLoadError((e as ApiError).message);
     }
   }
   async function back() {
@@ -95,8 +111,9 @@ export function Review() {
   }
 
   return (
-    <section className="review">
-      <div className="group-header card">
+    <>
+    <section className="review" inert={confirming}>
+      <div className="group-header card" tabIndex={-1} ref={headerRef}>
         <strong>
           Grupo {group.position} de {group.total} · Cópias idênticas · {formatBytes(group.bytesFreedSoFar)} liberados até agora
         </strong>
@@ -109,25 +126,18 @@ export function Review() {
         {group.status === 'skipped' && <p className="muted">Você pulou este grupo.</p>}
       </div>
 
-      {many && commonFields.length > 0 && (
-        <div className="card summary-common">
-          <h2>Igual em todas as cópias</h2>
-          <dl>
-            {commonFields.map((k) => (
-              <div key={k} style={{ display: 'contents' }}>
-                <dt>{FIELD_LABELS[k]}</dt>
-                <dd>{fieldValue(group.files[0], k)}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      )}
-
       <p className="legend">
         <span className="legend-keep">★ Sugerida para manter</span> — escolhida pela regra: {group.suggestion.reason.replace(/^regra:\s*/, '')}
         <span className="legend-sep" aria-hidden="true"> · </span>
         Campos em <span className="diff">laranja</span> são diferentes entre as cópias.
       </p>
+
+      {reloadStale !== null && loadError && (
+        <div className="alert" role="alert">
+          {loadError}{' '}
+          <button type="button" className="button" onClick={() => void afterApply(reloadStale)}>Tentar de novo</button>
+        </div>
+      )}
 
       <div className="cards" data-count={group.files.length >= 4 ? 'many' : group.files.length}>
         {group.files.map((f) => (
@@ -144,7 +154,21 @@ export function Review() {
         ))}
       </div>
 
-      <div className="row">
+      {many && commonFields.length > 0 && (
+        <div className="card summary-common">
+          <h2>Igual em todas as cópias</h2>
+          <dl>
+            {commonFields.map((k) => (
+              <div key={k} style={{ display: 'contents' }}>
+                <dt>{FIELD_LABELS[k]}</dt>
+                <dd>{fieldValue(group.files[0], k)}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+
+      <div className="action-bar">
         <button type="button" className="button" onClick={back} disabled={group.position <= 1}>← Voltar</button>
         <button type="button" className="button" onClick={skip}>Pular</button>
         <button
@@ -157,6 +181,7 @@ export function Review() {
           Excluir marcadas ({marked.size})
         </button>
       </div>
+    </section>
 
       {confirming && (
         <ConfirmDialog
@@ -166,6 +191,6 @@ export function Review() {
           onDone={(stale) => { setConfirming(false); void afterApply(stale); }}
         />
       )}
-    </section>
+    </>
   );
 }

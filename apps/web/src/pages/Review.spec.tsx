@@ -73,6 +73,24 @@ it.each([[2, '2'], [3, '3'], [4, 'many'], [5, 'many']])('com %i mídias as colun
   expect(container.querySelector('.cards')).toHaveAttribute('data-count', count);
 });
 
+it('com 3 cópias o resumo "Igual em todas as cópias" vem depois dos cartões', async () => {
+  const files = ['a', 'b', 'c'].map((id) => ({ ...base, id, name: `x ${id}.jpg`, modifiedAt: '2015-02-07T10:00:00Z' }));
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url.endsWith('/thumbnail')) return new Response(JSON.stringify({ url: null }));
+    return new Response(JSON.stringify({ ...group, files, suggestion: { keepId: 'a', reason: 'regra: x' }, preMarkedIds: [] }));
+  }));
+  const { container } = render(
+    <MemoryRouter initialEntries={['/revisao/1']}>
+      <Routes><Route path="/revisao/:scanId" element={<Review />} /></Routes>
+    </MemoryRouter>,
+  );
+  await screen.findByText(/Grupo 12 de 445/);
+  const cards = container.querySelector('.cards')!;
+  const summary = container.querySelector('.summary-common')!;
+  expect(summary).toBeInTheDocument();
+  expect(cards.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
 describe('modal de confirmação', () => {
   const next: GroupView = { ...group, id: 8, position: 13, files: [
     { ...base, id: 'c', name: 'y.jpg', modifiedAt: '2015-02-07T10:00:00Z' },
@@ -117,6 +135,34 @@ describe('modal de confirmação', () => {
     expect(await screen.findByText(/Grupo 13 de 445/)).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByTestId('where').textContent).toContain('/revisao/1/grupo/8');
+    expect(screen.getByText(/Grupo 13 de 445/).closest('.group-header')).toHaveFocus();
+  });
+
+  it('o conteúdo atrás do modal fica inerte enquanto ele está aberto', async () => {
+    await openModal();
+    expect(document.querySelector('.review')).toHaveAttribute('inert');
+    await userEvent.keyboard('{Escape}');
+    expect(document.querySelector('.review')).not.toHaveAttribute('inert');
+  });
+
+  it('falha ao carregar o próximo grupo mostra erro inline com "Tentar de novo"', async () => {
+    const ok = globalThis.fetch;
+    let fail = true;
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/groups/current') && current === next && fail) {
+        fail = false;
+        return new Response(JSON.stringify({ message: 'Sem conexão.' }), { status: 500 });
+      }
+      return (ok as typeof fetch)(url, init);
+    }));
+    await openModal();
+    await userEvent.click(await screen.findByRole('button', { name: 'Mover para a lixeira' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Próximo grupo' }));
+    expect(await screen.findByText('Sem conexão.')).toBeInTheDocument();
+    expect(screen.getByText(/Grupo 12 de 445/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+    expect(await screen.findByText(/Grupo 13 de 445/)).toBeInTheDocument();
+    expect(screen.queryByText('Sem conexão.')).not.toBeInTheDocument();
   });
 
   it('Esc fecha antes do envio e devolve o foco ao botão', async () => {

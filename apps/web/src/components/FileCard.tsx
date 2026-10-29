@@ -17,8 +17,10 @@ export function FileCard({ file, isSuggested, marked, lockDelete, onToggle, diff
   const disabled = lockDelete && !marked;
   return (
     <article className={`file-card${marked ? ' marked' : ''}`}>
-      <Thumbnail fileId={file.id} alt={file.name} />
-      {isSuggested && <p className="badge-keep">★ Sugerida para manter</p>}
+      <div className="thumb">
+        <Thumbnail fileId={file.id} alt={file.name} />
+        {isSuggested && <span className="badge-keep">★ Sugerida para manter</span>}
+      </div>
       <dl>
         {fields.map((key) => (
           <div key={key} style={{ display: 'contents' }}>

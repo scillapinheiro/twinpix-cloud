@@ -24,8 +24,9 @@ body { margin: 0; background: var(--bg); }
 .topbar { box-shadow: var(--shadow); display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: var(--card); border-bottom: 1px solid var(--border); }
 .brand { font-weight: 800; font-size: 1.5rem; letter-spacing: -0.01em; color: var(--text); text-decoration: none; }
 .topbar nav a { color: var(--primary); }
-.page:has(.review) { max-width: 1400px; }
 .page { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+.page:has(.review) { max-width: 1400px; }
+a { color: var(--primary); }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; margin-bottom: 16px; }
 .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .button { display: inline-block; padding: 10px 20px; border-radius: var(--radius-sm); font-family: inherit; font-weight: 600; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 1rem; cursor: pointer; text-decoration: none; }
@@ -50,19 +51,24 @@ body { margin: 0; background: var(--bg); }
 @media (max-width: 719px) { .cards, .cards[data-count='3'] { grid-template-columns: 1fr; } }
 .file-card { border: 2px solid var(--border); border-radius: var(--radius); padding: 14px; background: var(--card); box-shadow: var(--shadow); }
 .file-card.marked { border-color: var(--danger); }
-.file-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border-radius: var(--radius-sm); background: #e9ecf2; display: block; }
+.file-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; max-height: min(46vh, 520px); border-radius: var(--radius-sm); background: #e9ecf2; display: block; }
 .file-card dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 8px; margin: 8px 0; }
 .file-card dt { color: var(--muted); }
 .file-card dd { margin: 0; word-break: break-word; }
 .file-card .diff { background: var(--diff-bg); color: var(--diff-text); font-weight: 600; border-radius: 6px; padding: 0 3px; }
-.badge-keep { display: inline-block; background: var(--ok-bg); color: var(--ok); border-radius: 999px; padding: 2px 12px; font-weight: 700; }
+.thumb { position: relative; margin-bottom: 8px; }
+.badge-keep { position: absolute; top: 8px; left: 8px; box-shadow: var(--shadow); display: inline-block; background: var(--ok-bg); color: var(--ok); border-radius: 999px; padding: 2px 12px; font-weight: 700; }
 .legend { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 16px; color: var(--text); font-size: 0.95rem; }
 .legend-keep { background: var(--ok-bg); color: var(--ok); border-radius: 999px; padding: 2px 10px; font-weight: 700; }
 .legend .diff { background: var(--diff-bg); color: var(--diff-text); font-weight: 600; border-radius: 6px; padding: 0 4px; }
-.summary-common dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 8px; }
+.summary-common { padding: 16px 24px; }
+.summary-common h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.summary-common dl { display: grid; grid-template-columns: max-content 1fr max-content 1fr; gap: 2px 16px; margin: 0; }
+@media (max-width: 719px) { .summary-common dl { grid-template-columns: max-content 1fr; } }
+.action-bar { position: sticky; bottom: 0; z-index: 5; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; padding: 12px 16px; margin: 0 -16px; background: var(--card); box-shadow: 0 -4px 12px rgba(29, 35, 48, 0.1); }
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
-.thumb-placeholder { width: 100%; aspect-ratio: 4 / 3; border-radius: var(--radius-sm); background: #e9ecf2; display: grid; place-items: center; color: var(--muted); }
+.thumb-placeholder { width: 100%; max-height: min(46vh, 520px); aspect-ratio: 4 / 3; border-radius: var(--radius-sm); background: #e9ecf2; display: grid; place-items: center; color: var(--muted); }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(29, 35, 48, 0.55); display: grid; place-items: center; padding: 16px; z-index: 10; }
 .modal { background: var(--card); border-radius: var(--radius); box-shadow: 0 12px 40px rgba(29, 35, 48, 0.3); padding: 24px; width: min(640px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; outline: none; }
