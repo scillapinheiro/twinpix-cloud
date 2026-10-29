@@ -1,6 +1,7 @@
 import type { BatchLine, BatchPreview, BatchStatus, BatchSummary, ScanSummary } from '@twinpix/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
+import { BATCH_STATUS_TEXT, UndoBatchButton } from '../components/BatchBits';
 import { BatchConfirmDialog } from '../components/BatchConfirmDialog';
 import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes } from '../lib/format';
@@ -37,7 +38,7 @@ export function Batch() {
     return () => { cancelled = true; };
   }, [scanId]);
 
-  if (error) return <p className="alert">{error}</p>;
+  if (error) return <><p className="alert">{error}</p><p><Link to={`/varredura/${scanId}`}>Voltar à análise</Link></p></>;
   if (!loaded) return <p>Carregando…</p>;
   if (batch) return <BatchProgress initial={batch} scanId={scanId!} />;
   if (preview) return <BatchPreviewView preview={preview} scanId={scanId!} onStarted={setBatch} />;
@@ -136,22 +137,9 @@ function BatchPreviewView({ preview, scanId, onStarted }: { preview: BatchPrevie
   );
 }
 
-const STATUS_TEXT: Record<BatchStatus, string> = {
-  running: 'Movendo para a lixeira…',
-  paused: 'Lote pausado.',
-  'waiting-network': 'Sem conexão. Continua sozinho quando a internet voltar.',
-  'needs-auth': 'A conexão com o OneDrive expirou.',
-  done: 'Lote concluído.',
-  undoing: 'Desfazendo o lote…',
-  undone: 'Lote desfeito.',
-  error: 'O lote parou por um erro.',
-};
-
 function BatchProgress({ initial, scanId }: { initial: BatchSummary; scanId: string }) {
-  const navigate = useNavigate();
   const [b, setB] = useState(initial);
   const [pending, setPending] = useState(0);
-  const [confirmUndo, setConfirmUndo] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const finished = b.status === 'done' || b.status === 'undone' || b.status === 'error';
 
@@ -164,6 +152,7 @@ function BatchProgress({ initial, scanId }: { initial: BatchSummary; scanId: str
         const next = await apiFetch<BatchSummary>(`/api/batches/${initial.id}`);
         if (dead) return;
         setB(next);
+        setActionError(null);
         if (!['done', 'undone', 'error'].includes(next.status)) timer = setTimeout(tick, 1000);
       } catch (e) {
         if (dead) return;
@@ -184,7 +173,6 @@ function BatchProgress({ initial, scanId }: { initial: BatchSummary; scanId: str
     setActionError(null);
     try {
       setB(await apiFetch<BatchSummary>(`/api/batches/${b.id}/${action}`, { method: 'POST' }));
-      setConfirmUndo(false);
     } catch (e) {
       setActionError((e as ApiError).message);
     }
@@ -197,7 +185,7 @@ function BatchProgress({ initial, scanId }: { initial: BatchSummary; scanId: str
     <section className="card">
       <h1>Lote das idênticas</h1>
       <p className={bad ? 'alert' : undefined} role="status">
-        {STATUS_TEXT[b.status]} {b.status === 'error' && b.error ? `(${b.error})` : ''}
+        {BATCH_STATUS_TEXT[b.status]}
       </p>
       <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso do lote">
         <div style={{ width: `${pct}%` }} />
@@ -219,20 +207,17 @@ function BatchProgress({ initial, scanId }: { initial: BatchSummary; scanId: str
       )}
       {actionError && <p className="alert" role="alert">{actionError}</p>}
       <div className="row">
-        {b.status === 'running' && <button type="button" className="button" onClick={() => void act('pause')}>Pausar</button>}
-        {(b.status === 'paused' || b.status === 'needs-auth') && (
-          <button type="button" className="button" onClick={() => void act('resume')}>Continuar</button>
+        {(b.status === 'running' || b.status === 'waiting-network') && <button type="button" className="button" onClick={() => void act('pause')}>Pausar</button>}
+        {b.status === 'paused' && <button type="button" className="button" onClick={() => void act('resume')}>Continuar</button>}
+        {b.status === 'needs-auth' && (
+          <>
+            <a className="button primary" href="/api/auth/login">Conectar de novo</a>
+            <button type="button" className="link" onClick={() => void act('resume')}>Já conectei, continuar</button>
+          </>
         )}
-        {b.status === 'needs-auth' && <a className="button primary" href="/api/auth/login">Conectar de novo</a>}
         {finished && pending > 0 && <Link className="button primary" to={`/revisao/${scanId}`}>Revisão um por um</Link>}
-        {finished && <button type="button" className="button" onClick={() => navigate('/historico')}>Ver histórico</button>}
-        {b.status === 'done' && b.movedFiles > 0 && (
-          confirmUndo ? (
-            <button type="button" className="button danger" onClick={() => void act('undo')}>Confirmar desfazer</button>
-          ) : (
-            <button type="button" className="button" onClick={() => setConfirmUndo(true)}>Desfazer este lote</button>
-          )
-        )}
+        {finished && <Link className="button" to="/historico">Ver histórico</Link>}
+        {b.status === 'done' && b.movedFiles > 0 && <UndoBatchButton onUndo={() => act('undo')} />}
       </div>
     </section>
   );

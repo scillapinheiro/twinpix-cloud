@@ -116,7 +116,7 @@ it('progresso mostra o status, e o resumo final com desfazer em dois cliques', a
   expect(screen.getByText(/Pulados: 2 grupos \(voltam para a revisão um por um\)/)).toBeInTheDocument();
   expect(screen.getByText(/Falhas: 1 arquivo não foi movido/)).toBeInTheDocument();
   expect(await screen.findByRole('link', { name: 'Revisão um por um' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Ver histórico' })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Ver histórico' })).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Desfazer este lote' }));
   expect(calls.some((c) => c.url.endsWith('/undo'))).toBe(false);
   await userEvent.click(screen.getByRole('button', { name: 'Confirmar desfazer' }));
@@ -130,6 +130,38 @@ it('retoma o progresso de um lote em andamento ao recarregar', async () => {
     url === '/api/batches' ? new Response(JSON.stringify([summary({ status: 'waiting-network' })])) : orig(url, init));
   renderBatch();
   expect(await screen.findByText(/Sem conexão\. Continua sozinho quando a internet voltar\./)).toBeInTheDocument();
+});
+
+it('needs-auth mostra Conectar de novo e não Continuar; error não mostra texto cru; espera de rede tem Pausar', async () => {
+  const f = fetch as ReturnType<typeof vi.fn>;
+  const orig = f.getMockImplementation()!;
+  let st: BatchSummary = summary({ status: 'needs-auth' });
+  f.mockImplementation(async (url: string, init?: RequestInit) =>
+    url === '/api/batches' ? new Response(JSON.stringify([st])) : orig(url, init));
+  const { unmount } = render(<MemoryRouter initialEntries={['/lote/1']}><Routes><Route path="/lote/:scanId" element={<Batch />} /></Routes></MemoryRouter>);
+  expect(await screen.findByRole('link', { name: 'Conectar de novo' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Continuar' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Já conectei, continuar' })).toBeInTheDocument();
+  unmount();
+  st = summary({ status: 'running' });
+  batchGet = summary({ status: 'error', error: 'SQLITE_BOOM' });
+  const r2 = render(<MemoryRouter initialEntries={['/lote/1']}><Routes><Route path="/lote/:scanId" element={<Batch />} /></Routes></MemoryRouter>);
+  expect(await screen.findByText(/O lote parou por um erro\. Os arquivos já movidos/, undefined, { timeout: 3000 })).toBeInTheDocument();
+  expect(screen.queryByText(/SQLITE_BOOM/)).toBeNull();
+  r2.unmount();
+  st = summary({ status: 'waiting-network' });
+  renderBatch();
+  expect(await screen.findByRole('button', { name: 'Pausar' })).toBeInTheDocument();
+});
+
+it('erro ao carregar mostra link para voltar à análise', async () => {
+  const f = fetch as ReturnType<typeof vi.fn>;
+  const orig = f.getMockImplementation()!;
+  f.mockImplementation(async (url: string, init?: RequestInit) =>
+    url === '/api/scans/1/batch' ? new Response(JSON.stringify({ message: 'Análise não encontrada.' }), { status: 404 }) : orig(url, init));
+  renderBatch();
+  expect(await screen.findByText('Análise não encontrada.')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Voltar à análise' })).toBeInTheDocument();
 });
 
 describe('ScanProgress', () => {
