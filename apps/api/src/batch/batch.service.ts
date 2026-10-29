@@ -147,7 +147,8 @@ export class BatchService implements OnModuleInit {
       .prepare("SELECT 1 FROM batches WHERE status IN ('running', 'waiting-network', 'undoing') LIMIT 1")
       .get();
     if (active) throw new BadRequestException('Já existe um lote em andamento.');
-    if (!Array.isArray(sentItems) || sentItems.length === 0 || sentItems.length !== plan.items.length) throw changed();
+    if (plan.items.length === 0) throw new BadRequestException('Não há nada para mover nessas pastas.');
+    if (!Array.isArray(sentItems) || sentItems.length !== plan.items.length) throw changed();
     const sentByGroup = new Map<number, ReconcileItem>();
     for (const it of sentItems) {
       if (!it || typeof it.groupId !== 'number' || typeof it.keepId !== 'string' || !Array.isArray(it.deleteIds) || sentByGroup.has(it.groupId)) throw changed();
@@ -355,7 +356,7 @@ export class BatchService implements OnModuleInit {
     const keepId = row.keep_id;
     const deleteIds = JSON.parse(row.delete_ids as string) as string[];
     const intact = (v: GroupView): boolean =>
-      v.status === 'pending' &&
+      (v.status === 'pending' || v.status === 'skipped') &&
       keepId !== null &&
       deleteIds.length > 0 &&
       !deleteIds.includes(keepId) &&

@@ -638,9 +638,11 @@ describe('BatchService: cópia fixada sem pasta escolhida', () => {
     /** Arquivos sem cópia em nenhum grupo (só existem em uma pasta): nunca podem ser tocados. */
     const uniqueIds = (): string[] =>
       (db.sql.prepare('SELECT id FROM files WHERE scan_id = ? AND id NOT IN (SELECT file_id FROM dup_group_files)').all(scanId) as Array<{ id: string }>).map((r) => r.id);
+    const initialUniques = ['u1', 'u2'];
+    it('fixture: únicos esperados', () => { expect(uniqueIds().sort()).toEqual(initialUniques); });
     const expectUniquesUntouched = (): void => {
-      expect(uniqueIds().sort()).toEqual(['u1', 'u2']);
-      for (const id of uniqueIds()) expect(cloud.isInTrash(id), `${id} foi tocado`).toBe(false);
+      // Os únicos são calculados do estado inicial (antes de qualquer grupo mudar).
+      for (const id of initialUniques) expect(cloud.isInTrash(id), `${id} foi tocado`).toBe(false);
     };
 
     it('migra colunas: kind padrão lines e delete_ids nulo', () => {
@@ -688,6 +690,65 @@ describe('BatchService: cópia fixada sem pasta escolhida', () => {
       }
       expect(() => batch.startFolders(scanId, p, null as never)).toThrow(BadRequestException);
       expect((db.sql.prepare('SELECT COUNT(*) n FROM batches').get() as { n: number }).n).toBe(0);
+    });
+
+    it('plano vazio: 400 com mensagem própria', () => {
+      const p = { ...plan(), items: [] };
+      expect(() => batch.startFolders(scanId, p, [])).toThrow('Não há nada para mover nessas pastas.');
+    });
+
+    it('grupo pulado na revisão um por um É reconciliado', async () => {
+      const p = plan();
+      db.sql.prepare("UPDATE dup_groups SET status = 'skipped' WHERE id = ?").run(gidOf('a1'));
+      const s = batch.startFolders(scanId, p, sentOf(p));
+      await batch.whenIdle(s.id);
+      expect(batch.summary(s.id)).toMatchObject({ doneGroups: 2, skippedGroups: 0, movedFiles: 2 });
+      expect(cloud.isInTrash('b1')).toBe(true);
+      expect(cloud.isInTrash('a1')).toBe(false);
+      expect(groupStatus(gidOf('a1'))).toBe('resolved');
+      expectUniquesUntouched();
+      await expectEveryGroupKeepsACopy();
+    });
+
+    it('grupo já resolvido no plano: pulado sem mover', async () => {
+      const p = plan();
+      db.sql.prepare("UPDATE dup_groups SET status = 'resolved' WHERE id = ?").run(gidOf('a1'));
+      const s = batch.startFolders(scanId, p, sentOf(p));
+      await batch.whenIdle(s.id);
+      expect(batch.summary(s.id)).toMatchObject({ doneGroups: 1, skippedGroups: 1 });
+      expect(cloud.isInTrash('b1')).toBe(false);
+      expect(cloud.isInTrash('a4')).toBe(true);
+      expectUniquesUntouched();
+      await expectEveryGroupKeepsACopy();
+    });
+
+    it('delete_id com conteúdo alterado (outro hash): grupo pulado sem mover', async () => {
+      const p = plan();
+      cloud.updateFile('b1', { quickXorHash: 'outro', size: 101 });
+      const s = batch.startFolders(scanId, p, sentOf(p));
+      await batch.whenIdle(s.id);
+      expect(batch.summary(s.id)).toMatchObject({ doneGroups: 1, skippedGroups: 1 });
+      expect(cloud.isInTrash('b1')).toBe(false);
+      expect(cloud.isInTrash('a1')).toBe(false);
+      expectUniquesUntouched();
+      await expectEveryGroupKeepsACopy();
+    });
+
+    it('a conferência dentro da trava recusa se um delete_id sumiu depois da checagem prévia', async () => {
+      const p = plan();
+      const real = actions.apply.bind(actions);
+      const spy = vi.spyOn(actions, 'apply').mockImplementation(async (gid, ids, opts) => {
+        if (gid === gidOf('a4')) db.sql.prepare('DELETE FROM dup_group_files WHERE group_id = ? AND file_id = ?').run(gid, 'a4');
+        return real(gid, ids, opts);
+      });
+      const s = batch.startFolders(scanId, p, sentOf(p));
+      await batch.whenIdle(s.id);
+      spy.mockRestore();
+      expect(batch.summary(s.id)).toMatchObject({ doneGroups: 1, skippedGroups: 1 });
+      expect(cloud.isInTrash('a4')).toBe(false);
+      expect(cloud.isInTrash('b1')).toBe(true);
+      expectUniquesUntouched();
+      await expectEveryGroupKeepsACopy();
     });
 
     it('recusa com lote ativo', () => {
