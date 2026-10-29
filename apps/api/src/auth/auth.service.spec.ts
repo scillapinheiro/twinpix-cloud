@@ -45,6 +45,8 @@ describe('AuthService', () => {
       new InteractionRequiredAuthError('invalid_grant', 'AADSTS70000'),
       Object.assign(new Error('x'), { errorCode: 'no_account_in_silent_request' }),
       Object.assign(new Error('x'), { errorCode: 'interaction_required' }),
+      Object.assign(new Error('x'), { errorCode: 'invalid_client' }),
+      Object.assign(new Error('x'), { errorCode: 'unauthorized_client' }),
     ]) {
       const pca = fakePca([{ username: 'p@x' }], async () => { throw err; });
       await expect(new AuthService(config, () => pca as any).getAccessToken(false)).rejects.toBeInstanceOf(ReconnectRequiredError);

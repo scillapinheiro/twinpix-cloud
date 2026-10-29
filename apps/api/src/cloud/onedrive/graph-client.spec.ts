@@ -25,6 +25,18 @@ describe('GraphClient', () => {
     expect(sleep).toHaveBeenCalledWith(7000);
   });
 
+  it('limita Retry-After a 60 s', async () => {
+    const { client, sleep } = setup([json(429, {}, { 'Retry-After': '3600' }), json(200, {})]);
+    await client.request('GET', '/x');
+    expect(sleep).toHaveBeenCalledWith(60_000);
+  });
+
+  it('fetch usa timeout e o estouro vira OfflineError', async () => {
+    const { client, fetchMock } = setup([Object.assign(new Error('timeout'), { name: 'TimeoutError' })]);
+    await expect(client.request('GET', '/x')).rejects.toBeInstanceOf(OfflineError);
+    expect((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].signal).toBeInstanceOf(AbortSignal);
+  });
+
   it('503 sem Retry-After usa backoff exponencial', async () => {
     const { client, sleep } = setup([json(503, {}), json(503, {}), json(200, {})]);
     await client.request('GET', '/x');

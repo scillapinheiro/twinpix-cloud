@@ -13,6 +13,7 @@ interface Options {
 const BASE = 'https://graph.microsoft.com/v1.0';
 const DOT_SEGMENT = /^(\.|%2e){1,2}$/i;
 const MAX_WAIT_MS = 60_000;
+const FETCH_TIMEOUT_MS = 60_000;
 
 export class GraphClient {
   private readonly fetchImpl: typeof fetch;
@@ -50,6 +51,7 @@ export class GraphClient {
             ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
           },
           body: body !== undefined ? JSON.stringify(body) : undefined,
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         });
       } catch {
         throw new OfflineError();
@@ -64,7 +66,7 @@ export class GraphClient {
       if ((res.status === 429 || res.status === 503) && retries < this.maxRetries) {
         const retryAfter = Number(res.headers.get('Retry-After'));
         const wait = Number.isFinite(retryAfter) && retryAfter > 0
-          ? retryAfter * 1000
+          ? Math.min(retryAfter * 1000, MAX_WAIT_MS)
           : Math.min(2 ** retries * 1000, MAX_WAIT_MS);
         retries += 1;
         await this.sleep(wait);

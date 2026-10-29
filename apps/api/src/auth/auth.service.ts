@@ -15,6 +15,7 @@ const SCOPES = ['Files.ReadWrite', 'offline_access'];
 const RECONNECT_CODES = [
   'invalid_grant', 'interaction_required', 'consent_required', 'login_required',
   'no_account_in_silent_request', 'no_account_found', 'no_tokens_found',
+  'invalid_client', 'unauthorized_client',
 ];
 
 /**
