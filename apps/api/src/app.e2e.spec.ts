@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import type { GroupView, ScanSummary } from '@twinpix/shared';
+import type { BatchLine, BatchPreview, BatchSummary, GroupView, ScanSummary } from '@twinpix/shared';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -79,6 +79,51 @@ describe('API em modo demonstração', () => {
     expect(undo.result).toBe('restored');
 
     expect((await api().get(`/api/files/${group.files[0].id}/thumbnail`)).body.url).toMatch(/^data:image\/svg\+xml/);
+  });
+
+  it('lote: prévia → executar (uma linha invertida) → cada grupo mantém uma cópia → desfazer', async () => {
+    const root = (await api().get('/api/folders/root')).body;
+    const folders = (await api().get(`/api/folders/${encodeURIComponent(root.id)}/children`)).body;
+    const started = (await api().post('/api/scans', { roots: folders })).body as ScanSummary;
+    await waitDone(started.id);
+
+    const preview = (await api().get(`/api/scans/${started.id}/batch`)).body as BatchPreview;
+    expect(preview.lines.length).toBeGreaterThanOrEqual(2);
+
+    // Inverte uma linha que ofereça outra pasta para ficar com a cópia.
+    const inverted = preview.lines.find((l: BatchLine) =>
+      l.keepOptions.some((f) => f !== l.keepFolder && l.items.every((it) => it.keepByFolder[f])));
+    const keepFolders: Record<string, string> = {};
+    if (inverted) keepFolders[inverted.key] = inverted.keepOptions.find((f) => f !== inverted.keepFolder && inverted.items.every((it) => it.keepByFolder[f]))!;
+    expect(Object.keys(keepFolders)).toHaveLength(1);
+
+    const sent = (await api().post(`/api/scans/${started.id}/batch`, { lineKeys: preview.lines.map((l: BatchLine) => l.key), keepFolders }).expect(200)).body as BatchSummary;
+    let summary = sent;
+    for (let i = 0; i < 200 && summary.status !== 'done'; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+      summary = (await api().get(`/api/batches/${sent.id}`)).body;
+    }
+    expect(summary.status).toBe('done');
+    const groupsInLines = preview.lines.reduce((n: number, l: BatchLine) => n + l.items.length, 0);
+    expect(summary).toMatchObject({ totalGroups: groupsInLines, doneGroups: groupsInLines, skippedGroups: 0, failedFiles: 0 });
+    // Cada grupo move todas as cópias menos uma: nenhum grupo perde todas.
+    const expectedMoved = preview.lines.reduce((n: number, l: BatchLine) => n + l.items.reduce((m, it) => m + it.remove.length, 0), 0);
+    expect(summary.movedFiles).toBe(expectedMoved);
+
+    // Os empates continuam pendentes para a revisão um por um.
+    const after = (await api().get(`/api/scans/${started.id}/batch`)).body as BatchPreview;
+    expect(after.lines).toHaveLength(0);
+    expect(after.pendingCount).toBe(preview.pendingCount - groupsInLines);
+
+    await api().post(`/api/batches/${sent.id}/undo`).expect(200);
+    let undone = summary;
+    for (let i = 0; i < 200 && undone.status !== 'undone'; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+      undone = (await api().get(`/api/batches/${sent.id}`)).body;
+    }
+    expect(undone.status).toBe('undone');
+    expect(undone.restoredFiles).toBe(summary.movedFiles);
+    expect(undone.notRestoredFiles).toBe(0);
   });
 
   it('link inválido devolve 400 com mensagem', async () => {
