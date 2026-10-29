@@ -180,7 +180,8 @@ describe('ActionsService', () => {
   });
 
   it('já não estava no OneDrive: registra com nota e desfazer tenta restaurar e informa', async () => {
-    const spy = vi.spyOn(cloud, 'moveToTrash').mockResolvedValueOnce('already-gone');
+    // 404 no DELETE: o arquivo não existe mais (apagado fora do app)
+    const spy = vi.spyOn(cloud, 'moveToTrash').mockImplementationOnce(async (id) => { cloud.removeFile(id); return 'already-gone'; });
     const r = await actions.apply(groupId, ['c1']);
     spy.mockRestore();
     expect(r.results[0]).toMatchObject({ status: 'done', error: 'Já não estava no OneDrive.' });
@@ -197,6 +198,24 @@ describe('ActionsService', () => {
     const u = await actions.undo(r.results[0].actionId);
     expect(u.result).toBe('restored');
     expect(cloud.isInTrash('c1')).toBe(false);
+  });
+
+  it('desfazer: restauração que deu certo antes (ex.: tempo esgotado) é confirmada e conta como restaurada', async () => {
+    const r = await actions.apply(groupId, ['c1']);
+    await cloud.restore('c1'); // a primeira tentativa restaurou, mas a resposta não chegou
+    const u = await actions.undo(r.results[0].actionId);
+    expect(u.result).toBe('restored');
+    expect(u.message).toBe('Arquivo restaurado para a pasta original.');
+    expect(actions.history()[0].status).toBe('undone');
+    expect(review.view(groupId).status).toBe('pending');
+  });
+
+  it('desfazer: fora da lixeira e fora do OneDrive continua informando que não dá para restaurar', async () => {
+    const r = await actions.apply(groupId, ['c1']);
+    cloud.purgeFromTrash('c1');
+    const u = await actions.undo(r.results[0].actionId);
+    expect(u.result).toBe('not-in-trash');
+    expect(actions.history()[0].status).toBe('done');
   });
 
   it('desfazer simultâneo a apply deixa o grupo consistente', async () => {

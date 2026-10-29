@@ -15,6 +15,17 @@ const DOT_SEGMENT = /^(\.|%2e){1,2}$/i;
 const MAX_WAIT_MS = 60_000;
 const FETCH_TIMEOUT_MS = 60_000;
 
+/** O timeout do fetch também vale para a leitura do corpo: estourar ali é falta de conexão. */
+async function readBody(res: Response): Promise<string> {
+  try {
+    return await res.text();
+  } catch (e) {
+    const name = (e as { name?: unknown } | null)?.name;
+    if (name === 'TimeoutError' || name === 'AbortError') throw new OfflineError();
+    throw e;
+  }
+}
+
 export class GraphClient {
   private readonly fetchImpl: typeof fetch;
   private readonly sleep: (ms: number) => Promise<void>;
@@ -74,9 +85,9 @@ export class GraphClient {
       }
       if (res.status === 403) throw new ForbiddenError();
       if (res.status === 404 || res.status === 409) return { status: res.status, data: null };
-      if (!res.ok) throw new GraphError(res.status, await res.text());
+      if (!res.ok) throw new GraphError(res.status, await readBody(res));
       if (res.status === 204) return { status: 204, data: null };
-      const text = await res.text();
+      const text = await readBody(res);
       return { status: res.status, data: text ? (JSON.parse(text) as T) : null };
     }
   }

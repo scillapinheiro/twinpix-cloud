@@ -37,6 +37,27 @@ describe('GraphClient', () => {
     expect((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].signal).toBeInstanceOf(AbortSignal);
   });
 
+  it('tempo esgotado lendo a resposta vira OfflineError (sucesso e erro)', async () => {
+    const stalled = (status: number) => {
+      const r = new Response('{}', { status });
+      vi.spyOn(r, 'text').mockRejectedValue(Object.assign(new Error('timeout'), { name: 'TimeoutError' }));
+      return r;
+    };
+    const aborted = new Response('{}', { status: 200 });
+    vi.spyOn(aborted, 'text').mockRejectedValue(Object.assign(new Error('abort'), { name: 'AbortError' }));
+    const { client } = setup([stalled(200), stalled(500), aborted]);
+    await expect(client.request('GET', '/x')).rejects.toBeInstanceOf(OfflineError);
+    await expect(client.request('GET', '/x')).rejects.toBeInstanceOf(OfflineError);
+    await expect(client.request('GET', '/x')).rejects.toBeInstanceOf(OfflineError);
+  });
+
+  it('outros erros lendo a resposta não viram OfflineError', async () => {
+    const r = new Response('{}', { status: 200 });
+    vi.spyOn(r, 'text').mockRejectedValue(new TypeError('corpo quebrado'));
+    const { client } = setup([r]);
+    await expect(client.request('GET', '/x')).rejects.toBeInstanceOf(TypeError);
+  });
+
   it('503 sem Retry-After usa backoff exponencial', async () => {
     const { client, sleep } = setup([json(503, {}), json(503, {}), json(200, {})]);
     await client.request('GET', '/x');

@@ -188,7 +188,10 @@ export class ActionsService implements OnModuleInit {
       | undefined;
     if (!a) throw new NotFoundException('Ação não encontrada.');
     if (a.status !== 'done') throw new BadRequestException('Só dá para desfazer arquivos que foram para a lixeira.');
-    const result = await this.cloud.restore(a.file_id);
+    let result = await this.cloud.restore(a.file_id);
+    // "não está na lixeira" pode ser uma restauração anterior que deu certo sem a resposta chegar
+    // (ex.: tempo esgotado): se o arquivo está no OneDrive, conta como restaurado.
+    if (result === 'not-in-trash' && (await this.cloud.getItem(a.file_id))) result = 'restored';
     if (result === 'restored') {
       this.setActionStatus(a.id, 'undone', null);
       this.setGroupStatus(a.group_id, 'pending');
