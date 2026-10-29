@@ -60,7 +60,7 @@ export function Home() {
       <div className="row">
         {latest && <Link className="button" to={`/varredura/${latest.id}`}>Ver análise</Link>}
         {latest && latest.groupsPending > 0 && <Link className="button primary" to={`/revisao/${latest.id}`}>Continuar revisão</Link>}
-        <Link className="button" to="/pastas">Nova análise</Link>
+        <Link className="button primary" to="/pastas">Nova análise</Link>
       </div>
     </section>
   );

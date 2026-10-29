@@ -16,7 +16,7 @@ interface Props {
 export function FileCard({ file, isSuggested, marked, lockDelete, onToggle, diffs, fields }: Props) {
   const disabled = lockDelete && !marked;
   return (
-    <article className={`file-card${marked ? ' marked' : ''}`}>
+    <article className={`file-card${marked ? ' marked' : isSuggested ? ' suggested' : ''}`}>
       <div className="thumb">
         <Thumbnail fileId={file.id} alt={file.name} />
         {isSuggested && <span className="badge-keep">★ Sugerida para manter</span>}

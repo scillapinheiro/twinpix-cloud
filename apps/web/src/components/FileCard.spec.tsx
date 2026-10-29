@@ -30,6 +30,7 @@ it('destaca diferenças e mostra o selo de sugerida sem o motivo', () => {
   render(<FileCard file={file} isSuggested marked={false} lockDelete={false} onToggle={() => {}} diffs={new Set(['name'])} fields={[...fields]} />);
   expect(screen.getByText(file.name)).toHaveClass('diff');
   expect(screen.getByText('★ Sugerida para manter')).toBeInTheDocument();
+  expect(screen.getByRole('article')).toHaveClass('suggested');
 });
 
 it('trava: não deixa marcar a última cópia que sobraria', async () => {

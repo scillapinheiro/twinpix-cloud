@@ -17,3 +17,12 @@ it('desconectado mostra o botão de conectar', async () => {
   render(<App />);
   expect(await screen.findByRole('link', { name: 'Conectar ao OneDrive' })).toHaveAttribute('href', '/api/auth/login');
 });
+
+it('na tela inicial conectada, "Nova análise" é botão principal', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) =>
+    new Response(JSON.stringify(String(url).includes('/api/auth') ? { configured: true, connected: true, accountName: 'Ana', demo: false } : null), { status: 200 }),
+  ));
+  render(<App />);
+  const link = await screen.findByRole('link', { name: 'Nova análise' });
+  expect(link).toHaveClass('button', 'primary');
+});

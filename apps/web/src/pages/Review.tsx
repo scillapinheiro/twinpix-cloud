@@ -135,7 +135,7 @@ export function Review() {
       {reloadStale !== null && loadError && (
         <div className="alert" role="alert">
           {loadError}{' '}
-          <button type="button" className="button" onClick={() => void afterApply(reloadStale)}>Tentar de novo</button>
+          <button type="button" className="button primary" onClick={() => void afterApply(reloadStale)}>Tentar de novo</button>
         </div>
       )}
 

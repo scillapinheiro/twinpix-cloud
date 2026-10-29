@@ -28,4 +28,5 @@ it('escolhe pastas, entra em subpasta e avisa sobre pasta dentro de outra', asyn
   await userEvent.click(await screen.findByRole('checkbox', { name: 'Escolher a pasta minhas fotos' }));
   expect(await screen.findByText(/já está incluída em/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Iniciar análise/ })).toBeEnabled();
+  expect(screen.getByRole('button', { name: /Iniciar análise/ })).toHaveClass('button', 'primary');
 });

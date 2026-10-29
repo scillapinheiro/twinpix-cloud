@@ -131,6 +131,7 @@ describe('modal de confirmação', () => {
     expect(screen.getByText('/A/x.jpg')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
     expect(await screen.findByText('x 1.jpg: movido para a lixeira')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Próximo grupo' })).toHaveClass('button', 'primary');
     await userEvent.click(screen.getByRole('button', { name: 'Próximo grupo' }));
     expect(await screen.findByText(/Grupo 13 de 445/)).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
