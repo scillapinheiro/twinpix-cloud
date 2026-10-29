@@ -24,7 +24,7 @@ export class FoldersReconcileService {
     private readonly batch: BatchService,
   ) {}
 
-  /** Sempre recalculado do banco: arquivos ativos e grupos de idênticas ainda não resolvidos. */
+  /** Sempre recalculado do banco: arquivos ativos e grupos de idênticas pendentes ou pulados (os mesmos que o lote aceita). */
   private snapshot(scanId: number): Snapshot {
     const sql = this.db.sql;
     const scan = sql.prepare('SELECT status FROM scans WHERE id = ?').get(scanId) as { status: string } | undefined;
@@ -41,7 +41,7 @@ export class FoldersReconcileService {
       .all(scanId) as FileRow[];
     const files = rows.map(rowToItem);
     const groupIds = (sql
-      .prepare("SELECT id FROM dup_groups WHERE scan_id = ? AND kind = 'identical' AND status != 'resolved' ORDER BY position")
+      .prepare("SELECT id FROM dup_groups WHERE scan_id = ? AND kind = 'identical' AND status IN ('pending','skipped') ORDER BY position")
       .all(scanId) as Array<{ id: number }>).map((r) => r.id);
     const groups = groupIds.map((groupId) => ({ groupId, fileIds: this.review.activeFileIds(groupId) }));
     return { files, groups, clusters: findFolderClusters(files, groups) };

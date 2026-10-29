@@ -83,6 +83,17 @@ describe('FoldersReconcileService', () => {
     expect(plan.remaining.find((r) => r.path === B)!.fileCount).toBe(0);
   });
 
+  it('grupos considerados são os mesmos que o lote aceita: pendentes e pulados (não desatualizados)', () => {
+    const gidOf = (id: string) => (db.sql.prepare('SELECT group_id g FROM dup_group_files WHERE file_id = ?').get(id) as { g: number }).g;
+    db.sql.prepare("UPDATE dup_groups SET status = 'skipped' WHERE id = ?").run(gidOf('a1'));
+    db.sql.prepare("UPDATE dup_groups SET status = 'stale' WHERE id = ?").run(gidOf('a2'));
+    const [c] = svc.clusters(scanId);
+    expect(c.groupCount).toBe(3);
+    const ids = svc.plan(scanId, c.key, A).items.map((i) => i.groupId);
+    expect(ids).toContain(gidOf('a1'));
+    expect(ids).not.toContain(gidOf('a2'));
+  });
+
   it('erros com mensagens em português', () => {
     const [c] = svc.clusters(scanId);
     expect(() => svc.plan(scanId, '["x"]', A)).toThrow(NotFoundException);
