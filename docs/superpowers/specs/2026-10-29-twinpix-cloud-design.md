@@ -113,14 +113,36 @@ A sugestão sempre mostra o **motivo** ("regra: mais antiga").
 - Nas prováveis cópias, aviso: "Podem ser a original e uma versão editada. Confira antes de excluir."
 - Um cartão por cópia: miniatura grande, **todos os campos com rótulo**
   (Arquivo — nome completo; Pasta; Dimensões; Tamanho; Tirada em; Modificada em;
-  Câmera — fabricante + modelo), selo "★ Sugerida para manter (regra: …)",
+  Câmera — fabricante + modelo), selo **"★ Sugerida para manter"** (sem a regra no selo),
   caixa "Excluir esta cópia" e link "Abrir no OneDrive ↗".
-- **Diferenças entre as cópias destacadas em laranja**, com legenda.
+- **Faixa de legenda no topo**, acima dos cartões, explicando o selo e as cores:
+  "★ Sugerida para manter — escolhida pela regra: <motivo> · Campos em laranja são
+  diferentes entre as cópias". *(Ajuste da autora em 29/10/2026, após testar a demo.)*
+- **Diferenças entre as cópias destacadas em laranja.**
 - Botões: ← Voltar · Pular · Excluir marcadas.
+- **Confirmação e resultado em modal** sobre a revisão (não sai da tela): o modal mostra
+  contagem, espaço liberado e listas; ao confirmar, o mesmo modal mostra o resultado e o
+  botão "Próximo grupo", que fecha o modal e carrega o grupo seguinte. Esc/Voltar fecham sem
+  fazer nada. *(Ajuste da autora em 29/10/2026.)*
 - Público-alvo inclui pessoas não técnicas: rótulos explícitos, sem jargão.
 
+### Layout dos cartões *(ajuste da autora em 29/10/2026)*
+- Os cartões **ocupam toda a largura da tela**, todos do mesmo tamanho; a miniatura mostra a
+  mídia inteira (sem cortar).
+- 2 mídias → 2 por linha; 3 mídias → 3 por linha; **4 ou mais → no máximo 2 por linha**
+  (4 = 2+2; 5 = 2+2+1). Em tela estreita, 1 por linha.
+
+### Identidade visual da v1 *(ajuste da autora em 29/10/2026)*
+- Sem estudo de identidade completo: só o essencial para uma v1 "bonitinha".
+- **Fonte principal: Nunito** (arredondada, legível), usada no texto e no nome/logo
+  "TwinPix Cloud"; embutida no app (funciona sem internet).
+- Visual **arredondado** (cantos generosos, sombras suaves), paleta curta: azul principal,
+  vermelho só para excluir, laranja para diferenças, verde para "sugerida para manter".
+- Botões de ação lado a lado (ex.: tela inicial: Ver análise · Continuar revisão · Nova análise).
+- Telas de análise e histórico continuam como páginas (não modais).
+
 ### Três ou mais cópias (`tres-copias-e-pastas.html`, parte 1)
-- Cartões lado a lado; a partir de 5 cópias, quebram para uma segunda linha.
+- Cartões conforme "Layout dos cartões" acima (3 por linha com 3 cópias; 2 por linha a partir de 4).
 - Campos iguais em todas as cópias aparecem uma vez, num resumo no topo;
   cada cartão mostra só o que muda.
 
