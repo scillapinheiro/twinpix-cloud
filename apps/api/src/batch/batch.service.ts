@@ -8,7 +8,11 @@ import { nowIso } from '../storage/rows';
 import { suggestKeep } from '../rules/suggest-keep';
 import { getRules } from '../review/rules-settings';
 import { DB } from '../tokens';
+import { isLikelyResave } from '../grouping/likely-resave';
 import { buildBatchLines, lineKeyOf, type BatchGroupInput } from './batch-lines';
+
+/** Lote das idênticas (padrão) ou das prováveis regravações. */
+export type BatchPreviewKind = 'identical' | 'probable';
 
 export const BATCH_OPTIONS = 'BATCH_OPTIONS';
 
@@ -53,7 +57,7 @@ export class BatchService implements OnModuleInit {
     for (const r of rows) this.launch(r.id, this.isUndoMode(r.id) ? 'undo' : 'apply');
   }
 
-  preview(scanId: number): BatchPreview {
+  preview(scanId: number, kind: BatchPreviewKind = 'identical'): BatchPreview {
     const sql = this.db.sql;
     const scan = sql.prepare('SELECT status FROM scans WHERE id = ?').get(scanId) as { status: string } | undefined;
     if (!scan) throw new NotFoundException('Varredura não encontrada.');
@@ -63,9 +67,18 @@ export class BatchService implements OnModuleInit {
     }
     const ids = (sql
       .prepare(
-        `SELECT id FROM dup_groups WHERE scan_id = ? AND status = 'pending' AND kind = 'identical' AND ${hasTwoActiveFiles('dup_groups')} ORDER BY position`,
+        `SELECT id FROM dup_groups WHERE scan_id = ? AND status = 'pending' AND kind = ? AND ${hasTwoActiveFiles('dup_groups')} ORDER BY position`,
       )
-      .all(scanId) as Array<{ id: number }>).map((r) => r.id);
+      .all(scanId, kind) as Array<{ id: number }>).map((r) => r.id);
+    if (kind === 'probable') {
+      // Prováveis: buildBatchLines aplica o filtro de regravação e fixa a cópia sem sufixo (sem inverter).
+      const inputs: BatchGroupInput[] = ids.map((id) => {
+        const v = this.review.view(id);
+        return { groupId: id, kind: 'probable', files: v.files, suggestion: v.suggestion };
+      });
+      const { lines, tiesCount } = buildBatchLines(inputs);
+      return { scanId, lines, tiesCount, pendingCount: ids.length };
+    }
     const rules = getRules(this.db);
     const inputs: BatchGroupInput[] = ids.map((id) => {
       const v = this.review.view(id);
@@ -86,10 +99,16 @@ export class BatchService implements OnModuleInit {
    * `keeps`: para cada grupo das linhas marcadas, a ★ que a autora viu na prévia. O lote roda exatamente
    * esse conjunto; se a prévia de agora diverge (grupo a mais ou a menos, ★ diferente), recusa.
    */
-  start(scanId: number, lineKeys: string[], keepFolders: Record<string, string> = {}, keeps?: Record<string, string>): BatchSummary {
+  start(
+    scanId: number,
+    lineKeys: string[],
+    keepFolders: Record<string, string> = {},
+    keeps?: Record<string, string>,
+    kind: BatchPreviewKind = 'identical',
+  ): BatchSummary {
     if (!lineKeys.length) throw new BadRequestException('Escolha pelo menos uma linha.');
     this.assertNoOpenBatch();
-    const { lines } = this.preview(scanId);
+    const { lines } = this.preview(scanId, kind);
     const byKey = new Map(lines.map((l) => [l.key, l]));
     const chosen = [...new Set(lineKeys)].map((k) => byKey.get(k));
     if (chosen.some((l) => !l)) throw new BadRequestException('A prévia mudou. Abra o lote de novo.');
@@ -119,9 +138,10 @@ export class BatchService implements OnModuleInit {
 
     const sql = this.db.sql;
     const id = sql.transaction(() => {
-      const { lastInsertRowid } = sql
-        .prepare("INSERT INTO batches (scan_id, created_at, status) VALUES (?, ?, 'running')")
-        .run(scanId, nowIso());
+      const { lastInsertRowid } = (kind === 'probable'
+        ? sql.prepare("INSERT INTO batches (scan_id, created_at, status, kind) VALUES (?, ?, 'running', 'probable')")
+        : sql.prepare("INSERT INTO batches (scan_id, created_at, status) VALUES (?, ?, 'running')")
+      ).run(scanId, nowIso());
       const batchId = Number(lastInsertRowid);
       let seq = 0;
       for (const line of chosen) {
@@ -334,6 +354,8 @@ export class BatchService implements OnModuleInit {
 
   private async processGroup(batchId: number, row: BatchGroupRow): Promise<'done' | 'skipped'> {
     if (row.delete_ids !== null) return this.processFolderGroup(batchId, row);
+    const batchKind = (this.db.sql.prepare('SELECT kind FROM batches WHERE id = ?').get(batchId) as { kind: BatchKind }).kind;
+    if (batchKind === 'probable') return this.processProbableGroup(batchId, row);
     const view = this.review.view(row.group_id);
     if (!this.stillMatches(view, row.line_key)) return 'skipped';
     // A mesma conferência roda de novo dentro da trava do ActionsService, com o grupo recalculado.
@@ -357,6 +379,37 @@ export class BatchService implements OnModuleInit {
         v.files.some((f) => f.id === keepId) &&
         v.files.length === deleteIds.length + 1 &&
         deleteIds.every((id) => v.files.some((f) => f.id === id)),
+    });
+    return result.stale || result.skipped ? 'skipped' : 'done';
+  }
+
+  /**
+   * Lote das prováveis: a cópia que fica é sempre a do filtro de regravação (nunca a sugestão das regras)
+   * e precisa ser a fixada ao iniciar. Tudo é reconferido dentro da trava, com o grupo recalculado.
+   */
+  private async processProbableGroup(batchId: number, row: BatchGroupRow): Promise<'done' | 'skipped'> {
+    const keepId = row.keep_id;
+    if (keepId === null || row.keep_folder !== null) return 'skipped';
+    const approves = (v: GroupView): boolean => {
+      if (v.status !== 'pending' || v.kind !== 'probable') return false;
+      const verdict = isLikelyResave(v.files);
+      if (!verdict.ok || verdict.keepId !== keepId) return false;
+      const keep = v.files.find((f) => f.id === keepId);
+      if (!keep) return false;
+      const removeFolders = v.files.filter((f) => f.id !== keepId).map((f) => f.folderPath);
+      return removeFolders.length > 0 && lineKeyOf(keep.folderPath, [...new Set(removeFolders)]) === row.line_key;
+    };
+    const view = this.review.view(row.group_id);
+    if (!approves(view)) return 'skipped';
+    const deleteIds = view.files.filter((f) => f.id !== keepId).map((f) => f.id);
+    const result = await this.actions.apply(row.group_id, deleteIds, {
+      batchId,
+      keepId,
+      expect: (v) =>
+        approves(v) &&
+        v.files.some((f) => f.id === keepId) &&
+        v.files.length === deleteIds.length + 1 &&
+        deleteIds.every((id) => id !== keepId && v.files.some((f) => f.id === id)),
     });
     return result.stale || result.skipped ? 'skipped' : 'done';
   }

@@ -1,6 +1,6 @@
 import type { BatchSummary, HistoryEntry, UndoResponse } from '@twinpix/shared';
 import { useEffect, useState } from 'react';
-import { BATCH_STATUS_TEXT, UndoBatchButton } from '../components/BatchBits';
+import { BATCH_LABEL, BATCH_STATUS_TEXT, UndoBatchButton } from '../components/BatchBits';
 import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes, formatDate } from '../lib/format';
 import { plural } from '../lib/plural';
@@ -66,7 +66,7 @@ export function History() {
           <ul>
             {batches.map((b) => (
               <li key={b.id} className="batch-history-item">
-                <strong>{b.kind === 'folders' ? 'Pastas' : 'Lote'} #{b.id}</strong> · {formatDate(b.createdAt)} · {BATCH_STATUS_TEXT[b.status]}
+                <strong>{BATCH_LABEL[b.kind] ?? 'Lote'} #{b.id}</strong> · {formatDate(b.createdAt)} · {BATCH_STATUS_TEXT[b.status]}
                 <br />
                 <span className="muted">
                   {plural(b.movedFiles, 'arquivo movido', 'arquivos movidos')} · {formatBytes(b.movedBytes)}
@@ -90,7 +90,7 @@ export function History() {
             <tr key={e.actionId}>
               <td>{e.file.folderPath === '/' ? '' : e.file.folderPath}/{e.file.name}</td>
               <td>{formatBytes(e.file.size)}</td>
-              <td>{formatDate(e.createdAt)}{e.batchId != null && <> <span className="muted">{e.batchKind === 'folders' ? 'pastas' : 'lote'} #{e.batchId}</span></>}</td>
+              <td>{formatDate(e.createdAt)}{e.batchId != null && <> <span className="muted">{(BATCH_LABEL[e.batchKind ?? 'lines'] ?? 'Lote').toLowerCase()} #{e.batchId}</span></>}</td>
               <td>{STATUS_TEXT[e.status]}{e.error ? ` (${e.error})` : ''}</td>
               <td>
                 {e.status === 'done' && <button type="button" className="button" onClick={() => undo(e.actionId)}>Desfazer</button>}

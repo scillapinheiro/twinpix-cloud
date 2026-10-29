@@ -171,7 +171,7 @@ export interface BatchPreview {
 
 export type BatchStatus = 'running' | 'paused' | 'waiting-network' | 'needs-auth' | 'done' | 'undoing' | 'undone' | 'error';
 
-export type BatchKind = 'lines' | 'folders';
+export type BatchKind = 'lines' | 'folders' | 'probable';
 
 export interface BatchSummary {
   id: number;

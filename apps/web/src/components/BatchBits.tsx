@@ -15,6 +15,14 @@ export const BATCH_STATUS_TEXT: Record<BatchStatus, string> = {
 export const BATCH_TITLE: Record<BatchKind, string> = {
   lines: 'Lote das idênticas',
   folders: 'Lote de pastas repetidas',
+  probable: 'Lote das prováveis regravações',
+};
+
+/** Rótulo curto de um lote no Histórico (sem o número): "Lote", "Pastas", "Prováveis". */
+export const BATCH_LABEL: Record<BatchKind, string> = {
+  lines: 'Lote',
+  folders: 'Pastas',
+  probable: 'Prováveis',
 };
 
 /** Lotes que impedem começar outro (o servidor recusa): a tela deve levar até eles. */

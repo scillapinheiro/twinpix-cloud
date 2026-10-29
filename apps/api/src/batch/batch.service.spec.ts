@@ -8,7 +8,8 @@ import { setRules } from '../review/rules-settings';
 import { ScanService } from '../scan/scan.service';
 import { Db } from '../storage/db';
 import type { ReconcileItem, ReconcilePlan } from '@twinpix/shared';
-import { BatchService } from './batch.service';
+import { BatchController } from './batch.controller';
+import { BATCH_OPEN_MESSAGE, BatchService } from './batch.service';
 
 let db: Db;
 let cloud: FakeCloudProvider;
@@ -808,5 +809,222 @@ describe('BatchService: cópia fixada sem pasta escolhida', () => {
       expect(actions.history()[0].batchKind).toBe('folders');
       expectUniquesUntouched();
     });
+  });
+});
+
+describe('BatchService: lote das prováveis regravações', () => {
+  const old = { takenAt: '2010-01-01T00:00:00Z', createdAt: '2010-01-01T00:00:00Z', modifiedAt: '2010-01-01T00:00:00Z' };
+  const nw = { takenAt: '2020-01-01T00:00:00Z', createdAt: '2020-01-01T00:00:00Z', modifiedAt: '2020-01-01T00:00:00Z' };
+  const gidOf = (fileId: string, kind = 'probable') =>
+    (db.sql.prepare('SELECT g.id FROM dup_group_files gf JOIN dup_groups g ON g.id = gf.group_id WHERE gf.file_id = ? AND g.kind = ?').get(fileId, kind) as { id: number }).id;
+  const probablePreview = () => batch.preview(scanId, 'probable');
+  function keepsOf(lineKeys: string[]): Record<string, string> {
+    const keeps: Record<string, string> = {};
+    for (const l of probablePreview().lines.filter((x) => lineKeys.includes(x.key))) for (const it of l.items) keeps[it.groupId] = it.keep.id;
+    return keeps;
+  }
+  const startProbable = (lineKeys: string[]) => batch.start(scanId, lineKeys, {}, keepsOf(lineKeys), 'probable');
+  function manualProbable(items: Array<{ groupId: number; keepId: string }>, lineKey: string): number {
+    const { lastInsertRowid } = db.sql.prepare("INSERT INTO batches (scan_id, created_at, status, kind) VALUES (?, ?, 'paused', 'probable')").run(scanId, new Date().toISOString());
+    const id = Number(lastInsertRowid);
+    items.forEach((it, i) =>
+      db.sql.prepare("INSERT INTO batch_groups (batch_id, group_id, line_key, seq, status, keep_folder, keep_id) VALUES (?, ?, ?, ?, 'pending', NULL, ?)").run(id, it.groupId, lineKey, i, it.keepId));
+    return id;
+  }
+  const setDbSize = (fileId: string, size: number) => db.sql.prepare('UPDATE files SET size = ? WHERE scan_id = ? AND id = ?').run(size, scanId, fileId);
+  /** O arquivo foi editado de verdade e a análise já sabe disso (OneDrive e banco iguais: só o filtro reprova). */
+  const resized = (fileId: string, size: number) => { cloud.updateFile(fileId, { size }); setDbSize(fileId, size); };
+
+  // /P tem os originais (sem sufixo); /Q tem as regravações com sufixo.
+  // r1 e r3: regravações seguras. e1: editada (tamanho +5%). n1: duas sem sufixo. i1: idênticas.
+  beforeEach(async () => {
+    db = new Db(':memory:');
+    cloud = new FakeCloudProvider();
+    const P = cloud.addFolder(cloud.rootId, 'P');
+    const Q = cloud.addFolder(cloud.rootId, 'Q');
+    cloud.addFile(P.id, { id: 'r1', name: 'r1.jpg', quickXorHash: 'hr1a', size: 1000 });
+    cloud.addFile(Q.id, { id: 'r1x', name: 'r1 (1).jpg', quickXorHash: 'hr1b', size: 1010 });
+    cloud.addFile(P.id, { id: 'e1', name: 'e1.jpg', quickXorHash: 'he1a', size: 1000 });
+    cloud.addFile(Q.id, { id: 'e1x', name: 'e1 (1).jpg', quickXorHash: 'he1b', size: 1050 });
+    cloud.addFile(P.id, { id: 'r3', name: 'r3.jpg', quickXorHash: 'hr3a', size: 2000 });
+    cloud.addFile(Q.id, { id: 'r3x', name: 'r3 1.jpg', quickXorHash: 'hr3b', size: 2000 });
+    cloud.addFile(Q.id, { id: 'r3y', name: 'r3-1.jpg', quickXorHash: 'hr3c', size: 2010 });
+    cloud.addFile(P.id, { id: 'n1', name: 'n1.jpg', quickXorHash: 'hn1a', size: 1000 });
+    cloud.addFile(Q.id, { id: 'n1q', name: 'n1.jpg', quickXorHash: 'hn1b', size: 1000 });
+    cloud.addFile(P.id, { id: 'i1', name: 'i1.jpg', quickXorHash: 'hi', size: 500, ...old });
+    cloud.addFile(Q.id, { id: 'i1q', name: 'i1.jpg', quickXorHash: 'hi', size: 500, ...nw });
+    const scan = new ScanService(db, cloud, { offlineRetryMs: 0 });
+    scanId = scan.start([P, Q]);
+    await scan.whenIdle(scanId);
+    review = new ReviewService(db);
+    actions = new ActionsService(db, cloud, review);
+    batch = makeBatch();
+  });
+
+  it('prévia só com regravações: a cópia sem sufixo fica, sem inverter', () => {
+    const p = probablePreview();
+    expect(p.tiesCount).toBe(0);
+    expect(p.lines).toHaveLength(1);
+    const line = p.lines[0];
+    expect(line.keepFolder).toBe('/P');
+    expect(line.keepOptions).toEqual(['/P']);
+    expect(line.reasons).toEqual(['nome sem sufixo de cópia']);
+    expect(line.items.map((i) => i.groupId).sort()).toEqual([gidOf('r1'), gidOf('r3')].sort());
+    expect(line.items.map((i) => i.keep.id).sort()).toEqual(['r1', 'r3']);
+    expect(line.items.flatMap((i) => i.remove.map((f) => f.id)).sort()).toEqual(['r1x', 'r3x', 'r3y']);
+  });
+
+  it('grupo editado (tamanho 5%) e grupo sem uma única cópia sem sufixo ficam fora', () => {
+    const used = probablePreview().lines.flatMap((l) => l.items.map((i) => i.groupId));
+    expect(used).not.toContain(gidOf('e1'));
+    expect(used).not.toContain(gidOf('n1'));
+  });
+
+  it('prévia das idênticas inalterada: não traz prováveis', () => {
+    const p = batch.preview(scanId);
+    expect(p.lines.flatMap((l) => l.items.map((i) => i.groupId))).toEqual([gidOf('i1', 'identical')]);
+    expect(batch.preview(scanId, 'identical')).toEqual(p);
+  });
+
+  it('execução move as com sufixo, mantém a sem sufixo e registra como prováveis', async () => {
+    const line = probablePreview().lines[0];
+    const s = startProbable([line.key]);
+    expect(s.kind).toBe('probable');
+    const pinned = (db.sql.prepare('SELECT keep_id FROM batch_groups WHERE batch_id = ? ORDER BY seq').all(s.id) as Array<{ keep_id: string }>).map((r) => r.keep_id);
+    expect(pinned.sort()).toEqual(['r1', 'r3']);
+    await batch.whenIdle(s.id);
+    expect(batch.summary(s.id)).toMatchObject({ status: 'done', kind: 'probable', totalGroups: 2, doneGroups: 2, skippedGroups: 0, movedFiles: 3, movedBytes: 1010 + 2000 + 2010 });
+    for (const id of ['r1x', 'r3x', 'r3y']) expect(cloud.isInTrash(id)).toBe(true);
+    for (const id of ['r1', 'r3', 'e1', 'e1x', 'n1', 'n1q', 'i1', 'i1q']) expect(cloud.isInTrash(id)).toBe(false);
+    expect(groupStatus(gidOf('r1'))).toBe('resolved');
+    expect(groupStatus(gidOf('e1'))).toBe('pending');
+    const h = actions.history();
+    expect(h.every((e) => e.batchId === s.id && e.batchKind === 'probable')).toBe(true);
+    await expectEveryGroupKeepsACopy();
+  });
+
+  it('só aceita a própria pasta que fica; keeps diferentes da prévia dão 400; nada é criado', () => {
+    const line = probablePreview().lines[0];
+    const keeps = keepsOf([line.key]);
+    expect(() => batch.start(scanId, [line.key], { [line.key]: '/Q' }, keeps, 'probable')).toThrow('Pasta escolhida inválida. Abra o lote de novo.');
+    expect(() => batch.start(scanId, [line.key], {}, { ...keeps, [gidOf('r1')]: 'r1x' }, 'probable')).toThrow('A prévia mudou. Abra o lote de novo.');
+    expect(() => batch.start(scanId, [line.key], {}, undefined, 'probable')).toThrow('A prévia mudou. Abra o lote de novo.');
+    // A linha das prováveis não existe na prévia das idênticas.
+    expect(() => batch.start(scanId, [line.key], {}, keeps)).toThrow('A prévia mudou. Abra o lote de novo.');
+    expect((db.sql.prepare('SELECT COUNT(*) n FROM batches').get() as { n: number }).n).toBe(0);
+  });
+
+  it('escolher a própria pasta que fica equivale a não escolher', async () => {
+    const line = probablePreview().lines[0];
+    const s = batch.start(scanId, [line.key], { [line.key]: '/P' }, keepsOf([line.key]), 'probable');
+    await batch.whenIdle(s.id);
+    expect(batch.summary(s.id)).toMatchObject({ doneGroups: 2, movedFiles: 3 });
+    await expectEveryGroupKeepsACopy();
+  });
+
+  it('grupo que deixou de passar no filtro entre prévia e execução é pulado, nada dele movido', async () => {
+    const line = probablePreview().lines[0];
+    const id = manualProbable([{ groupId: gidOf('r1'), keepId: 'r1' }, { groupId: gidOf('r3'), keepId: 'r3' }], line.key);
+    resized('r1x', 1100);
+    batch.resume(id);
+    await batch.whenIdle(id);
+    expect(batch.summary(id)).toMatchObject({ status: 'done', doneGroups: 1, skippedGroups: 1, movedFiles: 2 });
+    expect(cloud.isInTrash('r1x')).toBe(false);
+    expect(cloud.isInTrash('r3x') && cloud.isInTrash('r3y')).toBe(true);
+    expect(groupStatus(gidOf('r1'))).toBe('pending');
+    await expectEveryGroupKeepsACopy();
+  });
+
+  it('filtro reprova entre a conferência e a trava: reconferido dentro do apply, nada movido', async () => {
+    const line = probablePreview().lines[0];
+    const real = actions.apply.bind(actions);
+    vi.spyOn(actions, 'apply').mockImplementation((...args) => {
+      resized('r1x', 1100);
+      resized('r3y', 2100);
+      return real(...args);
+    });
+    const s = startProbable([line.key]);
+    await batch.whenIdle(s.id);
+    expect(batch.summary(s.id)).toMatchObject({ status: 'done', doneGroups: 0, skippedGroups: 2, movedFiles: 0 });
+    expect(cloud.calls).not.toContain('moveToTrash');
+    expect(groupStatus(gidOf('r1'))).toBe('pending');
+    expect(groupStatus(gidOf('r3'))).toBe('pending');
+    await expectEveryGroupKeepsACopy();
+  });
+
+  it('cópia que fica ganhou sufixo (renomeada) entre prévia e execução: pulado', async () => {
+    const line = probablePreview().lines[0];
+    const id = manualProbable([{ groupId: gidOf('r1'), keepId: 'r1' }], line.key);
+    db.sql.prepare("UPDATE files SET name = 'r1 (2).jpg' WHERE scan_id = ? AND id = 'r1'").run(scanId);
+    batch.resume(id);
+    await batch.whenIdle(id);
+    expect(batch.summary(id)).toMatchObject({ doneGroups: 0, skippedGroups: 1, movedFiles: 0 });
+    expect(cloud.calls).not.toContain('moveToTrash');
+    await expectEveryGroupKeepsACopy();
+  });
+
+  it('cópia fixada diferente da do filtro: pulado, nada movido', async () => {
+    const line = probablePreview().lines[0];
+    const id = manualProbable([{ groupId: gidOf('r1'), keepId: 'r1x' }], line.key);
+    batch.resume(id);
+    await batch.whenIdle(id);
+    expect(batch.summary(id)).toMatchObject({ doneGroups: 0, skippedGroups: 1, movedFiles: 0 });
+    expect(cloud.calls).not.toContain('moveToTrash');
+    await expectEveryGroupKeepsACopy();
+  });
+
+  it('cópia sem sufixo já não está no grupo: pulado, a última cópia nunca sai', async () => {
+    const line = probablePreview().lines[0];
+    const id = manualProbable([{ groupId: gidOf('r1'), keepId: 'r1' }], line.key);
+    db.sql.prepare("DELETE FROM files WHERE scan_id = ? AND id = 'r1'").run(scanId);
+    batch.resume(id);
+    await batch.whenIdle(id);
+    expect(batch.summary(id)).toMatchObject({ doneGroups: 0, skippedGroups: 1, movedFiles: 0 });
+    expect(cloud.isInTrash('r1x')).toBe(false);
+  });
+
+  it('desfazer lote restaura tudo e os grupos voltam a pendente', async () => {
+    const line = probablePreview().lines[0];
+    const s = startProbable([line.key]);
+    await batch.whenIdle(s.id);
+    batch.undo(s.id);
+    await batch.whenIdle(s.id);
+    expect(batch.summary(s.id)).toMatchObject({ status: 'undone', restoredFiles: 3, movedFiles: 0, notRestoredFiles: 0 });
+    for (const id of ['r1x', 'r3x', 'r3y']) expect(cloud.isInTrash(id)).toBe(false);
+    expect(groupStatus(gidOf('r1'))).toBe('pending');
+    expect(groupStatus(gidOf('r3'))).toBe('pending');
+    await expectEveryGroupKeepsACopy();
+  });
+
+  it('um lote por vez também entre idênticas e prováveis', async () => {
+    const idLine = batch.preview(scanId).lines[0];
+    const s = batch.start(scanId, [idLine.key], {}, keepsFor([idLine.key]));
+    batch.pause(s.id);
+    await batch.whenIdle(s.id);
+    const line = probablePreview().lines[0];
+    expect(() => startProbable([line.key])).toThrow(BATCH_OPEN_MESSAGE);
+  });
+
+  it('lote das idênticas na mesma análise continua igual (kind lines, só a idêntica sai)', async () => {
+    const idLine = batch.preview(scanId).lines[0];
+    const s = batch.start(scanId, [idLine.key], {}, keepsFor([idLine.key]));
+    await batch.whenIdle(s.id);
+    expect(batch.summary(s.id)).toMatchObject({ kind: 'lines', status: 'done', doneGroups: 1, movedFiles: 1 });
+    expect(cloud.isInTrash('i1q')).toBe(true);
+    for (const id of ['r1x', 'r3x', 'r3y', 'e1x', 'n1q']) expect(cloud.isInTrash(id)).toBe(false);
+    await expectEveryGroupKeepsACopy();
+  });
+
+  it('rota: kind ausente = idênticas, kind=probable, kind inválido dá 400', async () => {
+    const c = new BatchController(batch);
+    expect(c.preview(scanId)).toEqual(batch.preview(scanId));
+    expect(c.preview(scanId, 'identical')).toEqual(batch.preview(scanId));
+    expect(c.preview(scanId, 'probable')).toEqual(probablePreview());
+    expect(() => c.preview(scanId, 'x')).toThrow('Tipo de lote inválido.');
+    const line = probablePreview().lines[0];
+    expect(() => c.start(scanId, { lineKeys: [line.key], keeps: keepsOf([line.key]) }, 'x')).toThrow(BadRequestException);
+    const s = c.start(scanId, { lineKeys: [line.key], keeps: keepsOf([line.key]) }, 'probable');
+    await batch.whenIdle(s.id);
+    expect(batch.summary(s.id)).toMatchObject({ kind: 'probable', doneGroups: 2 });
   });
 });
