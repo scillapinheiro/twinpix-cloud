@@ -14,9 +14,9 @@ const PAGE = 20;
 const LIST_FIELDS: FieldKey[] = ['takenAt', 'modifiedAt', 'size'];
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-/** Arquivos que saem de um item se a cópia ficar em `folder` (a cópia que fica vem de keepByFolder). */
-function keepIdFor(it: BatchItem, folder: string): string {
-  return it.keepByFolder[folder] ?? it.keep.id;
+/** Cópia que fica: a sugerida na pasta original; em outra pasta, a de keepByFolder. */
+function keepIdFor(line: BatchLine, it: BatchItem, folder: string): string {
+  return folder === line.keepFolder ? it.keep.id : it.keepByFolder[folder] ?? it.keep.id;
 }
 /** Só oferece a pasta se todos os itens da linha sabem qual cópia ficaria nela. */
 function offeredFolders(l: BatchLine): string[] {
@@ -27,7 +27,7 @@ function lineStats(l: BatchLine, folder: string): { files: number; bytes: number
   let files = 0;
   let bytes = 0;
   for (const it of l.items) {
-    const keepId = keepIdFor(it, folder);
+    const keepId = keepIdFor(l, it, folder);
     for (const f of [it.keep, ...it.remove]) {
       if (f.id !== keepId) { files++; bytes += f.size; }
     }
@@ -42,7 +42,7 @@ function BatchItems({ line, folder }: { line: BatchLine; folder: string }) {
       <p className="muted">São cópias idênticas: o conteúdo é o mesmo byte a byte, mesmo quando o nome do arquivo é diferente.</p>
       <ul className="batch-items">
         {line.items.slice(0, shown).map((it) => {
-          const keepId = keepIdFor(it, folder);
+          const keepId = keepIdFor(line, it, folder);
           const all = [it.keep, ...it.remove];
           const diffs = differingFields(all);
           return (

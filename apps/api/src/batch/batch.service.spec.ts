@@ -424,3 +424,35 @@ describe('BatchService', () => {
     });
   });
 });
+
+describe('BatchService: cópia fixada sem pasta escolhida', () => {
+  it('duas cópias idênticas na pasta sugerida: fixa a sugestão global e move as outras (não pula)', async () => {
+    db = new Db(':memory:');
+    cloud = new FakeCloudProvider();
+    const E = cloud.addFolder(cloud.rootId, 'E');
+    const F = cloud.addFolder(cloud.rootId, 'F');
+    const old = { takenAt: '2010-01-01T00:00:00Z', createdAt: '2010-01-01T00:00:00Z', modifiedAt: '2010-01-01T00:00:00Z' };
+    const nw = { takenAt: '2020-01-01T00:00:00Z', createdAt: '2020-01-01T00:00:00Z', modifiedAt: '2020-01-01T00:00:00Z' };
+    cloud.addFile(E.id, { id: 'e1', name: 'm.jpg', quickXorHash: 'hm', size: 100, ...old });
+    cloud.addFile(E.id, { id: 'e2', name: 'm (1).jpg', quickXorHash: 'hm', size: 100, ...old });
+    cloud.addFile(F.id, { id: 'f1', name: 'm.jpg', quickXorHash: 'hm', size: 100, ...nw });
+    const scan = new ScanService(db, cloud, { offlineRetryMs: 0 });
+    scanId = scan.start([E, F]);
+    await scan.whenIdle(scanId);
+    review = new ReviewService(db);
+    actions = new ActionsService(db, cloud, review);
+    batch = makeBatch();
+
+    const line = batch.preview(scanId).lines[0];
+    const globalKeep = line.items[0].keep.id;
+    expect(globalKeep).toBe('e1');
+    const s = batch.start(scanId, [line.key]);
+    const pinned = db.sql.prepare('SELECT keep_id FROM batch_groups WHERE batch_id = ?').get(s.id) as { keep_id: string };
+    expect(pinned.keep_id).toBe(globalKeep);
+    await batch.whenIdle(s.id);
+    expect(batch.summary(s.id)).toMatchObject({ status: 'done', doneGroups: 1, skippedGroups: 0, movedFiles: 2 });
+    expect(cloud.isInTrash('e1')).toBe(false);
+    expect(cloud.isInTrash('e2') && cloud.isInTrash('f1')).toBe(true);
+    await expectEveryGroupKeepsACopy();
+  });
+});

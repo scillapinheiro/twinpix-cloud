@@ -91,11 +91,14 @@ export class BatchService implements OnModuleInit {
         .prepare("INSERT INTO batches (scan_id, created_at, status) VALUES (?, ?, 'running')")
         .run(scanId, nowIso());
       const batchId = Number(lastInsertRowid);
+      // Sem pasta escolhida, fixa a sugestão global (o que processGroup compara); com pasta, a cópia daquela pasta.
+      const pinnedKeepId = (item: { keep: { id: string }; keepByFolder: Record<string, string> }, folder?: string): string =>
+        (folder !== undefined ? item.keepByFolder[folder] : undefined) ?? item.keep.id;
       let seq = 0;
       for (const line of chosen) {
         for (const item of line!.items) {
           sql.prepare("INSERT INTO batch_groups (batch_id, group_id, line_key, seq, status, keep_folder, keep_id) VALUES (?, ?, ?, ?, 'pending', ?, ?)")
-            .run(batchId, item.groupId, line!.key, seq++, keepFor.get(line!.key) ?? null, item.keepByFolder[keepFor.get(line!.key) ?? line!.keepFolder] ?? item.keep.id);
+            .run(batchId, item.groupId, line!.key, seq++, keepFor.get(line!.key) ?? null, pinnedKeepId(item, keepFor.get(line!.key)));
         }
       }
       return batchId;
