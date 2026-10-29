@@ -39,7 +39,14 @@ export class ScanService implements OnModuleInit {
     for (const { id } of rows) this.launch(id);
     // análises concluídas antes das prováveis cópias existirem
     const legacy = this.db.sql.prepare("SELECT id FROM scans WHERE status = 'done' AND probable_done = 0").all() as Array<{ id: number }>;
-    for (const { id } of legacy) this.computeProbable(id);
+    for (const { id } of legacy) {
+      try {
+        this.computeProbable(id);
+      } catch (e) {
+        // o app sobe mesmo assim; probable_done continua 0 e o cálculo é tentado no próximo início
+        console.error(`Prováveis cópias: não deu para calcular na análise ${id}.`, e);
+      }
+    }
   }
 
   start(roots: CloudFolder[]): number {
@@ -214,15 +221,15 @@ export class ScanService implements OnModuleInit {
     // grupos novos desta chamada: pela menor pasta/nome; a posição, uma vez gravada, nunca muda
     const groups = groupIdentical(files).sort((x, y) => firstIndex(x.fileIds) - firstIndex(y.fileIds));
     sql.transaction(() => {
+      let { n } = sql.prepare('SELECT COALESCE(MAX(position), 0) + 1 n FROM dup_groups WHERE scan_id = ?').get(scanId) as { n: number };
       for (const g of groups) {
         let row = sql.prepare("SELECT id FROM dup_groups WHERE scan_id = ? AND kind = 'identical' AND key = ?").get(scanId, g.key) as
           | { id: number }
           | undefined;
         if (!row) {
-          const { n } = sql.prepare('SELECT COALESCE(MAX(position), 0) + 1 n FROM dup_groups WHERE scan_id = ?').get(scanId) as { n: number };
           const { lastInsertRowid } = sql
             .prepare("INSERT INTO dup_groups (scan_id, kind, key, position, status) VALUES (?, 'identical', ?, ?, 'pending')")
-            .run(scanId, g.key, n);
+            .run(scanId, g.key, n++);
           row = { id: Number(lastInsertRowid) };
         }
         let added = 0;
@@ -252,15 +259,14 @@ export class ScanService implements OnModuleInit {
     const groups = groupProbable(rows.map(rowToItem)).sort((x, y) => firstIndex(x.fileIds) - firstIndex(y.fileIds));
     // Roda uma vez por análise: de propósito não reabre nem poda grupos já existentes.
     const find = sql.prepare("SELECT id FROM dup_groups WHERE scan_id = ? AND kind = 'probable' AND key = ?");
-    const nextPos = sql.prepare('SELECT COALESCE(MAX(position), 0) + 1 n FROM dup_groups WHERE scan_id = ?');
     const insertGroup = sql.prepare("INSERT INTO dup_groups (scan_id, kind, key, position, status) VALUES (?, 'probable', ?, ?, 'pending')");
     const insertFileRow = sql.prepare('INSERT OR IGNORE INTO dup_group_files (group_id, file_id) VALUES (?, ?)');
     sql.transaction(() => {
+      let { n } = sql.prepare('SELECT COALESCE(MAX(position), 0) + 1 n FROM dup_groups WHERE scan_id = ?').get(scanId) as { n: number };
       for (const g of groups) {
         let row = find.get(scanId, g.key) as { id: number } | undefined;
         if (!row) {
-          const { n } = nextPos.get(scanId) as { n: number };
-          row = { id: Number(insertGroup.run(scanId, g.key, n).lastInsertRowid) };
+          row = { id: Number(insertGroup.run(scanId, g.key, n++).lastInsertRowid) };
         }
         for (const fileId of g.fileIds) insertFileRow.run(row.id, fileId);
       }

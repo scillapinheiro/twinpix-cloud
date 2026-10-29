@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionsService } from '../actions/actions.service';
 import { BatchService } from '../batch/batch.service';
 import { FakeCloudProvider } from '../cloud/fake-cloud-provider';
@@ -252,5 +252,34 @@ describe('prováveis cópias', () => {
       expect(scan.summary(scanId).probablePending).toBe(1);
       expect(review.current(scanId, 'probable')!.id).not.toBe(prob.id);
     });
+  });
+  it('backfill que falha não impede o app de subir e tenta de novo no próximo início', () => {
+    db.sql.prepare("DELETE FROM dup_group_files WHERE group_id IN (SELECT id FROM dup_groups WHERE kind = 'probable')").run();
+    db.sql.prepare("DELETE FROM dup_groups WHERE kind = 'probable'").run();
+    db.sql.prepare('UPDATE scans SET probable_done = 0').run();
+    const spy = vi.spyOn(scan as unknown as { computeProbable: (id: number) => void }, 'computeProbable').mockImplementationOnce(() => {
+      throw new Error('falha forçada');
+    });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      expect(() => scan.onModuleInit()).not.toThrow();
+      expect(log).toHaveBeenCalled();
+      expect((db.sql.prepare('SELECT probable_done d FROM scans WHERE id = ?').get(scanId) as { d: number }).d).toBe(0);
+      spy.mockRestore();
+      scan.onModuleInit();
+      expect(scan.summary(scanId).probableTotal).toBe(2);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it('backfill numera os grupos prováveis em sequência depois das posições existentes', () => {
+    db.sql.prepare("DELETE FROM dup_group_files WHERE group_id IN (SELECT id FROM dup_groups WHERE kind = 'probable')").run();
+    db.sql.prepare("DELETE FROM dup_groups WHERE kind = 'probable'").run();
+    db.sql.prepare('UPDATE scans SET probable_done = 0').run();
+    const max = (db.sql.prepare('SELECT MAX(position) m FROM dup_groups WHERE scan_id = ?').get(scanId) as { m: number }).m;
+    scan.onModuleInit();
+    const pos = (db.sql.prepare("SELECT position p FROM dup_groups WHERE scan_id = ? AND kind = 'probable' ORDER BY position").all(scanId) as Array<{ p: number }>).map((r) => r.p);
+    expect(pos).toEqual([max + 1, max + 2]);
   });
 });
