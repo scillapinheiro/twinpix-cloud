@@ -183,7 +183,7 @@ export function Review() {
     back: () => { if (group.position > 1) void back(); },
     markOthers: () => {
       const others = group.files.filter((f) => f.id !== group.suggestion.keepId).map((f) => f.id);
-      if (others.length === 0 || group.status === 'resolved') return;
+      if (others.length === 0 || others.length === group.files.length || group.status === 'resolved') return;
       setMarked(new Set(others));
       setConfirmingId(group.id);
     },
