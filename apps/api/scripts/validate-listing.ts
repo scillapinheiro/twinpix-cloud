@@ -3,7 +3,7 @@
 // Probable copies are skipped: rclone listings carry no dimensions/takenAt.
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import { computeListingStats, type LsjsonItem } from '../src/grouping/listing-stats';
+import { combineListings, computeListingStats, type LsjsonItem } from '../src/grouping/listing-stats';
 
 function print(label: string, s: ReturnType<typeof computeListingStats>): void {
   console.log(`== ${label} ==`);
@@ -19,12 +19,21 @@ if (paths.length === 0) {
   console.error('uso: tsx validate-listing.ts <listagem.json> [...]');
   process.exit(1);
 }
-const all: LsjsonItem[] = [];
+const listings: LsjsonItem[][] = [];
 for (const p of paths) {
-  const items = JSON.parse(readFileSync(p, 'utf8')) as LsjsonItem[];
-  print(basename(p), computeListingStats(items));
-  const tag = basename(p);
-  all.push(...items.map((i) => ({ ...i, Path: `${tag}/${i.Path}` })));
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(p, 'utf8'));
+  } catch (e) {
+    console.error(`erro: nao foi possivel ler/analisar ${p}: ${(e as Error).message}`);
+    process.exit(1);
+  }
+  if (!Array.isArray(parsed)) {
+    console.error(`erro: ${p} nao contem um array JSON (esperado saida de rclone lsjson)`);
+    process.exit(1);
+  }
+  listings.push(parsed as LsjsonItem[]);
+  print(basename(p), computeListingStats(parsed as LsjsonItem[]));
 }
-if (paths.length > 1) print('COMBINADO (grupos entre pastas)', computeListingStats(all));
+if (listings.length > 1) print('COMBINADO (grupos entre pastas)', computeListingStats(combineListings(listings)));
 console.log('nota: copias provaveis nao avaliadas (rclone nao traz dimensoes/takenAt).');

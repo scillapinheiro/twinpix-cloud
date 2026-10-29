@@ -61,3 +61,10 @@ export function computeListingStats(items: LsjsonItem[]): ListingStats {
     withoutHash: files.filter((f) => !f.quickXorHash).length,
   };
 }
+
+export type RcloneItem = LsjsonItem;
+
+/** Merges several listings, prefixing paths with the listing index so equal relative names stay distinct. */
+export function combineListings(listings: RcloneItem[][]): RcloneItem[] {
+  return listings.flatMap((items, idx) => items.map((i) => ({ ...i, Path: `${idx}:${i.Path}` })));
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeListingStats, type LsjsonItem } from './listing-stats';
+import { combineListings, computeListingStats, type LsjsonItem } from './listing-stats';
 
 const it1 = (p: string, size: number, h?: string, mime = 'image/jpeg'): LsjsonItem => ({
   Path: p,
@@ -36,5 +36,15 @@ describe('computeListingStats', () => {
     const s = computeListingStats([{ Path: 'x.HEIC', Size: 1 }, { Path: 'y.mov', Size: 1 }]);
     expect(s.photos).toBe(1);
     expect(s.videos).toBe(1);
+  });
+});
+
+describe('combineListings', () => {
+  it('keeps same-named files from different listings distinct', () => {
+    const combined = combineListings([[it1('x/a.jpg', 7, 'H')], [it1('x/a.jpg', 7, 'H')]]);
+    const s = computeListingStats(combined);
+    expect(s.files).toBe(2);
+    expect(s.identicalGroups).toBe(1);
+    expect(s.extraCopies).toBe(1);
   });
 });
