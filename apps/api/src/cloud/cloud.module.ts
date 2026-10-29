@@ -6,12 +6,15 @@ import { CLOUD_PROVIDER, CONFIG } from '../tokens';
 import type { CloudProvider } from './cloud-provider';
 import { seedDemo } from './demo-seed';
 import { FakeCloudProvider } from './fake-cloud-provider';
+import { FilesController } from './files.controller';
+import { FoldersController } from './folders.controller';
 import { GraphClient } from './onedrive/graph-client';
 import { OneDriveProvider } from './onedrive/onedrive-provider';
 
 @Global()
 @Module({
   imports: [AuthModule],
+  controllers: [FoldersController, FilesController],
   providers: [
     {
       provide: CLOUD_PROVIDER,
