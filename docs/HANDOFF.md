@@ -1,6 +1,6 @@
 # Handoff — TwinPix Cloud
 
-Última atualização: 29/10/2026, noite (planos 1-5 concluídos; plano 6 em andamento)
+Última atualização: 29/10/2026, noite (planos 1-6 concluídos; fechamento da v1)
 
 ## Objetivo e escopo
 
@@ -18,7 +18,7 @@ A implementação foi dividida em planos:
 | 3 | **Reconciliação de pastas** (`docs/superpowers/plans/2026-10-29-plano-3-reconciliacao-de-pastas.md`) | **Implementado e revisado** (29/10, tarde) |
 | 4 | **Prováveis cópias** (`docs/superpowers/plans/2026-10-29-plano-4-provaveis-copias.md`) | **Implementado e revisado** (29/10, noite) |
 | 5 | **Acabamento** (`docs/superpowers/plans/2026-10-29-plano-5-acabamento.md`): cancelar análise, regra "pasta mais organizada" + tela de Regras, pendências, trava da pasta de teste + contrato real, validação com listagens | **Implementado e revisado** (29/10, noite) |
-| 6 | **Lote das prováveis regravações + tecla X** (`docs/superpowers/plans/2026-10-29-plano-6-lote-provaveis-e-atalho-x.md`) | Em execução |
+| 6 | **Lote das prováveis regravações + tecla X** (`docs/superpowers/plans/2026-10-29-plano-6-lote-provaveis-e-atalho-x.md`) | **Implementado e revisado** (29/10, noite) |
 
 ## Estado atual
 
@@ -30,7 +30,7 @@ A implementação foi dividida em planos:
 - Registro no Microsoft Entra feito pela autora (conta gratuita do Azure → "Diretório padrão");
   Client ID no `.env` da raiz (fora do git, permissão 600).
 - Testes (fim do Plano 5): API 320 + 1 pulado (contrato real), web 130; typecheck e build OK.
-- **Próximo:** Plano 6 (lote das prováveis regravações + tecla X), depois o fechamento da v1.
+- Plano 6 (lote das prováveis regravações + tecla X) concluído. **Próximo:** fechamento da v1.
 
 ### Como experimentar
 
