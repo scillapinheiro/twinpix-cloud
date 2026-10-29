@@ -188,7 +188,7 @@ it('progresso mostra o status, e o resumo final com desfazer em dois cliques', a
   await userEvent.click(screen.getByRole('button', { name: /Mover para a lixeira \(147/ }));
   await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
   expect(await screen.findByText(/Lote concluído/, undefined, { timeout: 3000 })).toBeInTheDocument();
-  expect(screen.getByText(/Pulados: 2 grupos \(voltam para a revisão um por um\)/)).toBeInTheDocument();
+  expect(screen.getByText('Pulados: 2 grupos (não foram mexidos)')).toBeInTheDocument();
   expect(screen.getByText(/Falhas: 1 arquivo não foi movido/)).toBeInTheDocument();
   expect(await screen.findByRole('link', { name: 'Revisão um por um' })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Ver histórico' })).toBeInTheDocument();

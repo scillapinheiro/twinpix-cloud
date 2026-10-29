@@ -5,13 +5,12 @@ import { findOpenBatch, OTHER_BATCH_NOTICE } from '../components/BatchBits';
 import { BatchProgress } from '../components/BatchProgress';
 import { ReconcileConfirmDialog } from '../components/ReconcileConfirmDialog';
 import { ApiError, apiFetch } from '../lib/api';
-import { formatBytes } from '../lib/format';
+import { filePath, formatBytes } from '../lib/format';
 import { plural } from '../lib/plural';
 
 const REVIEW = '__review__';
 const ORD = ['primeira', 'segunda', 'terceira', 'quarta', 'quinta', 'sexta', 'sétima', 'oitava', 'nona', 'décima'];
 const ordinal = (i: number) => ORD[i] ?? `${i + 1}ª`;
-const fileName = (f: CloudItem) => `${f.folderPath === '/' ? '' : f.folderPath}/${f.name}`;
 
 function situationText(f: FolderStat): string {
   if (f.situation === 'complete') return 'Mais completa';
@@ -132,7 +131,7 @@ function UniqueList({ scanId, cluster, folder }: { scanId: string; cluster: Fold
         <ul className="reconcile-list" aria-label={`Arquivos só em ${folder}`}>
           {err && <li className="alert">{err}</li>}
           {!files && !err && <li>Carregando…</li>}
-          {files?.map((f) => <li key={f.id}>{fileName(f)}</li>)}
+          {files?.map((f) => <li key={f.id}>{filePath(f.folderPath, f.name)}</li>)}
         </ul>
       )}
     </>
@@ -166,7 +165,6 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
   const folders = cluster.folders;
   const two = folders.length === 2;
   const uniqueOf = (i: number) => folders[i].uniqueCount;
-  const common = two ? folders[0].fileCount - folders[0].uniqueCount : cluster.groupCount;
   const n = plan?.deleteFiles.length ?? 0;
   const situationLine = two
     ? folders[1].situation === 'contained' ? 'a segunda pasta está toda contida na primeira.' : folders[0].situation === 'contained' ? 'a primeira pasta está toda contida na segunda.' : 'cada pasta tem arquivos que a outra não tem.'
@@ -212,7 +210,7 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
             {two ? (
               <>
                 <strong>Situação:</strong> {situationLine}<br />
-                {common} arquivos estão nas duas · {uniqueOf(0)} só na primeira · {uniqueOf(1)} só na segunda.
+                {cluster.groupCount} arquivos estão nas duas · {uniqueOf(0)} só na primeira · {uniqueOf(1)} só na segunda.
               </>
             ) : (
               <>

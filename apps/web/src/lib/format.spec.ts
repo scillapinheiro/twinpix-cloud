@@ -1,4 +1,4 @@
-import { formatBytes, formatCamera, formatDate, formatDimensions, formatDuration } from './format';
+import { filePath, formatBytes, formatCamera, formatDate, formatDimensions, formatDuration } from './format';
 
 it('formata bytes em pt-BR', () => {
   expect(formatBytes(0)).toBe('0 B');
@@ -16,4 +16,11 @@ it('formata data, câmera, dimensões e duração', () => {
   expect(formatDimensions(null, null)).toBe('—');
   expect(formatDuration(31_000)).toBe('0:31');
   expect(formatDuration(null)).toBe('—');
+});
+
+it('caminho do arquivo sem barra dupla', () => {
+  expect(filePath('/', 'a.jpg')).toBe('/a.jpg');
+  expect(filePath('', 'a.jpg')).toBe('/a.jpg');
+  expect(filePath('/Fotos', 'a.jpg')).toBe('/Fotos/a.jpg');
+  expect(filePath('/Fotos/', 'a.jpg')).toBe('/Fotos/a.jpg');
 });

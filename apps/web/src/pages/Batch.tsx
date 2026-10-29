@@ -7,10 +7,9 @@ import { BatchConfirmDialog } from '../components/BatchConfirmDialog';
 import { Thumbnail } from '../components/Thumbnail';
 import { differingFields, FIELD_LABELS, fieldValue, type FieldKey } from '../lib/differing-fields';
 import { ApiError, apiFetch } from '../lib/api';
-import { formatBytes } from '../lib/format';
+import { filePath, formatBytes } from '../lib/format';
 import { plural } from '../lib/plural';
 
-const path = (folder: string, name: string) => `${folder === '/' ? '' : folder}/${name}`;
 const PAGE = 20;
 const LIST_FIELDS: FieldKey[] = ['takenAt', 'modifiedAt', 'size'];
 
@@ -62,7 +61,7 @@ function BatchItems({ line, folder }: { line: BatchLine; folder: string }) {
                   <div className="batch-thumb"><Thumbnail fileId={f.id} alt={f.name} /></div>
                   <div className="batch-file-info">
                     <div>
-                      <strong>{f.id === keepId ? '★ fica' : 'sai'}</strong>: {path(f.folderPath, f.name)}{' '}
+                      <strong>{f.id === keepId ? '★ fica' : 'sai'}</strong>: {filePath(f.folderPath, f.name)}{' '}
                       <a className="batch-link" href={f.webUrl} target="_blank" rel="noreferrer">Abrir no OneDrive ↗</a>
                     </div>
                     <div className="batch-file-meta">

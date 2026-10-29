@@ -56,6 +56,9 @@ export function BatchProgress({ initial, scanId, title = BATCH_TITLE[initial.kin
     }
   }
 
+  // No lote de pastas cada "grupo" é um arquivo repetido (a mesma palavra da tela das pastas).
+  const unit = b.kind === 'folders' ? (n: number) => plural(n, 'arquivo repetido', 'arquivos repetidos') : (n: number) => plural(n, 'grupo', 'grupos');
+  const total = unit(b.totalGroups);
   const pct = b.totalGroups ? Math.round(((b.doneGroups + b.skippedGroups) / b.totalGroups) * 100) : 0;
   const bad = b.status === 'error' || b.status === 'needs-auth';
 
@@ -70,12 +73,12 @@ export function BatchProgress({ initial, scanId, title = BATCH_TITLE[initial.kin
       <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso do lote">
         <div style={{ width: `${pct}%` }} />
       </div>
-      <p>{b.doneGroups} de {b.totalGroups} grupos</p>
+      <p>{b.doneGroups} de {total}</p>
       <p>{plural(b.movedFiles, 'arquivo movido', 'arquivos movidos')} · {formatBytes(b.movedBytes)} liberados</p>
       {finished && (
         <ul>
           {b.status !== 'undone' && <li>Movidos: {b.movedFiles}</li>}
-          {b.skippedGroups > 0 && <li>Pulados: {plural(b.skippedGroups, 'grupo', 'grupos')} (voltam para a revisão um por um)</li>}
+          {b.skippedGroups > 0 && <li>Pulados: {unit(b.skippedGroups)} (não foram mexidos)</li>}
           {b.failedFiles > 0 && <li className="alert">Falhas: {plural(b.failedFiles, 'arquivo não foi movido', 'arquivos não foram movidos')}</li>}
           {b.status === 'undone' && (
             <>

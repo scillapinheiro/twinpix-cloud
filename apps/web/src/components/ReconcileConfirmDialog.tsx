@@ -1,7 +1,7 @@
 import type { ReconcilePlan } from '@twinpix/shared';
 import { useEffect, useRef, useState } from 'react';
 import type { ApiError } from '../lib/api';
-import { formatBytes } from '../lib/format';
+import { filePath, formatBytes } from '../lib/format';
 import { plural } from '../lib/plural';
 
 interface Props {
@@ -18,8 +18,6 @@ interface Props {
   /** Chamado por "Recarregar" quando a prévia mudou: fecha o modal e recarrega. */
   onReload: () => void;
 }
-
-const fileName = (f: { folderPath: string; name: string }) => `${f.folderPath === '/' ? '' : f.folderPath}/${f.name}`;
 
 /** "a", "a e b", "a, b e c". */
 const joinPt = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`);
@@ -72,11 +70,11 @@ export function ReconcileConfirmDialog({ plan, uniqueCount, keepFolderUnique, re
         </p>
         <h2>Saem ({n})</h2>
         <ul className="reconcile-list" aria-label="Arquivos que saem">
-          {plan.deleteFiles.map((f) => <li key={f.id}>{fileName(f)}</li>)}
+          {plan.deleteFiles.map((f) => <li key={f.id}>{filePath(f.folderPath, f.name)}</li>)}
         </ul>
         <h2>Cópia que fica de cada arquivo repetido ({plan.keepFiles.length})</h2>
         <ul className="reconcile-list" aria-label="Cópias que ficam">
-          {plan.keepFiles.map((f) => <li key={f.id}>{fileName(f)}</li>)}
+          {plan.keepFiles.map((f) => <li key={f.id}>{filePath(f.folderPath, f.name)}</li>)}
         </ul>
         {staying.length > 0 && <p className="muted">Também continuam onde estão: {joinPt(staying)}.</p>}
         <h3>Como cada pasta fica</h3>

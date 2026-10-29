@@ -77,6 +77,13 @@ it('duas pastas: cartões, quadro-resumo, lista dos únicos e prévia', async ()
   expect(screen.queryByRole('table')).toBeNull();
 });
 
+it('duas pastas: "estão nas duas" conta os arquivos repetidos (grupos), não as cópias da primeira pasta', async () => {
+  // /A tem 8 cópias repetidas, mas duas delas são do mesmo arquivo: só 7 arquivos estão nas duas.
+  clusters = [{ ...two, groupCount: 7 }];
+  renderPage();
+  expect(await screen.findByText(/7 arquivos estão nas duas · 2 só na primeira · 0 só na segunda/)).toBeInTheDocument();
+});
+
 it('três pastas: tabela com situação', async () => {
   clusters = [three];
   renderPage();
@@ -274,6 +281,16 @@ it('apply recusado por outro lote aberto: Recarregar leva até esse lote', async
   expect(await screen.findByRole('alert')).toHaveTextContent('Já existe um lote pausado ou em andamento.');
   await userEvent.click(screen.getByRole('button', { name: 'Recarregar' }));
   expect(await screen.findByRole('heading', { name: 'Lote das idênticas' })).toBeInTheDocument();
+});
+
+it('progresso do lote de pastas fala em arquivos repetidos, não em grupos', async () => {
+  batchList = [{ ...summary, status: 'paused', totalGroups: 8 }];
+  batchGet = { ...summary, status: 'done', totalGroups: 8, doneGroups: 6, skippedGroups: 2, movedFiles: 6 };
+  renderPage();
+  expect(await screen.findByText('Lote de pastas repetidas')).toBeInTheDocument();
+  expect(screen.getByText('0 de 8 arquivos repetidos')).toBeInTheDocument();
+  expect(await screen.findByText('Pulados: 2 arquivos repetidos (não foram mexidos)', undefined, { timeout: 3000 })).toBeInTheDocument();
+  expect(screen.queryByText(/grupos?\b/)).toBeNull();
 });
 
 it('lote terminado não prende a página', async () => {
