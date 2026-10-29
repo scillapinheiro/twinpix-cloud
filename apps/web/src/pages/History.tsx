@@ -65,7 +65,7 @@ export function History() {
           <ul>
             {batches.map((b) => (
               <li key={b.id} className="batch-history-item">
-                <strong>Lote #{b.id}</strong> · {formatDate(b.createdAt)} · {BATCH_STATUS_TEXT[b.status]}
+                <strong>{b.kind === 'folders' ? 'Pastas' : 'Lote'} #{b.id}</strong> · {formatDate(b.createdAt)} · {BATCH_STATUS_TEXT[b.status]}
                 <br />
                 <span className="muted">
                   {b.movedFiles} {b.movedFiles === 1 ? 'arquivo movido' : 'arquivos movidos'} · {formatBytes(b.movedBytes)}
@@ -89,7 +89,7 @@ export function History() {
             <tr key={e.actionId}>
               <td>{e.file.folderPath === '/' ? '' : e.file.folderPath}/{e.file.name}</td>
               <td>{formatBytes(e.file.size)}</td>
-              <td>{formatDate(e.createdAt)}{e.batchId != null && <> <span className="muted">lote #{e.batchId}</span></>}</td>
+              <td>{formatDate(e.createdAt)}{e.batchId != null && <> <span className="muted">{e.batchKind === 'folders' ? 'pastas' : 'lote'} #{e.batchId}</span></>}</td>
               <td>{STATUS_TEXT[e.status]}{e.error ? ` (${e.error})` : ''}</td>
               <td>
                 {e.status === 'done' && <button type="button" className="button" onClick={() => undo(e.actionId)}>Desfazer</button>}

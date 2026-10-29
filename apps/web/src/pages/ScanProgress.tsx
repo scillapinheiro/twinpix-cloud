@@ -1,4 +1,4 @@
-import type { CloudItem, ScanSummary } from '@twinpix/shared';
+import type { CloudItem, FolderCluster, ScanSummary } from '@twinpix/shared';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError, apiFetch } from '../lib/api';
@@ -18,6 +18,7 @@ export function ScanProgress() {
   const [scan, setScan] = useState<ScanSummary | null>(null);
   const [unanalyzed, setUnanalyzed] = useState<CloudItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [clusterCount, setClusterCount] = useState(0);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -33,6 +34,12 @@ export function ScanProgress() {
     void load();
     return () => clearTimeout(timer);
   }, [id]);
+
+  const done = scan?.status === 'done';
+  useEffect(() => {
+    if (!done) return;
+    apiFetch<FolderCluster[]>(`/api/scans/${id}/folder-clusters`).then((c) => setClusterCount(c.length)).catch(() => setClusterCount(0));
+  }, [done, id]);
 
   async function act(action: 'pause' | 'resume') {
     setScan(await apiFetch<ScanSummary>(`/api/scans/${id}/${action}`, { method: 'POST' }));
@@ -85,6 +92,9 @@ export function ScanProgress() {
         )}
         {scan.status === 'done' && scan.groupsPending > 0 && (
           <Link className="button" to={`/lote/${scan.id}`}>Revisar em lote</Link>
+        )}
+        {scan.status === 'done' && clusterCount > 0 && (
+          <Link className="button" to={`/pastas-repetidas/${scan.id}`}>Pastas repetidas ({clusterCount})</Link>
         )}
       </div>
     </section>

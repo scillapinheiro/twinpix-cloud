@@ -1,6 +1,7 @@
 import { HashRouter, Link, Route, Routes } from 'react-router-dom';
 import { Batch } from './pages/Batch';
 import { FolderPicker } from './pages/FolderPicker';
+import { FolderClusters } from './pages/FolderClusters';
 import { History } from './pages/History';
 import { Home } from './pages/Home';
 import { Review } from './pages/Review';
@@ -23,6 +24,7 @@ export function App() {
           <Route path="/revisao/:scanId" element={<Review />} />
           <Route path="/revisao/:scanId/grupo/:groupId" element={<Review />} />
           <Route path="/lote/:scanId" element={<Batch />} />
+          <Route path="/pastas-repetidas/:scanId" element={<FolderClusters />} />
           <Route path="/historico" element={<History />} />
         </Routes>
       </main>

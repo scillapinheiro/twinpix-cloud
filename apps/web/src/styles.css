@@ -101,3 +101,21 @@ th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border);
 .batch-thumb img, .batch-thumb .thumb-placeholder { width: 56px; height: 56px; object-fit: cover; font-size: 0.6rem; }
 .batch-file-meta { font-size: 0.85rem; }
 .batch-file-meta .diff { background: var(--diff-bg); color: var(--diff-text); font-weight: 600; border-radius: 6px; padding: 0 4px; }
+
+.reconcile-cards { display: flex; gap: 16px; align-items: stretch; flex-wrap: wrap; margin-top: 12px; }
+.reconcile-card { flex: 1 1 280px; border: 2px solid var(--border); border-radius: var(--radius); padding: 14px; word-break: break-word; }
+.reconcile-card.suggested, .reconcile-table tr.suggested { border-color: var(--ok); }
+.reconcile-card.suggested { background: var(--ok-bg); }
+.reconcile-card p { margin: 0 0 6px; }
+.reconcile-card dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 6px 0 0; }
+.reconcile-card dt { color: var(--muted); }
+.reconcile-card dd { margin: 0; }
+.reconcile-badge { color: var(--ok); font-weight: 700; font-size: 0.9rem; }
+.reconcile-table { margin-top: 12px; }
+.reconcile-table tr.suggested td { background: var(--ok-bg); }
+.reconcile-summary { margin-top: 14px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--bg); border: 1px solid var(--border); }
+.reconcile-choice { margin-top: 14px; border: none; padding: 0; }
+.reconcile-choice label { display: block; padding: 4px 0; }
+.reconcile-choice input { accent-color: var(--primary); }
+.reconcile-list { max-height: 240px; overflow-y: auto; margin: 6px 0 6px; padding-left: 20px; font-size: 0.9rem; word-break: break-word; }
+.reconcile-spacer { flex: 1; }

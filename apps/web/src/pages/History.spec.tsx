@@ -56,3 +56,15 @@ it('lote com erro mostra a frase do servidor e oferece desfazer', async () => {
   expect(screen.getByRole('link', { name: 'Conectar de novo' })).toHaveAttribute('href', '/api/auth/login');
   expect(screen.getByRole('button', { name: 'Desfazer este lote' })).toBeInTheDocument();
 });
+
+it('rotula lotes de pastas como "pastas #N"', async () => {
+  const entry = {
+    actionId: 3, groupId: 7, status: 'done', error: null, batchId: 4, batchKind: 'folders', createdAt: '2026-10-29T10:00:00Z',
+    file: { id: 'b', name: 'x 1.jpg', folderPath: '/A', size: 1000 },
+  };
+  const batch = { id: 4, kind: 'folders', scanId: 1, status: 'done', createdAt: '2026-10-29T10:00:00Z', totalGroups: 2, doneGroups: 2, skippedGroups: 0, movedFiles: 5, movedBytes: 2_000_000, failedFiles: 0, restoredFiles: 0, notRestoredFiles: 0, error: null };
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(url === '/api/batches' ? JSON.stringify([batch]) : JSON.stringify([entry]))));
+  render(<MemoryRouter><History /></MemoryRouter>);
+  expect(await screen.findByText('pastas #4')).toBeInTheDocument();
+  expect(screen.getByText('Pastas #4')).toBeInTheDocument();
+});
