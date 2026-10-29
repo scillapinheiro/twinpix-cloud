@@ -1,4 +1,4 @@
-import type { GroupView } from '@twinpix/shared';
+import type { GroupView, ScanSummary } from '@twinpix/shared';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
@@ -438,10 +438,12 @@ describe('modo prováveis cópias', () => {
   const probableNext: GroupView = { ...probableGroup, id: 9, position: 13 };
   let calls: Array<{ url: string; body?: string }>;
   let current: GroupView | null;
+  let summary: Partial<ScanSummary>;
 
   beforeEach(() => {
     calls = [];
     current = probableGroup;
+    summary = { id: 1, groupsPending: 0, probablePending: 0 };
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, body: init?.body as string | undefined });
       if (url.endsWith('/thumbnail')) return new Response(JSON.stringify({ url: null }));
@@ -453,13 +455,14 @@ describe('modo prováveis cópias', () => {
       if (url.endsWith('/previous')) return new Response(JSON.stringify({ ...probableGroup, id: 5, position: 11 }));
       if (url.endsWith('/skip')) return new Response(JSON.stringify(probableNext));
       if (url.includes('/unskip')) return new Response('{}');
+      if (url === '/api/scans/1') return new Response(JSON.stringify(summary));
       return new Response(JSON.stringify(current));
     }));
   });
 
-  function renderProbable() {
+  function renderProbable(entry = '/revisao/1?tipo=provaveis') {
     render(
-      <MemoryRouter initialEntries={['/revisao/1?tipo=provaveis']}>
+      <MemoryRouter initialEntries={[entry]}>
         <Routes>
           <Route path="/revisao/:scanId" element={<Review />} />
           <Route path="/revisao/:scanId/grupo/:groupId" element={<Review />} />
@@ -530,5 +533,39 @@ describe('modo prováveis cópias', () => {
     renderProbable();
     await userEvent.click(await screen.findByRole('button', { name: 'Rever grupos pulados' }));
     expect(calls.some((c) => c.url === '/api/scans/1/unskip?kind=probable')).toBe(true);
+  });
+  it('grupo provável aberto sem ?tipo na URL: cabeçalho, aviso e navegação seguem o tipo do grupo', async () => {
+    current = probableNext;
+    renderProbable('/revisao/1/grupo/9');
+    expect(await screen.findByText(/Prováveis cópias/)).toBeInTheDocument();
+    expect(screen.getByText(/Podem ser a original e uma versão editada/)).toBeInTheDocument();
+    expect(screen.queryByText('Revisar em lote')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Pular/ }));
+    await waitFor(() => expect(screen.getByTestId('where').textContent).toContain('tipo=provaveis'));
+  });
+
+  it('fim das prováveis: diz o tipo e leva às idênticas quando há pendentes', async () => {
+    current = null;
+    summary = { id: 1, groupsPending: 3, probablePending: 0 };
+    renderProbable();
+    expect(await screen.findByText(/Não há mais prováveis cópias pendentes/)).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Revisar cópias idênticas' })).toHaveAttribute('href', '/revisao/1');
+  });
+
+  it('fim das idênticas: diz o tipo e leva às prováveis quando há pendentes', async () => {
+    current = null;
+    summary = { id: 1, groupsPending: 0, probablePending: 2 };
+    renderProbable('/revisao/1');
+    expect(await screen.findByText(/Não há mais cópias idênticas pendentes/)).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Revisar prováveis cópias' })).toHaveAttribute('href', '/revisao/1?tipo=provaveis');
+  });
+
+  it('fim sem pendentes do outro tipo: sem link para a outra revisão', async () => {
+    current = null;
+    renderProbable('/revisao/1');
+    await screen.findByText(/Não há mais cópias idênticas pendentes/);
+    await waitFor(() => expect(calls.some((c) => c.url === '/api/scans/1')).toBe(true));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole('link', { name: 'Revisar prováveis cópias' })).not.toBeInTheDocument();
   });
 });

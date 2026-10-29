@@ -1,4 +1,4 @@
-import type { GroupView } from '@twinpix/shared';
+import type { GroupView, ScanSummary } from '@twinpix/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -12,10 +12,14 @@ export function Review() {
   const { scanId, groupId } = useParams();
   const navigate = useNavigate();
   const [search] = useSearchParams();
-  const probable = search.get('tipo') === 'provaveis';
+  const urlProbable = search.get('tipo') === 'provaveis';
+  const [group, setGroup] = useState<GroupView | null | undefined>(undefined);
+  // o tipo do grupo exibido manda; a URL só decide enquanto não há grupo (carregando ou fim da revisão)
+  const probable = group ? group.kind === 'probable' : urlProbable;
   const tipoQs = probable ? '?tipo=provaveis' : '';
   const kindQs = probable ? '?kind=probable' : '';
-  const [group, setGroup] = useState<GroupView | null | undefined>(undefined);
+  const urlKindQs = urlProbable ? '?kind=probable' : '';
+  const [summary, setSummary] = useState<ScanSummary | null>(null);
   const [marked, setMarked] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
@@ -69,9 +73,16 @@ export function Review() {
 
   useEffect(() => {
     if (groupId && shownId.current === Number(groupId)) return;
-    const path = groupId ? `/api/groups/${groupId}` : `/api/scans/${scanId}/groups/current${kindQs}`;
+    const path = groupId ? `/api/groups/${groupId}` : `/api/scans/${scanId}/groups/current${urlKindQs}`;
     apiFetch<GroupView | null>(path).then(show).catch((e: ApiError) => setError(e.message));
-  }, [scanId, groupId, kindQs]);
+  }, [scanId, groupId, urlKindQs]);
+
+  // fim da revisão: o resumo diz se há grupos pendentes do outro tipo
+  useEffect(() => {
+    if (group !== null) return;
+    setSummary(null);
+    apiFetch<ScanSummary>(`/api/scans/${scanId}`).then(setSummary).catch(() => setSummary(null));
+  }, [group, scanId]);
 
   useEffect(() => {
     if (focusHeader.current && group) {
@@ -96,12 +107,18 @@ export function Review() {
     return (
       <section className="card">
         <h1>Revisão concluída</h1>
-        <p>Não há mais grupos pendentes nesta análise.</p>
+        <p>{probable ? 'Não há mais prováveis cópias pendentes nesta análise.' : 'Não há mais cópias idênticas pendentes nesta análise.'}</p>
         <div className="row">
           <button type="button" className="button" onClick={async () => {
             await apiFetch(`/api/scans/${scanId}/unskip${kindQs}`, { method: 'POST' });
             show(await apiFetch<GroupView | null>(`/api/scans/${scanId}/groups/current${kindQs}`));
           }}>Rever grupos pulados</button>
+          {probable && summary && summary.groupsPending > 0 && (
+            <Link className="button primary" to={`/revisao/${scanId}`}>Revisar cópias idênticas</Link>
+          )}
+          {!probable && summary && summary.probablePending > 0 && (
+            <Link className="button primary" to={`/revisao/${scanId}?tipo=provaveis`}>Revisar prováveis cópias</Link>
+          )}
           <Link className="button" to={`/varredura/${scanId}`}>Ver resumo da análise</Link>
         </div>
       </section>
