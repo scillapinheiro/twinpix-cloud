@@ -23,7 +23,7 @@ const group: GroupView = {
 
 function Where() {
   const loc = useLocation();
-  return <pre data-testid="where">{JSON.stringify({ path: loc.pathname, state: loc.state })}</pre>;
+  return <pre data-testid="where">{JSON.stringify({ path: loc.pathname, search: loc.search, state: loc.state })}</pre>;
 }
 
 beforeEach(() => {
@@ -450,6 +450,7 @@ describe('modo prováveis cópias', () => {
         current = probableNext;
         return new Response(JSON.stringify({ groupId: 7, stale: false, results: [{ actionId: 1, fileId: 'b', fileName: 'x 1.jpg', status: 'done', error: null }] }));
       }
+      if (url.endsWith('/previous')) return new Response(JSON.stringify({ ...probableGroup, id: 5, position: 11 }));
       if (url.endsWith('/skip')) return new Response(JSON.stringify(probableNext));
       if (url.includes('/unskip')) return new Response('{}');
       return new Response(JSON.stringify(current));
@@ -491,6 +492,7 @@ describe('modo prováveis cópias', () => {
     expect(await screen.findByText(/Grupo 13 de 445/)).toBeInTheDocument();
     expect(calls.some((c) => c.url === '/api/scans/1/groups/current?kind=probable' && calls.indexOf(c) > 0)).toBe(true);
     expect(screen.getByTestId('where').textContent).toContain('/revisao/1/grupo/9');
+    expect(screen.getByTestId('where').textContent).toContain('tipo=provaveis');
   });
 
   it('pular avança para o próximo grupo provável e preserva o tipo na URL', async () => {
@@ -498,13 +500,14 @@ describe('modo prováveis cópias', () => {
     await userEvent.click(await screen.findByRole('button', { name: /Pular/ }));
     await screen.findByText(/Grupo 13 de 445/);
     expect(screen.getByTestId('where').textContent).toContain('/revisao/1/grupo/9');
+    expect(screen.getByTestId('where').textContent).toContain('tipo=provaveis');
   });
 
   it('Voltar mantém nenhuma cópia marcada', async () => {
     renderProbable();
     await screen.findByText(/Prováveis cópias/);
     await userEvent.click(screen.getByRole('button', { name: '← Voltar' }));
-    await waitFor(() => expect(calls.some((c) => c.url === '/api/groups/7/previous')).toBe(true));
+    await screen.findByText(/Grupo 11 de 445/);
     for (const box of await screen.findAllByRole('checkbox', { name: 'Excluir esta cópia' })) expect(box).not.toBeChecked();
   });
 

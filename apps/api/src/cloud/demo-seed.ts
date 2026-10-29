@@ -43,7 +43,7 @@ export function seedDemo(p: FakeCloudProvider): void {
   p.addFile(dia.id, { name: 'IMG_0005.JPG', size: 800_005, quickXorHash: 'demo-2007-5', takenAt: '2007-06-07T15:00:00Z', ...canon });
 
   // Prováveis cópias: original + versão editada (mesmo nome-base, dimensões e data; conteúdo diferente).
-  const editada = { takenAt: '2016-06-01T12:00:00Z', ...samsung };
+  const editada = { takenAt: '2016-06-01T12:00:00Z', width: 4000, height: 3000, ...samsung };
   p.addFile(c2016.id, { name: 'IMG_20160601_120000.jpg', size: 2_900_000, quickXorHash: 'demo-prov-foto-a', ...editada });
   p.addFile(c2016.id, { name: 'IMG_20160601_120000 1.jpg', size: 1_400_000, quickXorHash: 'demo-prov-foto-b', ...editada });
   const clipe = { kind: 'video' as const, width: 1920, height: 1080, takenAt: '2016-06-02T09:00:00Z', ...samsung };

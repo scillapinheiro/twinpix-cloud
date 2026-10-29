@@ -223,6 +223,7 @@ describe('API em modo demonstração', () => {
     const victim = group.files.find((f) => f.id !== group.suggestion?.keepId) ?? group.files[1];
     const applied = (await api().post(`/api/groups/${group.id}/apply`, { deleteIds: [victim.id] })).body;
     expect(applied.stale).toBe(false);
+    expect(applied.results).toHaveLength(1);
     expect(applied.results.every((r: { status: string }) => r.status === 'done')).toBe(true);
     const cloud = app.get<FakeCloudProvider>(CLOUD_PROVIDER, { strict: false });
     expect(cloud.isInTrash(victim.id)).toBe(true);
@@ -234,9 +235,10 @@ describe('API em modo demonstração', () => {
     expect(cloud.isInTrash(victim.id)).toBe(false);
 
     // O lote só tem idênticas: nenhum grupo provável entra.
-    const probableIds = new Set<number>([group.id]);
     const batch = (await api().get(`/api/scans/${started.id}/batch`)).body as BatchPreview;
-    for (const l of batch.lines) for (const it of l.items) expect(probableIds.has(it.groupId)).toBe(false);
+    const hashes = batch.lines.flatMap((l: BatchLine) => l.items.flatMap((it) => [it.keep, ...it.remove])).map((f) => f.quickXorHash ?? '');
+    expect(hashes.length).toBeGreaterThan(0);
+    expect(hashes.filter((h) => h.startsWith('demo-prov-'))).toEqual([]);
   });
 
   it('id de análise não numérico devolve 400 nas rotas de pastas repetidas', async () => {
