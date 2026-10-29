@@ -15,7 +15,7 @@ A implementação foi dividida em planos:
 |---|---|---|
 | **1** | Base + **cópias idênticas** de ponta a ponta + modo demonstração | **Implementado e revisado** (branch `plano-1-identicas`) |
 | 2 | **Lote das idênticas** (prévia por par de pastas, inverter, desfazer lote) + atalhos de teclado | **Implementado e revisado** (29/10, tarde) |
-| 3 | **Reconciliação de pastas** (`docs/superpowers/plans/2026-10-29-plano-3-reconciliacao-de-pastas.md`) | Em execução |
+| 3 | **Reconciliação de pastas** (`docs/superpowers/plans/2026-10-29-plano-3-reconciliacao-de-pastas.md`) | **Implementado e revisado** (29/10, tarde) |
 | 4 | Prováveis cópias | A planejar |
 | 5 | Testes de contrato com o OneDrive real, trava da pasta de teste, validação com as listagens do rclone (§10), acabamento | A planejar |
 
@@ -71,6 +71,22 @@ Com o OneDrive de verdade (só depois de combinar a pasta de teste):
 - Pendências pequenas do Plano 2 (não bloqueiam): erros antigos gravados por builds intermediários
   podem aparecer crus no Histórico; atalhos não ignoram inputs de data/arquivo (não existem na
   revisão); contagem do desfazer pode errar por 1 numa corrida estreita com desfazer manual.
+
+### Plano 3 (reconciliação de pastas), concluído em 29/10/2026
+- **"Pastas repetidas (N)"** na tela da análise concluída → página `/pastas-repetidas/:scanId`,
+  um conjunto por tela: cartões (2 pastas) ou tabela (3+), "Só nesta pasta" com "ver lista",
+  situação ("toda contida", "parcial"), escolha "Manter em <pasta>" ou "Revisar um por um",
+  resultado previsto, 🔒 arquivos únicos nunca tocados, confirmação com o que sai e a cópia que fica
+  de cada repetido, progresso/pausar/desfazer (mesmo mecanismo do lote, tipo "pastas" no Histórico).
+- Pastas comparadas pelo conteúdo (qualquer nome; pasta e subpasta podem formar par). Sugestão:
+  mais arquivos → mais únicos → pasta mais profunda → alfabética.
+- Segurança: o navegador envia o plano exato; o servidor recalcula e recusa se mudou; cada grupo
+  passa pela trava com conferência dos arquivos que saem e da cópia que fica; cópias que
+  continuam (extras/fora do conjunto) seguem visíveis para revisão. Só um lote aberto por vez
+  (inclusive pausado); as páginas reencontram o lote aberto ao recarregar.
+- Testado pela autora com dados reais (par ConfraeNe 2024 × Robô Paparazzi). Testes: API 249, web 94.
+- Pendências pequenas: rótulo "Próximo conjunto" quando o lote aberto é de outro tipo; mensagem de
+  grupo pulado com "grupo"; desfazer direto de lote pausado não aparece na tela.
 
 ## Decisões tomadas durante a implementação
 
