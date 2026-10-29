@@ -43,15 +43,21 @@ async function findFolder(p: CloudProvider, path: string): Promise<CloudFolder> 
   return current;
 }
 
-async function listAll(p: CloudProvider, folderId: string): Promise<CloudItem[]> {
+async function findParent(p: CloudProvider, path: string): Promise<CloudFolder> {
+  return findFolder(p, path.split('/').filter(Boolean).slice(0, -1).join('/'));
+}
+
+async function listAll(p: CloudProvider, folderId: string): Promise<{ files: CloudItem[]; folders: CloudFolder[] }> {
   const files: CloudItem[] = [];
+  const folders: CloudFolder[] = [];
   let token: string | null = null;
   do {
     const page = await p.listChildren(folderId, token);
     files.push(...page.files);
+    folders.push(...page.folders);
     token = page.nextPageToken;
   } while (token);
-  return files.sort((a, b) => a.name.localeCompare(b.name));
+  return { files: files.sort((a, b) => a.name.localeCompare(b.name)), folders };
 }
 
 const snapshot = (files: CloudItem[]) => files.map((f) => ({ id: f.id, name: f.name, size: f.size, hash: f.quickXorHash }));
@@ -72,7 +78,20 @@ function contractSuite(name: string, makeCtx: () => Promise<Ctx>, timeout: numbe
 
     afterAll(async () => {
       // rede de segurança: nunca deixar a cópia na lixeira se o cenário quebrou no meio
-      if (ctx && trashedId) await ctx.provider.restore(trashedId).catch(() => undefined);
+      if (!ctx || !trashedId) return;
+      const manual = `ATENÇÃO: restaure '${TO_TRASH}' à mão pela lixeira do OneDrive.`;
+      let outcome: string;
+      try {
+        outcome = await ctx.provider.restore(trashedId);
+      } catch (e) {
+        console.error(`Limpeza: a restauração falhou (${(e as Error).message}). ${manual}`);
+        throw new Error(manual);
+      }
+      console.log(`Limpeza: restauração de '${TO_TRASH}' respondeu '${outcome}'.`);
+      if (outcome !== 'restored' && outcome !== 'not-in-trash') {
+        console.error(manual);
+        throw new Error(manual);
+      }
     }, timeout);
 
     it('lista, mapeia, move para a lixeira, restaura e deixa a pasta como estava', async () => {
@@ -81,8 +100,11 @@ function contractSuite(name: string, makeCtx: () => Promise<Ctx>, timeout: numbe
       const folder = await findFolder(p, ctx.testFolder);
       expect(folder.path.toLowerCase()).toBe(ctx.testFolder.toLowerCase());
 
-      // 1. listagem: exatamente as 3 fotos combinadas (senão para antes de mexer em qualquer coisa)
-      const before = await listAll(p, folder.id);
+      // 1. listagem: exatamente as 3 fotos combinadas, sem subpastas nem outros itens
+      //    (senão para antes de mexer em qualquer coisa)
+      expect(folder.childCount).toBe(EXPECTED.length);
+      const { files: before, folders: subfolders } = await listAll(p, folder.id);
+      expect(subfolders).toEqual([]);
       expect(before.map((f) => ({ name: f.name, size: f.size }))).toEqual(EXPECTED);
 
       // 2. mapeamento de campos
@@ -116,9 +138,9 @@ function contractSuite(name: string, makeCtx: () => Promise<Ctx>, timeout: numbe
       const got = await p.getItem(target.id);
       expect(got && fields(got)).toEqual(fields(target));
 
-      // 4. lixeira: some do OneDrive
-      expect(await p.moveToTrash(target.id)).toBe('moved');
+      // 4. lixeira: some do OneDrive (marcado antes, para a limpeza cobrir resposta perdida)
       trashedId = target.id;
+      expect(await p.moveToTrash(target.id)).toBe('moved');
       expect(await eventually(ctx, () => p.getItem(target.id), (v) => v === null)).toBeNull();
 
       // 5. restauração: volta com o mesmo id para a mesma pasta
@@ -128,8 +150,11 @@ function contractSuite(name: string, makeCtx: () => Promise<Ctx>, timeout: numbe
       expect(back && fields(back)).toEqual(fields(target));
 
       // 6. a pasta ficou exatamente como estava
-      const after = await eventually(ctx, () => listAll(p, folder.id), (v) => v.length === before.length);
-      expect(snapshot(after)).toEqual(snapshot(before));
+      const after = await eventually(ctx, () => listAll(p, folder.id), (v) => v.files.length === before.length);
+      expect(after.folders).toEqual([]);
+      expect(snapshot(after.files)).toEqual(snapshot(before));
+      const [again] = (await p.listFolders((await findParent(p, ctx.testFolder)).id)).filter((f) => f.id === folder.id);
+      expect(again?.childCount).toBe(EXPECTED.length);
     }, timeout);
   });
 }
@@ -144,27 +169,31 @@ contractSuite('contrato: FakeCloudProvider', async () => {
   return { provider: fake, testFolder: '/TwinPix Teste', pollMs: 0 };
 }, 5_000);
 
-const config = loadConfig(process.env, []);
-const missing = [
-  !config.testFolder && 'TWINPIX_TEST_FOLDER',
-  !config.clientId && 'TWINPIX_CLIENT_ID',
-  !existsSync(join(config.dataDir, 'msal-cache.json')) && `login em cache (${join(config.dataDir, 'msal-cache.json')})`,
-].filter((m): m is string => !!m);
-
-if (process.env.TWINPIX_CONTRACT === '1' && missing.length === 0) {
-  contractSuite('contrato: OneDrive real (pasta de teste)', async () => {
-    // a trava fica ligada: o próprio cenário real só consegue mexer dentro da pasta de teste
-    const provider = new OneDriveProvider(new GraphClient(new AuthService(config)), { testFolder: config.testFolder });
-    return { provider, testFolder: config.testFolder!, pollMs: 1_000 };
-  }, 120_000);
-} else if (process.env.TWINPIX_CONTRACT === '1') {
-  describe('contrato: OneDrive real (pasta de teste)', () => {
-    it('pré-requisitos', () => {
-      expect.fail(`Faltando para rodar contra o OneDrive real: ${missing.join(', ')}.`);
+const contractRun = process.env.TWINPIX_CONTRACT === '1';
+if (contractRun) {
+  // só aqui lê a configuração: um ambiente estranho nunca quebra o `npm test`
+  const config = loadConfig(process.env, []);
+  const missing = [
+    process.env.npm_lifecycle_event !== 'contract' && 'rodar por `npm run contract -w apps/api`',
+    !config.testFolder && 'TWINPIX_TEST_FOLDER',
+    !config.clientId && 'TWINPIX_CLIENT_ID',
+    !existsSync(join(config.dataDir, 'msal-cache.json')) && `login em cache (${join(config.dataDir, 'msal-cache.json')})`,
+  ].filter((m): m is string => !!m);
+  if (missing.length === 0) {
+    contractSuite('contrato: OneDrive real (pasta de teste)', async () => {
+      // a trava fica ligada: o próprio cenário real só consegue mexer dentro da pasta de teste
+      const provider = new OneDriveProvider(new GraphClient(new AuthService(config)), { testFolder: config.testFolder });
+      return { provider, testFolder: config.testFolder!, pollMs: 1_000 };
+    }, 120_000);
+  } else {
+    describe('contrato: OneDrive real (pasta de teste)', () => {
+      it('pré-requisitos', () => {
+        expect.fail(`Faltando para rodar contra o OneDrive real: ${missing.join(', ')}.`);
+      });
     });
-  });
+  }
 } else {
-  describe.skip('contrato: OneDrive real (pasta de teste) — defina TWINPIX_CONTRACT=1', () => {
+  describe.skip('contrato: OneDrive real (pasta de teste) — use npm run contract -w apps/api', () => {
     it('pulado', () => undefined);
   });
 }

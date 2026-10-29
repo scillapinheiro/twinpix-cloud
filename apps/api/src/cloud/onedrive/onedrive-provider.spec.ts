@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ForbiddenError, GraphError, InvalidLinkError, TestFolderLockError } from '../errors';
+import { ForbiddenError, GraphError, InvalidLinkError, OfflineError, TestFolderLockError } from '../errors';
 import { isInsideFolder } from '../test-folder';
 import type { GraphClient } from './graph-client';
 import { encodeShareUrl, OneDriveProvider, parseOneDriveAddress } from './onedrive-provider';
@@ -231,6 +231,26 @@ describe('OneDriveProvider com a trava da pasta de teste', () => {
     await p.moveToTrash('A');
     expect(await p.restore('A')).toBe('restored');
     await expect(p.restore('A')).rejects.toBeInstanceOf(TestFolderLockError);
+  });
+
+  it('resposta do DELETE perdida (tempo esgotado ou 503 seguido de 404): restaurar continua permitido', async () => {
+    const { graph, request } = fakeGraph({
+      'GET /me/drive/items/A': { status: 200, data: photo('A', '/drive/root:/TwinPix Teste') },
+      'GET /me/drive/items/B': { status: 200, data: photo('B', '/drive/root:/TwinPix Teste') },
+      'DELETE /me/drive/items/B': { status: 404, data: null },
+      'POST /me/drive/items/A/restore': { status: 200, data: {} },
+      'POST /me/drive/items/B/restore': { status: 200, data: {} },
+    });
+    const real = request.getMockImplementation()!;
+    request.mockImplementation(async (method: string, path: string) => {
+      if (method === 'DELETE' && path.startsWith('/me/drive/items/A')) throw new OfflineError();
+      return real(method, path);
+    });
+    const p = new OneDriveProvider(graph, { testFolder: T });
+    await expect(p.moveToTrash('A')).rejects.toBeInstanceOf(OfflineError);
+    expect(await p.restore('A')).toBe('restored');
+    expect(await p.moveToTrash('B')).toBe('already-gone');
+    expect(await p.restore('B')).toBe('restored');
   });
 
   it('restauração sem sucesso mantém a permissão para tentar de novo', async () => {

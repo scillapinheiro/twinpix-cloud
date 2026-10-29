@@ -59,8 +59,8 @@ export class OneDriveProvider implements CloudProvider {
   private ownDriveId: string | null = null;
   private readonly testFolder: string | null;
   /**
-   * Com a trava: ids que ESTE processo conferiu (arquivo dentro da pasta de teste) e moveu para a
-   * lixeira. Item na lixeira não pode ser consultado (o Graph responde 404), então a restauração só é
+   * Com a trava: ids que ESTE processo conferiu (arquivo dentro da pasta de teste) e tentou mover para
+   * a lixeira. Item na lixeira não pode ser consultado (o Graph responde 404), então a restauração só é
    * permitida para esses ids; qualquer outro é recusado sem chamar o OneDrive.
    */
   private readonly trashedHere = new Set<string>();
@@ -127,13 +127,13 @@ export class OneDriveProvider implements CloudProvider {
       if (!data.file || !data.parentReference?.path || !isInsideFolder(folderPathOf(data), this.testFolder)) {
         throw new TestFolderLockError(this.testFolder);
       }
+      // antes do DELETE: se a resposta se perder (tempo esgotado, 503 seguido de 404), ainda dá para
+      // restaurar; a restauração só devolve o item para a pasta que acabou de ser conferida
+      this.trashedHere.add(id);
     }
     const { status } = await this.graph.request('DELETE', `/me/drive/items/${encodeURIComponent(id)}`);
     if (status === 404) return 'already-gone';
-    if (status === 200 || status === 204) {
-      if (this.testFolder) this.trashedHere.add(id);
-      return 'moved';
-    }
+    if (status === 200 || status === 204) return 'moved';
     throw new GraphError(status, '');
   }
 

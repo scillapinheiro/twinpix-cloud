@@ -205,7 +205,7 @@ describe('ActionsService', () => {
     await cloud.restore('c1'); // a primeira tentativa restaurou, mas a resposta não chegou
     const u = await actions.undo(r.results[0].actionId);
     expect(u.result).toBe('restored');
-    expect(u.message).toBe('Arquivo restaurado para a pasta original.');
+    expect(u.message).toBe('O arquivo já não está na lixeira e continua no OneDrive.');
     expect(actions.history()[0].status).toBe('undone');
     expect(review.view(groupId).status).toBe('pending');
   });

@@ -14,6 +14,8 @@ const ALREADY_GONE_NOTE = 'Já não estava no OneDrive.';
 const UNCONFIRMED_NOTE = 'Não deu para confirmar se foi para a lixeira (sem conexão). Será conferido de novo.';
 const INTERRUPTED_NOTE = 'Interrompida antes de mover; nada foi alterado.';
 
+const STILL_IN_ONEDRIVE = 'O arquivo já não está na lixeira e continua no OneDrive.';
+
 const UNDO_MESSAGES = {
   restored: 'Arquivo restaurado para a pasta original.',
   'not-in-trash': 'Não é mais possível restaurar: o arquivo já saiu da lixeira do OneDrive.',
@@ -189,14 +191,18 @@ export class ActionsService implements OnModuleInit {
     if (!a) throw new NotFoundException('Ação não encontrada.');
     if (a.status !== 'done') throw new BadRequestException('Só dá para desfazer arquivos que foram para a lixeira.');
     let result = await this.cloud.restore(a.file_id);
+    let message: string = UNDO_MESSAGES[result];
     // "não está na lixeira" pode ser uma restauração anterior que deu certo sem a resposta chegar
     // (ex.: tempo esgotado): se o arquivo está no OneDrive, conta como restaurado.
-    if (result === 'not-in-trash' && (await this.cloud.getItem(a.file_id))) result = 'restored';
+    if (result === 'not-in-trash' && (await this.cloud.getItem(a.file_id))) {
+      result = 'restored';
+      message = STILL_IN_ONEDRIVE;
+    }
     if (result === 'restored') {
       this.setActionStatus(a.id, 'undone', null);
       this.setGroupStatus(a.group_id, 'pending');
     }
-    return { result, message: UNDO_MESSAGES[result] };
+    return { result, message };
   }
 
   /**
