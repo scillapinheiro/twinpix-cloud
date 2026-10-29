@@ -117,6 +117,7 @@ export function Review() {
         <strong>
           Grupo {group.position} de {group.total} · Cópias idênticas · {formatBytes(group.bytesFreedSoFar)} liberados até agora
         </strong>
+        {' '}<Link className="batch-link" to={`/lote/${scanId}`}>Revisar em lote</Link>
         {group.status === 'stale' && (
           <p className="notice">
             Este grupo mudou no OneDrive desde a análise. Ele foi atualizado com a situação atual — confira as cópias antes de excluir.

@@ -83,6 +83,9 @@ export function ScanProgress() {
             {scan.status === 'done' ? 'Começar a revisão' : 'Começar a revisão enquanto a análise continua'}
           </Link>
         )}
+        {scan.status === 'done' && scan.groupsPending > 0 && (
+          <Link className="button" to={`/lote/${scan.id}`}>Revisar em lote</Link>
+        )}
       </div>
     </section>
   );

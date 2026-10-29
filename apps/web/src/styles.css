@@ -78,3 +78,13 @@ th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border);
 .modal h1 { margin-top: 0; font-size: 1.5rem; }
 .modal h2 { font-size: 1.1rem; margin-bottom: 4px; }
 .modal ul { margin: 4px 0 12px; padding-left: 20px; word-break: break-word; }
+
+.batch-lines { list-style: none; padding: 0; margin: 0; }
+.batch-line { margin-bottom: 12px; }
+.batch-line-head { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
+.batch-line-head input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--primary); }
+.batch-reason { margin: 6px 0 4px 32px; }
+.batch-line > .link { margin-left: 28px; }
+.batch-items { margin: 8px 0 0 32px; padding-left: 16px; word-break: break-word; }
+.batch-total { flex: 1; font-weight: 700; }
+.batch-link { font-size: 0.9rem; margin-left: 8px; }
