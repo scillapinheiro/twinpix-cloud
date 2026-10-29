@@ -12,6 +12,7 @@ interface GroupRow { id: number; scan_id: number; kind: Kind; position: number; 
 /** Condição SQL: o grupo (tabela com o alias dado) tem 2+ arquivos ativos (mesmo critério de activeFileIds). */
 export const hasTwoActiveFiles = (alias: string) =>
   `(SELECT COUNT(*) FROM dup_group_files gf WHERE gf.group_id = ${alias}.id
+     AND EXISTS (SELECT 1 FROM files f WHERE f.scan_id = ${alias}.scan_id AND f.id = gf.file_id)
      AND NOT EXISTS (SELECT 1 FROM actions a WHERE a.file_id = gf.file_id AND a.status IN ('done','pending'))) >= 2`;
 
 const cursorColumn = (kind: Kind) => (kind === 'probable' ? 'cursor_probable_id' : 'cursor_group_id');
@@ -24,7 +25,10 @@ export class ReviewService {
     return (this.db.sql
       .prepare(
         `SELECT gf.file_id FROM dup_group_files gf
+         JOIN dup_groups g ON g.id = gf.group_id
          WHERE gf.group_id = ?
+           -- o arquivo ainda existe na análise (some dela quando sumiu do OneDrive)
+           AND EXISTS (SELECT 1 FROM files f WHERE f.scan_id = g.scan_id AND f.id = gf.file_id)
            -- qualquer ação feita/pendente sobre o arquivo, em qualquer grupo de qualquer análise
            AND NOT EXISTS (SELECT 1 FROM actions a WHERE a.file_id = gf.file_id AND a.status IN ('done','pending'))
          ORDER BY gf.file_id`,

@@ -214,4 +214,43 @@ describe('prováveis cópias', () => {
     db.sql.prepare("UPDATE dup_groups SET status = 'skipped' WHERE id = ?").run(first.id);
     expect(scan.summary(scanId).groupsSkipped).toBe(0);
   });
+  describe('arquivo que sumiu não fica fantasma em grupo do outro tipo', () => {
+    const extraGroup = (kind: 'identical' | 'probable', ids: string[]) => {
+      const gid = Number(db.sql.prepare("INSERT INTO dup_groups (scan_id, kind, key, position, status) VALUES (?, ?, 'extra', 99, 'pending')").run(scanId, kind).lastInsertRowid);
+      for (const id of ids) db.sql.prepare('INSERT INTO dup_group_files (group_id, file_id) VALUES (?, ?)').run(gid, id);
+      return gid;
+    };
+    const links = (id: string) => (db.sql.prepare('SELECT COUNT(*) n FROM dup_group_files WHERE file_id = ?').get(id) as { n: number }).n;
+
+    it('apply de idênticas detecta o sumiço e tira o arquivo também do grupo provável', async () => {
+      const ident = review.current(scanId)!;
+      const [gone, other] = ident.files.map((f) => f.id);
+      const gid = extraGroup('probable', [gone, 'p1a']);
+      cloud.removeFile(gone);
+      expect((await actions.apply(ident.id, [other])).stale).toBe(true);
+      expect(links(gone)).toBe(0);
+      expect(review.activeFileIds(gid)).toEqual(['p1a']);
+      expect(scan.summary(scanId).probablePending).toBe(2);
+    });
+
+    it('apply de provável detecta o sumiço e tira o arquivo também do grupo idêntico', async () => {
+      const prob = review.current(scanId, 'probable')!;
+      const [gone, other] = prob.files.map((f) => f.id);
+      const gid = extraGroup('identical', [gone, 'i2a']);
+      cloud.removeFile(gone);
+      expect((await actions.apply(prob.id, [other])).stale).toBe(true);
+      expect(links(gone)).toBe(0);
+      expect(review.activeFileIds(gid)).toEqual(['i2a']);
+      expect(scan.summary(scanId).groupsPending).toBe(2);
+    });
+
+    it('vínculo antigo a arquivo já apagado da análise não conta como ativo', () => {
+      const prob = review.current(scanId, 'probable')!;
+      const [gone, other] = prob.files.map((f) => f.id);
+      db.sql.prepare('DELETE FROM files WHERE scan_id = ? AND id = ?').run(scanId, gone);
+      expect(review.activeFileIds(prob.id)).toEqual([other]);
+      expect(scan.summary(scanId).probablePending).toBe(1);
+      expect(review.current(scanId, 'probable')!.id).not.toBe(prob.id);
+    });
+  });
 });

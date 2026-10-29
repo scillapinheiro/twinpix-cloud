@@ -199,7 +199,7 @@ export class ActionsService implements OnModuleInit {
   /**
    * O grupo mudou no OneDrive: grava a situação atual em vez de só marcar "desatualizado", para que a
    * próxima revisão mostre o grupo certo e uma nova tentativa possa dar certo.
-   * - arquivo que sumiu sai do grupo (e da análise, se não tiver ações registradas);
+   * - arquivo que sumiu sai de todos os grupos da análise (e da análise, se não tiver ações registradas);
    * - arquivo que mudou tem os dados atualizados e, se o conteúdo não bate mais com a chave do grupo
    *   (mesmo hash + tamanho), sai do grupo;
    * - sobrando menos de 2 cópias, não há mais o que revisar: o grupo fica resolvido.
@@ -214,13 +214,17 @@ export class ActionsService implements OnModuleInit {
       return key === prefix || key.startsWith(`${prefix}:`);
     };
     const removeFromGroup = sql.prepare('DELETE FROM dup_group_files WHERE group_id = ? AND file_id = ?');
+    const removeFromScanGroups = sql.prepare(
+      'DELETE FROM dup_group_files WHERE file_id = ? AND group_id IN (SELECT id FROM dup_groups WHERE scan_id = ?)',
+    );
     const hasActions = sql.prepare(
       'SELECT 1 FROM actions a JOIN dup_groups g ON g.id = a.group_id WHERE g.scan_id = ? AND a.file_id = ? LIMIT 1',
     );
     sql.transaction(() => {
       for (const [id, item] of fresh) {
         if (!item) {
-          removeFromGroup.run(groupId, id);
+          // sai de TODOS os grupos da análise (idênticas e prováveis), não só deste
+          removeFromScanGroups.run(id, scanId);
           if (!hasActions.get(scanId, id)) sql.prepare('DELETE FROM files WHERE scan_id = ? AND id = ?').run(scanId, id);
           continue;
         }
