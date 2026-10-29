@@ -10,8 +10,8 @@
     "build": "npm run build -w apps/web && npm run build -w apps/api",
     "start": "npm run start -w apps/api",
     "demo": "npm run build && node apps/api/dist/main.js --demo",
-    "test": "npm run test -ws --if-present",
-    "typecheck": "npm run typecheck -ws --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": { "typescript": "^5.9.0" }
 }
