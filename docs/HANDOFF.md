@@ -81,6 +81,12 @@ centralizado, menu de links, selos (licença), imagem de mockup, seções com em
 usar, :memo: Licença) e desenvolvedora com avatar do GitHub. Mockup e detalhes ficam a critério
 do Claude. Até lá, não mexer no README além do necessário.
 
+## Depois (ideias anotadas, fora dos planos atuais)
+
+- Botão **"Cancelar análise"** (hoje: Pausar + Nova análise).
+- Regra "preferir a cópia que está dentro de mais subpastas" (pastas organizadas vs. soltas).
+- Tela para configurar as regras de prioridade (hoje só pela API).
+
 ## Pendências conhecidas (não bloqueiam; ficaram registradas pela revisão)
 
 - Falha de configuração do app na Microsoft *depois* de um login bem-sucedido (por exemplo,

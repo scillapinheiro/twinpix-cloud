@@ -1,5 +1,8 @@
 # Plano 2 — Lote das idênticas e atalhos de teclado
 
+> **Escopo fechado em 29/10/2026 (com a autora):** depois da Task 8, ideias novas vão para a lista
+> "Depois" do `docs/HANDOFF.md`, não para este plano.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Permitir resolver centenas de grupos de cópias idênticas de uma vez, com uma prévia
@@ -331,6 +334,11 @@ sem como ver as fotos)*:
 - `BatchItem.keep` e cada item de `remove` ganham `id` e `webUrl`.
 - No "ver lista", cada arquivo aparece com **miniatura pequena** (componente `Thumbnail` existente,
   carregada só quando a lista é aberta), o caminho completo e o link **"Abrir no OneDrive ↗"**.
+- Cada arquivo mostra também **Tirada em**, **Modificada em** e **Tamanho**, numa linha compacta;
+  os dados que **diferem entre as cópias do grupo ficam em laranja** (mesma regra de
+  `differingFields` da revisão um por um); a cópia que fica vem com ★. Para isso, `keep` e `remove`
+  em `BatchItem` passam a ser `CloudItem` completos (ou incluir `takenAt`, `createdAt`,
+  `modifiedAt`, `size`, `webUrl`, `id`).
 - Uma frase explica: "São cópias idênticas: o conteúdo é o mesmo byte a byte, mesmo quando o nome
   do arquivo é diferente."
 - Em listas longas, mostrar os primeiros 20 itens e um botão "mostrar mais" (para não carregar
