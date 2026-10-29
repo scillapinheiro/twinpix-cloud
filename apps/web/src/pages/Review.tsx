@@ -14,7 +14,8 @@ export function Review() {
   const [group, setGroup] = useState<GroupView | null | undefined>(undefined);
   const [marked, setMarked] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadStale, setReloadStale] = useState<boolean | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -23,6 +24,17 @@ export function Review() {
 
   const shownId = useRef<number | null>(null);
   const inFlight = useRef(false);
+  async function guarded(fn: () => Promise<void>) {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setLoading(true);
+    try {
+      await fn();
+    } finally {
+      inFlight.current = false;
+      setLoading(false);
+    }
+  }
   const shortcuts = useRef<{ open: () => void; skip: () => void; back: () => void } | null>(null);
 
   useEffect(() => {
@@ -106,52 +118,50 @@ export function Review() {
     show(g);
     navigate(g ? `/revisao/${scanId}/grupo/${g.id}` : `/revisao/${scanId}`, { replace: true });
   }
-  async function skip() {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    try {
-      goTo(await apiFetch<GroupView | null>(`/api/groups/${group!.id}/skip`, { method: 'POST' }));
-    } catch (e) {
-      setError((e as ApiError).message);
-    } finally {
-      inFlight.current = false;
-    }
+  function skip() {
+    return guarded(async () => {
+      try {
+        goTo(await apiFetch<GroupView | null>(`/api/groups/${group!.id}/skip`, { method: 'POST' }));
+      } catch (e) {
+        setError((e as ApiError).message);
+      }
+    });
   }
-  async function afterApply(stale: boolean) {
+  function afterApply(stale: boolean) {
     setReloadStale(null);
-    try {
-      focusHeader.current = true;
-      goTo(await apiFetch<GroupView | null>(stale ? `/api/groups/${group!.id}` : `/api/scans/${scanId}/groups/current`));
-    } catch (e) {
-      focusHeader.current = false;
-      setError(null);
-      setReloadStale(stale);
-      setLoadError((e as ApiError).message);
-    }
+    return guarded(async () => {
+      try {
+        focusHeader.current = true;
+        goTo(await apiFetch<GroupView | null>(stale ? `/api/groups/${group!.id}` : `/api/scans/${scanId}/groups/current`));
+      } catch (e) {
+        focusHeader.current = false;
+        setError(null);
+        setReloadStale(stale);
+        setLoadError((e as ApiError).message);
+      }
+    });
   }
-  async function back() {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    try {
-      const prev = await apiFetch<GroupView | null>(`/api/groups/${group!.id}/previous`);
-      if (prev) goTo(prev);
-    } catch (e) {
-      setError((e as ApiError).message);
-    } finally {
-      inFlight.current = false;
-    }
+  function back() {
+    return guarded(async () => {
+      try {
+        const prev = await apiFetch<GroupView | null>(`/api/groups/${group!.id}/previous`);
+        if (prev) goTo(prev);
+      } catch (e) {
+        setError((e as ApiError).message);
+      }
+    });
   }
-  const canDelete = marked.size > 0 && group.status !== 'resolved';
+  const canDelete = marked.size > 0 && group.status !== 'resolved' && !loading;
   // Com o modal aberto, as teclas pertencem a ele.
-  shortcuts.current = confirming ? null : {
-    open: () => { if (canDelete) setConfirming(true); },
+  shortcuts.current = confirmingId !== null || loading ? null : {
+    open: () => { if (canDelete) setConfirmingId(group.id); },
     skip: () => void skip(),
     back: () => { if (group.position > 1) void back(); },
   };
 
   return (
     <>
-    <section className="review" inert={confirming}>
+    <section className="review" inert={confirmingId === group.id}>
       <div className="group-header card" tabIndex={-1} ref={headerRef}>
         <strong>
           Grupo {group.position} de {group.total} · Cópias idênticas · {formatBytes(group.bytesFreedSoFar)} liberados até agora
@@ -209,8 +219,8 @@ export function Review() {
       )}
 
       <div className="action-bar">
-        <button type="button" className="button" onClick={back} disabled={group.position <= 1} aria-keyshortcuts="ArrowLeft">← Voltar</button>
-        <button type="button" className="button" onClick={skip} aria-keyshortcuts="P">
+        <button type="button" className="button" onClick={back} disabled={loading || group.position <= 1} aria-keyshortcuts="ArrowLeft">← Voltar</button>
+        <button type="button" className="button" onClick={skip} disabled={loading} aria-keyshortcuts="P">
           Pular <kbd className="key-hint" aria-hidden="true">P</kbd>
         </button>
         <button
@@ -219,7 +229,7 @@ export function Review() {
           className="button danger"
           disabled={!canDelete}
           aria-keyshortcuts="Enter"
-          onClick={() => setConfirming(true)}
+          onClick={() => { if (canDelete) setConfirmingId(group.id); }}
         >
           Excluir marcadas ({marked.size}) <kbd className="key-hint" aria-hidden="true">Enter</kbd>
         </button>
@@ -227,12 +237,17 @@ export function Review() {
       </div>
     </section>
 
-      {confirming && (
+      {confirmingId === group.id && (
         <ConfirmDialog
+          key={group.id}
           groupId={group.id}
           deleteIds={[...marked]}
-          onCancel={() => { setConfirming(false); deleteButton.current?.focus(); }}
-          onDone={(stale) => { setConfirming(false); void afterApply(stale); }}
+          onCancel={() => { setConfirmingId(null); deleteButton.current?.focus(); }}
+          onDone={(stale) => {
+            setConfirmingId(null);
+            if (!stale) setGroup((g) => (g ? { ...g, status: 'resolved' } : g));
+            void afterApply(stale);
+          }}
         />
       )}
     </>

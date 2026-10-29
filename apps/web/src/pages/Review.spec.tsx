@@ -344,4 +344,51 @@ describe('atalhos de teclado', () => {
     await userEvent.keyboard('p');
     expect(calls.filter((c) => /skip/.test(c))).toEqual([]);
   });
+
+  it('depois do resultado, Enter/P/Enter repetido enquanto o próximo grupo carrega não reabrem o modal nem enviam nada', async () => {
+    const next: GroupView = { ...group, id: 8, position: 13, files: [
+      { ...base, id: 'c', name: 'y.jpg', modifiedAt: '2015-02-07T10:00:00Z' },
+      { ...base, id: 'd', name: 'y 1.jpg', modifiedAt: '2015-02-07T10:00:00Z' },
+    ], suggestion: { keepId: 'c', reason: 'regra: x', fallback: false }, preMarkedIds: ['d'] };
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => { release = r; });
+    let applied = false;
+    const posts: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/thumbnail')) return new Response(JSON.stringify({ url: null }));
+      if (init?.method === 'POST') posts.push(url);
+      if (url.endsWith('/groups/7/preview')) {
+        return new Response(JSON.stringify({ groupId: 7, deleteFiles: [group.files[1]], keepFiles: [group.files[0]], bytes: 1 }));
+      }
+      if (url.endsWith('/groups/8/preview')) {
+        return new Response(JSON.stringify({ groupId: 8, deleteFiles: [next.files[1]], keepFiles: [next.files[0]], bytes: 1 }));
+      }
+      if (url.endsWith('/apply')) {
+        applied = true;
+        return new Response(JSON.stringify({ groupId: 7, stale: false, results: [{ actionId: 1, fileId: 'b', fileName: 'x 1.jpg', status: 'done', error: null }] }));
+      }
+      if (applied) { await gate; return new Response(JSON.stringify(next)); }
+      return new Response(JSON.stringify(group));
+    }));
+    renderReview();
+    await screen.findByText(/Grupo 12 de 445/);
+    await userEvent.keyboard('{Enter}');
+    await screen.findByText(/1 arquivo vai para a lixeira/);
+    await userEvent.keyboard('{Enter}');
+    await screen.findByText('Resultado');
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('p');
+    fireEvent.keyDown(document.body, { key: 'Enter', repeat: true });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Excluir marcadas/ })).toBeDisabled();
+    release();
+    await screen.findByText(/Grupo 13 de 445/);
+    expect(posts.filter((u) => /\/apply$/.test(u))).toEqual(['/api/groups/7/apply']);
+    expect(posts.filter((u) => /skip/.test(u))).toEqual([]);
+    await userEvent.keyboard('{Enter}');
+    await screen.findByText(/1 arquivo vai para a lixeira/);
+    expect(posts.filter((u) => /\/apply$/.test(u))).toHaveLength(1);
+  });
 });

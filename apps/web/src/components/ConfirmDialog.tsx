@@ -1,5 +1,5 @@
 import type { ApplyResult, DeletionPreview } from '@twinpix/shared';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes } from '../lib/format';
 import { ignoreShortcut, isNativeActivator } from '../lib/shortcuts';
@@ -26,15 +26,19 @@ export function ConfirmDialog({ groupId, deleteIds, onCancel, onDone }: Props) {
 
   useEffect(() => {
     dialogRef.current?.focus();
+    let current = true;
+    setPreview(null);
+    setError(null);
     apiFetch<DeletionPreview>(`/api/groups/${groupId}/preview`, { method: 'POST', body: { deleteIds } })
-      .then(setPreview)
-      .catch((e: ApiError) => setError(e.message));
+      .then((p) => { if (current) setPreview(p); })
+      .catch((e: ApiError) => { if (current) setError(e.message); });
+    return () => { current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
 
   const busyRef = useRef(false);
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
-  keyRef.current = (e) => {
+  useLayoutEffect(() => { keyRef.current = (e) => {
     if (e.key === 'Escape') {
       if (canCancel) onCancel();
       return;
@@ -48,7 +52,7 @@ export function ConfirmDialog({ groupId, deleteIds, onCancel, onDone }: Props) {
       e.preventDefault();
       void apply();
     }
-  };
+  }; });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => keyRef.current(e);
     document.addEventListener('keydown', onKey);
