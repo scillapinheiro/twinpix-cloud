@@ -81,6 +81,16 @@ centralizado, menu de links, selos (licença), imagem de mockup, seções com em
 usar, :memo: Licença) e desenvolvedora com avatar do GitHub. Mockup e detalhes ficam a critério
 do Claude. Até lá, não mexer no README além do necessário.
 
+Conteúdo obrigatório (pedido da autora, 29/10/2026):
+- **Como o projeto funciona**, em linguagem simples (só lê metadados, compara conteúdo e não nome,
+  nada é apagado de vez, sempre sobra uma cópia, lixeira + desfazer).
+- **Como usar** passo a passo: modo demonstração, registro na Microsoft (incluindo o caso da conta
+  pessoal sem diretório → conta gratuita do Azure), conectar, escolher pastas/colar link, analisar.
+- **Funcionalidades**, explicando a **diferença entre revisão um por um e lote** (quando usar
+  cada um, prévia por par de pastas, inverter, desfazer lote, atalhos de teclado).
+- **Licença:** open source (MIT) — **qualquer pessoa pode baixar, modificar e adaptar como
+  quiser**, mas o projeto é pessoal e **não aceita pull requests** (fork é o caminho).
+
 ## Depois (ideias anotadas, fora dos planos atuais)
 
 - Botão **"Cancelar análise"** (hoje: Pausar + Nova análise).
