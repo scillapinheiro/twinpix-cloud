@@ -60,7 +60,7 @@ describe('planDeletion', () => {
           return e instanceof UnsafeDeletionError;
         }
       }),
-      { numRuns: 500 },
+      { numRuns: 500, seed: 20261029 },
     );
     // garante que os dois caminhos foram de fato exercitados
     expect(accepted).toBeGreaterThan(50);
