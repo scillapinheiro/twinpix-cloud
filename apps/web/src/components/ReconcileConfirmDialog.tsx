@@ -10,6 +10,8 @@ interface Props {
   uniqueCount: number;
   /** Quantos desses estão na pasta escolhida (para não contar duas vezes as cópias extras). */
   keepFolderUnique: number;
+  /** Arquivos que ficam nas outras pastas por serem repetidos só entre elas (sem cópia na pasta escolhida). */
+  repeatedElsewhere: number;
   /** Envia o lote; se rejeitar, o erro aparece no modal e dá para tentar de novo. */
   onConfirm: () => Promise<void>;
   onCancel: () => void;
@@ -19,7 +21,10 @@ interface Props {
 
 const fileName = (f: { folderPath: string; name: string }) => `${f.folderPath === '/' ? '' : f.folderPath}/${f.name}`;
 
-export function ReconcileConfirmDialog({ plan, uniqueCount, keepFolderUnique, onConfirm, onCancel, onReload }: Props) {
+/** "a", "a e b", "a, b e c". */
+const joinPt = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`);
+
+export function ReconcileConfirmDialog({ plan, uniqueCount, keepFolderUnique, repeatedElsewhere, onConfirm, onCancel, onReload }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -51,6 +56,11 @@ export function ReconcileConfirmDialog({ plan, uniqueCount, keepFolderUnique, on
   const keepRemaining = plan.remaining.find((r) => r.path === plan.keepFolder)?.fileCount ?? 0;
   const extraCopies = Math.max(0, keepRemaining - plan.keepFiles.length - keepFolderUnique);
   // Prévia mudou, ou outro lote ficou aberto: recarregar mostra a situação atual (e o lote aberto).
+  const staying = [
+    uniqueCount > 0 && plural(uniqueCount, 'arquivo que só existe numa pasta', 'arquivos que só existem numa pasta'),
+    extraCopies > 0 && plural(extraCopies, 'cópia extra na pasta escolhida', 'cópias extras na pasta escolhida'),
+    repeatedElsewhere > 0 && plural(repeatedElsewhere, 'arquivo repetido só entre as outras pastas', 'arquivos repetidos só entre as outras pastas'),
+  ].filter((x): x is string => !!x);
   const stale = error !== null && /prévia mudou|lote pausado ou em andamento/i.test(error);
   return (
     <div className="modal-overlay" onClick={(e) => { if (!busy && e.target === e.currentTarget) onCancel(); }}>
@@ -68,9 +78,7 @@ export function ReconcileConfirmDialog({ plan, uniqueCount, keepFolderUnique, on
         <ul className="reconcile-list" aria-label="Cópias que ficam">
           {plan.keepFiles.map((f) => <li key={f.id}>{fileName(f)}</li>)}
         </ul>
-        <p className="muted">
-          Também continuam onde estão: {plural(uniqueCount, 'arquivo que só existe numa pasta', 'arquivos que só existem numa pasta')} e {plural(extraCopies, 'cópia extra', 'cópias extras')} na pasta escolhida.
-        </p>
+        {staying.length > 0 && <p className="muted">Também continuam onde estão: {joinPt(staying)}.</p>}
         <h3>Como cada pasta fica</h3>
         <ul aria-label="Pastas depois da limpeza">
           {plan.remaining.map((r) => (

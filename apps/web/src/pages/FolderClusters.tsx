@@ -85,14 +85,30 @@ export function FolderClusters() {
   );
 }
 
+const remainingOf = (plan: ReconcilePlan, path: string) => plan.remaining.find((r) => r.path === path)?.fileCount ?? 0;
+
 function resultText(cluster: FolderCluster, plan: ReconcilePlan): string {
   const parts: string[] = [];
   cluster.folders.forEach((f, i) => {
     if (f.path === plan.keepFolder) return;
-    const rem = plan.remaining.find((r) => r.path === f.path)?.fileCount ?? 0;
-    parts.push(rem === 0 ? `a ${ordinal(i)} pasta fica vazia` : `a ${ordinal(i)} fica só com ${rem === 1 ? 'o seu 1 arquivo único' : `os seus ${rem} arquivos únicos`}`);
+    const rem = remainingOf(plan, f.path);
+    const only = f.uniqueCount;
+    if (rem === 0) parts.push(`a ${ordinal(i)} pasta fica vazia`);
+    else if (rem <= only) parts.push(`a ${ordinal(i)} fica só com ${rem === 1 ? 'o seu 1 arquivo único' : `os seus ${rem} arquivos únicos`}`);
+    else {
+      // Sobram também arquivos repetidos só entre as outras pastas (sem cópia na escolhida): não são únicos.
+      const onlyText = only === 0 ? 'nenhum só existe nela' : only === 1 ? '1 só existe nela' : `${only} só existem nela`;
+      parts.push(`a ${ordinal(i)} fica com ${plural(rem, 'arquivo', 'arquivos')} (${onlyText})`);
+    }
   });
   return `Resultado: ${parts.join('; ')}.`;
+}
+
+/** Arquivos que ficam nas outras pastas sem ser únicos: repetidos só entre elas (sem cópia na pasta escolhida). */
+function repeatedOnlyElsewhere(cluster: FolderCluster, plan: ReconcilePlan): number {
+  return cluster.folders
+    .filter((f) => f.path !== plan.keepFolder)
+    .reduce((s, f) => s + Math.max(0, remainingOf(plan, f.path) - f.uniqueCount), 0);
 }
 
 function UniqueList({ scanId, cluster, folder }: { scanId: string; cluster: FolderCluster; folder: string }) {
@@ -222,7 +238,7 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
             {planError && <p className="alert" role="alert">{planError}</p>}
             {folders.filter((x) => x.uniqueCount > 0).map((x) => (
               <p key={x.path} className="muted">
-                🔒 {x.uniqueCount === 1 ? 'O arquivo que só existe' : `Os ${plural(x.uniqueCount, 'arquivo', 'arquivos')} que só existem`} em <strong>{x.path}</strong> <strong>nunca</strong> {x.uniqueCount === 1 ? 'é tocado' : 'são tocados'}.
+                🔒 {x.uniqueCount === 1 ? 'O arquivo que só existe' : `Os ${plural(x.uniqueCount, 'arquivo', 'arquivos')} que só existem`} em <strong>{x.path}</strong> nunca {x.uniqueCount === 1 ? 'é tocado' : 'são tocados'}.
               </p>
             ))}
           </fieldset>
@@ -245,6 +261,7 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
           plan={plan}
           uniqueCount={cluster.uniqueFiles}
           keepFolderUnique={folders.find((x) => x.path === plan.keepFolder)?.uniqueCount ?? 0}
+          repeatedElsewhere={repeatedOnlyElsewhere(cluster, plan)}
           onCancel={cancel}
           onReload={() => { setConfirming(false); setTick((t) => t + 1); onReload(); }}
           onConfirm={async () => {

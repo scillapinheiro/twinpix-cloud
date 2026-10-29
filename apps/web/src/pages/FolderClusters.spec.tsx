@@ -18,8 +18,10 @@ const three: FolderCluster = {
   key: '["/X","/Y","/Z"]', suggestedKeep: '/X', repeatedFiles: 30, uniqueFiles: 5, groupCount: 12,
   folders: [stat('/X', { uniqueCount: 3, situation: 'complete' }), stat('/Y', { situation: 'contained', containedIn: '/X' }), stat('/Z', { uniqueCount: 2, commonWithComplete: 9 })],
 };
+const n8 = [1, 2, 3, 4, 5, 6, 7, 8];
+/** Realista: 8 grupos em comum, uma cópia que fica por grupo; /A guarda ainda os seus 2 únicos. */
 const planFor = (keep: string): ReconcilePlan => keep === '/A'
-  ? { clusterKey: two.key, keepFolder: '/A', items: [{ groupId: 1, keepId: 'a1', deleteIds: ['b1'] }], deleteFiles: [item('b1', '/B'), item('b2', '/B')], keepFiles: [item('a1', '/A')], bytes: 2_000_000, remaining: [{ path: '/A', fileCount: 10 }, { path: '/B', fileCount: 0 }] }
+  ? { clusterKey: two.key, keepFolder: '/A', items: n8.map((i) => ({ groupId: i, keepId: `a${i}`, deleteIds: [`b${i}`] })), deleteFiles: n8.map((i) => item(`b${i}`, '/B')), keepFiles: n8.map((i) => item(`a${i}`, '/A')), bytes: 2_000_000, remaining: [{ path: '/A', fileCount: 10 }, { path: '/B', fileCount: 0 }] }
   : { clusterKey: two.key, keepFolder: '/B', items: [{ groupId: 2, keepId: 'b1', deleteIds: ['a1'] }], deleteFiles: [item('a1', '/A')], keepFiles: [item('b1', '/B')], bytes: 100, remaining: [{ path: '/A', fileCount: 2 }, { path: '/B', fileCount: 8 }] };
 const summary: BatchSummary = { id: 7, kind: 'folders', scanId: 1, status: 'running', createdAt: '', totalGroups: 1, doneGroups: 0, skippedGroups: 0, movedFiles: 0, movedBytes: 0, failedFiles: 0, restoredFiles: 0, notRestoredFiles: 0, error: null };
 
@@ -65,8 +67,11 @@ it('duas pastas: cartões, quadro-resumo, lista dos únicos e prévia', async ()
   expect(screen.getByText(/a segunda pasta está toda contida na primeira/)).toBeInTheDocument();
   expect(await screen.findByText('Resultado: a segunda pasta fica vazia.')).toBeInTheDocument();
   expect(screen.getByText('O que fazer com os arquivos repetidos?')).toBeInTheDocument();
-  expect(screen.getByText(/Os 2 arquivos que só existem em/)).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Aplicar (2 arquivos para a lixeira)' })).toBeEnabled();
+  const lock = screen.getByText(/Os 2 arquivos que só existem em/);
+  expect(lock).toHaveTextContent('🔒 Os 2 arquivos que só existem em /A nunca são tocados.');
+  // Só o caminho da pasta vai em negrito.
+  expect([...lock.querySelectorAll('strong')].map((x) => x.textContent)).toEqual(['/A']);
+  expect(screen.getByRole('button', { name: 'Aplicar (8 arquivos para a lixeira)' })).toBeEnabled();
   await userEvent.click(screen.getByRole('button', { name: 'ver lista' }));
   expect(await screen.findByText('/A/unica.jpg')).toBeInTheDocument();
   expect(screen.queryByRole('table')).toBeNull();
@@ -88,6 +93,42 @@ it('trocar a pasta recarrega o plano e o texto do resultado', async () => {
   expect(await screen.findByText('Resultado: a primeira fica só com os seus 2 arquivos únicos.')).toBeInTheDocument();
   expect(calls.some((c) => c.url.includes('plan?key=') && c.url.includes('keep=%2FB'))).toBe(true);
   expect(screen.getByRole('button', { name: 'Aplicar (1 arquivo para a lixeira)' })).toBeEnabled();
+});
+
+it('três pastas: resultado não chama de únicos os repetidos só entre as outras pastas; modal conta tudo o que fica', async () => {
+  const x = (ids: string[], folder: string) => ids.map((i) => item(i, folder));
+  clusters = [{ ...three, folders: [stat('/X', { uniqueCount: 3, situation: 'complete' }), stat('/Y', { uniqueCount: 0 }), stat('/Z', { fileCount: 8, uniqueCount: 2 })] }];
+  const plan3: ReconcilePlan = {
+    clusterKey: three.key, keepFolder: '/X',
+    items: [1, 2, 3, 4, 5].map((i) => ({ groupId: i, keepId: `x${i}`, deleteIds: [`y${i}`] })).concat([{ groupId: 6, keepId: 'x6', deleteIds: ['z6'] }]),
+    deleteFiles: [...x(['y1', 'y2', 'y3', 'y4', 'y5'], '/Y'), item('z6', '/Z')],
+    keepFiles: x(['x1', 'x2', 'x3', 'x4', 'x5', 'x6'], '/X'),
+    bytes: 600,
+    // /X: 6 que ficam + 1 cópia extra (x5b) + 3 únicos; /Y e /Z: 5 grupos só entre elas.
+    remaining: [{ path: '/X', fileCount: 10 }, { path: '/Y', fileCount: 5 }, { path: '/Z', fileCount: 7 }],
+  };
+  const base = globalThis.fetch as unknown as (u: string, i?: RequestInit) => Promise<Response>;
+  vi.stubGlobal('fetch', vi.fn(async (u: string, i?: RequestInit) => (u.includes('plan?') ? new Response(JSON.stringify(plan3)) : base(u, i))));
+  renderPage();
+  expect(await screen.findByText('Resultado: a segunda fica com 5 arquivos (nenhum só existe nela); a terceira fica com 7 arquivos (2 só existem nela).')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /Aplicar/ }));
+  const dialog = await screen.findByRole('dialog');
+  expect(dialog).toHaveTextContent('Também continuam onde estão: 5 arquivos que só existem numa pasta, 1 cópia extra na pasta escolhida e 10 arquivos repetidos só entre as outras pastas.');
+});
+
+it('resultado: singular de "só existe nela" e pasta só com os seus únicos', async () => {
+  clusters = [{ ...three, folders: [stat('/X', { uniqueCount: 3, situation: 'complete' }), stat('/Y', { uniqueCount: 1 }), stat('/Z', { uniqueCount: 1 })] }];
+  const plan3: ReconcilePlan = {
+    clusterKey: three.key, keepFolder: '/X', items: [{ groupId: 1, keepId: 'x1', deleteIds: ['y1'] }], deleteFiles: [item('y1', '/Y')], keepFiles: [item('x1', '/X')], bytes: 100,
+    remaining: [{ path: '/X', fileCount: 10 }, { path: '/Y', fileCount: 2 }, { path: '/Z', fileCount: 1 }],
+  };
+  const base = globalThis.fetch as unknown as (u: string, i?: RequestInit) => Promise<Response>;
+  vi.stubGlobal('fetch', vi.fn(async (u: string, i?: RequestInit) => (u.includes('plan?') ? new Response(JSON.stringify(plan3)) : base(u, i))));
+  renderPage();
+  expect(await screen.findByText('Resultado: a segunda fica com 2 arquivos (1 só existe nela); a terceira fica só com o seu 1 arquivo único.')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /Aplicar/ }));
+  const dialog = await screen.findByRole('dialog');
+  expect(dialog).toHaveTextContent('Também continuam onde estão: 5 arquivos que só existem numa pasta, 6 cópias extras na pasta escolhida e 1 arquivo repetido só entre as outras pastas.');
 });
 
 it('Aplicar fica desligado enquanto o plano carrega', async () => {
@@ -117,9 +158,11 @@ it('modal confirma e envia os items do plano mostrado, uma vez só com clique du
   const dialog = await screen.findByRole('dialog');
   expect(dialog).toHaveTextContent('Nada é apagado de vez');
   expect(screen.getByRole('list', { name: 'Arquivos que saem' })).toHaveTextContent('/B/b1.jpg');
-  expect(screen.getByRole('heading', { name: 'Cópia que fica de cada arquivo repetido (1)' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Cópia que fica de cada arquivo repetido (8)' })).toBeInTheDocument();
   expect(screen.getByRole('list', { name: 'Cópias que ficam' })).toHaveTextContent('/A/a1.jpg');
-  expect(dialog).toHaveTextContent('Também continuam onde estão: 2 arquivos que só existem numa pasta e 7 cópias extras na pasta escolhida.');
+  expect(dialog).toHaveTextContent('Também continuam onde estão: 2 arquivos que só existem numa pasta.');
+  expect(dialog).not.toHaveTextContent('cópia extra');
+  expect(dialog).not.toHaveTextContent('repetido só entre');
   expect(screen.getByRole('list', { name: 'Pastas depois da limpeza' })).toHaveTextContent('/B: fica vazia');
   await userEvent.dblClick(screen.getByRole('button', { name: 'Mover para a lixeira' }));
   expect(await screen.findByText('Lote de pastas repetidas')).toBeInTheDocument();
