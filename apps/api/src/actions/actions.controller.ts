@@ -19,7 +19,8 @@ export class ActionsController {
   }
 
   @Get('history')
-  history(): HistoryEntry[] {
+  async history(): Promise<HistoryEntry[]> {
+    await this.actions.recoverPending();
     return this.actions.history();
   }
 

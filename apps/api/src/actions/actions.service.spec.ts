@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { OfflineError } from '../cloud/errors';
+import { GraphError, OfflineError } from '../cloud/errors';
 import { FakeCloudProvider } from '../cloud/fake-cloud-provider';
 import { ReviewService } from '../review/review.service';
 import { ScanService } from '../scan/scan.service';
 import { Db } from '../storage/db';
 import { UnsafeDeletionError } from './deletion-plan';
+import { ActionsController } from './actions.controller';
 import { ActionsService } from './actions.service';
 
 let db: Db;
@@ -201,5 +202,52 @@ describe('ActionsService', () => {
     const [pastaA] = await cloud.listFolders(cloud.rootId);
     cloud.addFile(pastaA.id, { name: 'x (2).jpg' });
     expect((await actions.undo(r.results.find((x) => x.fileId === 'c2')!.actionId)).result).toBe('conflict');
+  });
+
+  it('erro de conexão depois de o OneDrive mover: confere e registra como feita', async () => {
+    const real = cloud.moveToTrash.bind(cloud);
+    vi.spyOn(cloud, 'moveToTrash').mockImplementationOnce(async (id) => { await real(id); throw new OfflineError(); });
+    const r = await actions.apply(groupId, ['c1']);
+    expect(r.results[0]).toMatchObject({ fileId: 'c1', status: 'done' });
+    expect(cloud.isInTrash('c1')).toBe(true);
+    const u = await actions.undo(r.results[0].actionId);
+    expect(u.result).toBe('restored');
+  });
+
+  it('erro 5xx sem o OneDrive ter movido: confere e registra como não movido', async () => {
+    cloud.failNext('moveToTrash', new GraphError(503, ''));
+    const r = await actions.apply(groupId, ['c1']);
+    expect(r.results[0]).toMatchObject({ status: 'failed', error: 'O OneDrive respondeu com erro 503.' });
+    expect(review.activeFileIds(groupId)).toContain('c1');
+  });
+
+  it('erro e sem conexão para conferir: a ação fica pendente e o arquivo sai do grupo', async () => {
+    const real = cloud.moveToTrash.bind(cloud);
+    vi.spyOn(cloud, 'moveToTrash').mockImplementationOnce(async (id) => { await real(id); throw new OfflineError(); });
+    const realGet = cloud.getItem.bind(cloud);
+    let gets = 0;
+    vi.spyOn(cloud, 'getItem').mockImplementation(async (id) => {
+      gets += 1;
+      if (gets > 3) throw new OfflineError(); // 3 conferências antes de mover; a 4ª é a reconciliação
+      return realGet(id);
+    });
+    const r = await actions.apply(groupId, ['c1']);
+    expect(r.results[0].status).toBe('pending');
+    expect(r.results[0].error).toMatch(/conferido/);
+    expect(review.activeFileIds(groupId)).not.toContain('c1');
+    expect(review.view(groupId).status).toBe('pending');
+    vi.mocked(cloud.getItem).mockRestore();
+    // na volta da conexão, abrir o histórico acerta o diário
+    const history = await new ActionsController(actions).history();
+    expect(history.find((h) => h.file.id === 'c1')!.status).toBe('done');
+  });
+
+  it('apply acerta ações pendentes antes de planejar', async () => {
+    const now = new Date().toISOString();
+    db.sql.prepare("INSERT INTO actions (group_id, file_id, kept_file_id, status, created_at, updated_at) VALUES (?, ?, ?, 'pending', ?, ?)").run(groupId, 'c1', keep, now, now);
+    const r = await actions.apply(groupId, ['c2']);
+    expect(r.results.map((x) => x.status)).toEqual(['done']);
+    expect(db.sql.prepare("SELECT status FROM actions WHERE file_id = 'c1'").get()).toEqual({ status: 'failed' });
+    expect(review.activeFileIds(groupId)).toEqual(['c1', 'orig']);
   });
 });

@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import type { ActionResult, ActionStatus, ApplyResult, DeletionPreview, HistoryEntry, UndoResponse } from '@twinpix/shared';
 import type { CloudProvider } from '../cloud/cloud-provider';
+import { ForbiddenError } from '../cloud/errors';
 import { ReviewService } from '../review/review.service';
 import type { Db } from '../storage/db';
 import { getFilesByIds, nowIso, rowToItem, type FileRow } from '../storage/rows';
@@ -8,6 +9,8 @@ import { CLOUD_PROVIDER, DB } from '../tokens';
 import { planDeletion } from './deletion-plan';
 
 const ALREADY_GONE_NOTE = 'Já não estava no OneDrive.';
+const UNCONFIRMED_NOTE = 'Não deu para confirmar se foi para a lixeira (sem conexão). Será conferido de novo.';
+const INTERRUPTED_NOTE = 'Interrompida antes de mover; nada foi alterado.';
 
 const UNDO_MESSAGES = {
   restored: 'Arquivo restaurado para a pasta original.',
@@ -53,6 +56,8 @@ export class ActionsService implements OnModuleInit {
   }
 
   private async applyLocked(groupId: number, deleteIds: string[]): Promise<ApplyResult> {
+    // Acerta o diário antes de planejar: uma ação pendente pode ter (ou não) levado um arquivo.
+    await this.recoverPendingLocked();
     const { scanId, plan } = this.plan(groupId, deleteIds);
     const stored = new Map(getFilesByIds(this.db.sql, scanId, [...plan.deleteIds, ...plan.keepIds]).map((f) => [f.id, f]));
 
@@ -80,8 +85,7 @@ export class ActionsService implements OnModuleInit {
         const moved = await this.cloud.moveToTrash(id);
         if (moved === 'already-gone') error = ALREADY_GONE_NOTE;
       } catch (e) {
-        status = 'failed';
-        error = (e as Error).message;
+        ({ status, error } = await this.reconcileAfterError(id, e as Error));
       }
       this.setActionStatus(actionId, status, error);
       results.push({ actionId, fileId: id, fileName: stored.get(id)!.name, status, error });
@@ -90,15 +94,34 @@ export class ActionsService implements OnModuleInit {
     return { groupId, stale: false, results };
   }
 
-  async recoverPending(): Promise<void> {
+  /**
+   * Erro no DELETE nem sempre quer dizer que nada aconteceu: sem conexão ou 5xx podem chegar depois
+   * de o OneDrive já ter movido o arquivo. Confere o estado real antes de registrar.
+   */
+  private async reconcileAfterError(id: string, e: Error): Promise<{ status: ActionStatus; error: string | null }> {
+    if (e instanceof ForbiddenError) return { status: 'failed', error: e.message };
+    try {
+      const item = await this.cloud.getItem(id);
+      return item ? { status: 'failed', error: e.message } : { status: 'done', error: null };
+    } catch {
+      return { status: 'pending', error: UNCONFIRMED_NOTE };
+    }
+  }
+
+  /** Confere no OneDrive as ações que ficaram pendentes (app fechado no meio, ou sem conexão). */
+  recoverPending(): Promise<void> {
+    return this.withLock(() => this.recoverPendingLocked());
+  }
+
+  private async recoverPendingLocked(): Promise<void> {
     const pending = this.db.sql.prepare("SELECT id, file_id FROM actions WHERE status = 'pending'").all() as Array<{ id: number; file_id: string }>;
     for (const a of pending) {
       try {
         const item = await this.cloud.getItem(a.file_id);
-        if (item) this.setActionStatus(a.id, 'failed', 'Interrompida antes de mover; nada foi alterado.');
+        if (item) this.setActionStatus(a.id, 'failed', INTERRUPTED_NOTE);
         else this.setActionStatus(a.id, 'done', null);
       } catch {
-        // Sem conexão agora: tenta de novo na próxima inicialização.
+        // Sem conexão agora: continua pendente e é conferida na próxima vez.
       }
     }
   }
