@@ -6,12 +6,14 @@ interface Props {
   files: number;
   groups: number;
   bytes: number;
+  /** Linhas em que a autora trocou a pasta que fica. */
+  inverted?: Array<{ key: string; folder: string; groups: number }>;
   /** Envia o lote; se rejeitar, o erro aparece no modal e dá para tentar de novo. */
   onConfirm: () => Promise<void>;
   onCancel: () => void;
 }
 
-export function BatchConfirmDialog({ files, groups, bytes, onConfirm, onCancel }: Props) {
+export function BatchConfirmDialog({ files, groups, bytes, inverted = [], onConfirm, onCancel }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -48,8 +50,13 @@ export function BatchConfirmDialog({ files, groups, bytes, onConfirm, onCancel }
         <h1 id="batch-confirm-title">Confirmar lote</h1>
         <p>
           <strong>{files} {files === 1 ? 'arquivo de' : 'arquivos de'} {groups} {groups === 1 ? 'grupo vai' : 'grupos vão'} para a lixeira do OneDrive</strong>,
-          {' '}liberando {formatBytes(bytes)}. Em cada grupo fica a cópia sugerida. Nada é apagado de vez.
+          {' '}liberando {formatBytes(bytes)}. Em cada grupo fica a cópia sugerida{inverted.length > 0 ? ', exceto onde você escolheu outra pasta' : ''}. Nada é apagado de vez.
         </p>
+        {inverted.length > 0 && (
+          <ul>
+            {inverted.map((i) => <li key={i.key}>{i.groups === 1 ? '1 grupo' : `${i.groups} grupos`}: fica em <strong>{i.folder}</strong></li>)}
+          </ul>
+        )}
         {error && <p className="alert" role="alert">{error}</p>}
         <div className="row">
           <button type="button" className="button" onClick={onCancel} disabled={busy}>Voltar</button>

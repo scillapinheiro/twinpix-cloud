@@ -1,4 +1,4 @@
-import type { BatchPreview, BatchSummary } from '@twinpix/shared';
+import type { BatchPreview, BatchSummary, CloudItem } from '@twinpix/shared';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -6,16 +6,27 @@ import { vi } from 'vitest';
 import { Batch } from './Batch';
 import { ScanProgress } from './ScanProgress';
 
+const cloudItem = (o: Partial<CloudItem>): CloudItem => ({
+  id: 'x', name: 'x.jpg', folderPath: '/', size: 10, quickXorHash: 'h', mimeType: 'image/jpeg', kind: 'photo',
+  takenAt: '2015-01-01T10:00:00Z', createdAt: '2015-01-01T10:00:00Z', modifiedAt: '2015-01-01T10:00:00Z',
+  width: 1, height: 1, cameraMake: null, cameraModel: null, durationMs: null, webUrl: 'https://od/x', ...o,
+} as CloudItem);
+
 const preview: BatchPreview = {
   scanId: 1, tiesCount: 3, pendingCount: 12,
   lines: [
     {
-      key: 'A|B', keepFolder: '/Viagem Praia', removeFolders: ['/Backup celular 2015'], reasons: ['regra: nome sem sufixo de cópia'],
+      key: 'A|B', keepFolder: '/Viagem Praia', removeFolders: ['/Backup celular 2015'], keepOptions: ['/Viagem Praia', '/Backup celular 2015'], reasons: ['regra: nome sem sufixo de cópia'],
       groupCount: 140, fileCount: 140, bytes: 1_200_000_000,
-      items: [{ groupId: 1, keep: { name: 'foto.jpg', folderPath: '/Viagem Praia' }, remove: [{ id: 'r1', name: 'foto.jpg', folderPath: '/Backup celular 2015', size: 10 }] }],
+      items: [{
+        groupId: 1,
+        keep: cloudItem({ id: 'k1', name: 'foto.jpg', folderPath: '/Viagem Praia', modifiedAt: '2015-01-01T10:00:00Z', webUrl: 'https://od/k1' }),
+        remove: [cloudItem({ id: 'r1', name: 'IMG_1.jpg', folderPath: '/Backup celular 2015', modifiedAt: '2016-02-02T10:00:00Z', webUrl: 'https://od/r1' })],
+        keepByFolder: { '/Viagem Praia': 'k1', '/Backup celular 2015': 'r1' },
+      }],
     },
     {
-      key: 'C|D', keepFolder: '/Casa', removeFolders: ['/Antigas'], reasons: ['regra: mais antiga'],
+      key: 'C|D', keepFolder: '/Casa', removeFolders: ['/Antigas'], keepOptions: ['/Casa', '/Antigas'], reasons: ['regra: mais antiga'],
       groupCount: 5, fileCount: 7, bytes: 5_000_000, items: [],
     },
   ],
@@ -72,8 +83,72 @@ it('ver lista mostra os caminhos', async () => {
   renderBatch();
   await screen.findByText('140 grupos');
   await userEvent.click(screen.getAllByRole('button', { name: 'ver lista' })[0]);
-  expect(screen.getByText(/fica: \/Viagem Praia\/foto\.jpg/)).toBeInTheDocument();
-  expect(screen.getByText(/sai: \/Backup celular 2015\/foto\.jpg/)).toBeInTheDocument();
+  expect(screen.getByText(/★ fica/)).toBeInTheDocument();
+  expect(screen.getByText(/\/Viagem Praia\/foto\.jpg/)).toBeInTheDocument();
+  expect(screen.getByText(/\/Backup celular 2015\/IMG_1\.jpg/)).toBeInTheDocument();
+  expect(screen.getAllByRole('link', { name: 'Abrir no OneDrive ↗' }).map((a) => a.getAttribute('href'))).toEqual(['https://od/k1', 'https://od/r1']);
+  expect(screen.getAllByLabelText(/Carregando miniatura|Miniatura indisponível/)).toHaveLength(2);
+  expect(screen.getByText(/mesmo byte a byte/)).toBeInTheDocument();
+  expect(document.querySelectorAll('.batch-file-meta .diff').length).toBe(2);
+});
+
+it('lista longa mostra 20 e "mostrar mais" revela o resto', async () => {
+  const base = preview.lines[0].items[0];
+  const many = Array.from({ length: 25 }, (_, i) => ({ ...base, groupId: i + 1 }));
+  const f = fetch as ReturnType<typeof vi.fn>;
+  const orig = f.getMockImplementation()!;
+  f.mockImplementation(async (url: string, init?: RequestInit) =>
+    url === '/api/scans/1/batch' && init?.method === 'GET'
+      ? new Response(JSON.stringify({ ...preview, lines: [{ ...preview.lines[0], items: many }] }))
+      : orig(url, init));
+  renderBatch();
+  await screen.findByText('140 grupos');
+  await userEvent.click(screen.getByRole('button', { name: 'ver lista' }));
+  expect(document.querySelectorAll('.batch-item')).toHaveLength(20);
+  await userEvent.click(screen.getByRole('button', { name: /mostrar mais/ }));
+  expect(document.querySelectorAll('.batch-item')).toHaveLength(25);
+  expect(screen.queryByRole('button', { name: /mostrar mais/ })).toBeNull();
+});
+
+it('inverter troca o texto e o ver lista, e o POST leva keepFolders', async () => {
+  batchGet = summary();
+  renderBatch();
+  await screen.findByText('140 grupos');
+  await userEvent.click(screen.getAllByRole('button', { name: 'ver lista' })[0]);
+  await userEvent.click(screen.getByRole('button', { name: '⇄ Inverter: manter em /Backup celular 2015' }));
+  expect(screen.getByText(/escolhido por você/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '⇄ Voltar à sugestão: manter em /Viagem Praia' })).toBeInTheDocument();
+  expect(screen.getByText(/★ fica/).closest('.batch-file')).toHaveTextContent('IMG_1.jpg');
+  await userEvent.click(screen.getByRole('button', { name: /Mover para a lixeira \(/ }));
+  expect(screen.getByRole('dialog')).toHaveTextContent('fica em /Backup celular 2015');
+  await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
+  await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
+  expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body!)).toEqual({ lineKeys: ['A|B', 'C|D'], keepFolders: { 'A|B': '/Backup celular 2015' } });
+});
+
+it('Marcar todas / Desmarcar todas', async () => {
+  batchGet = summary();
+  renderBatch();
+  await screen.findByText('140 grupos');
+  expect(screen.getByText('2 de 2 linhas marcadas')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Desmarcar todas' }));
+  expect(screen.getByText('0 de 2 linhas marcadas')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Mover para a lixeira (0 arquivos)' })).toBeDisabled();
+  await userEvent.click(screen.getAllByRole('checkbox')[1]);
+  await userEvent.click(screen.getByRole('button', { name: /Mover para a lixeira \(/ }));
+  await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
+  await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
+  expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body!)).toEqual({ lineKeys: ['C|D'] });
+});
+
+it('Marcar todas remarca tudo e mantém a inversão', async () => {
+  renderBatch();
+  await screen.findByText('140 grupos');
+  await userEvent.click(screen.getAllByRole('button', { name: /Inverter/ })[0]);
+  await userEvent.click(screen.getByRole('button', { name: 'Desmarcar todas' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Marcar todas' }));
+  expect(screen.getAllByRole('checkbox').every((c) => (c as HTMLInputElement).checked)).toBe(true);
+  expect(screen.getByText(/escolhido por você/)).toBeInTheDocument();
 });
 
 it('o modal confirma e envia as lineKeys marcadas uma vez só, mesmo com clique duplo', async () => {

@@ -91,3 +91,13 @@ th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border);
 
 .key-hint { font: inherit; font-size: 0.75em; opacity: 0.7; border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; margin-left: 4px; }
 .shortcut-legend { margin-left: auto; font-size: 0.85em; }
+.badge-chosen { font-size: 0.8rem; color: var(--diff-text); background: var(--diff-bg); border-radius: 6px; padding: 0 6px; margin-left: 6px; }
+.batch-keep-select { margin-left: 28px; display: inline-block; }
+.batch-items-wrap { margin: 8px 0 0 32px; }
+.batch-items-wrap .batch-items { margin: 8px 0 0; padding-left: 0; list-style: none; }
+.batch-item { margin-bottom: 12px; border-top: 1px solid var(--border, #ddd); padding-top: 8px; }
+.batch-file { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 6px; }
+.batch-thumb { width: 56px; height: 56px; flex: none; overflow: hidden; border-radius: 6px; }
+.batch-thumb img, .batch-thumb .thumb-placeholder { width: 56px; height: 56px; object-fit: cover; font-size: 0.6rem; }
+.batch-file-meta { font-size: 0.85rem; }
+.batch-file-meta .diff { background: var(--diff-bg); color: var(--diff-text); font-weight: 600; border-radius: 6px; padding: 0 4px; }

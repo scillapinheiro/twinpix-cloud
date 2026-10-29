@@ -13,8 +13,10 @@ export class BatchController {
 
   @Post('scans/:id/batch')
   @HttpCode(200)
-  start(@Param('id', ParseIntPipe) id: number, @Body() body: { lineKeys?: string[] }): BatchSummary {
-    return this.batch.start(id, Array.isArray(body?.lineKeys) ? body.lineKeys : []);
+  start(@Param('id', ParseIntPipe) id: number, @Body() body: { lineKeys?: string[]; keepFolders?: Record<string, string> }): BatchSummary {
+    const kf = body?.keepFolders;
+    const keepFolders = kf && typeof kf === 'object' && !Array.isArray(kf) ? kf : undefined;
+    return this.batch.start(id, Array.isArray(body?.lineKeys) ? body.lineKeys : [], keepFolders);
   }
 
   @Get('batches')

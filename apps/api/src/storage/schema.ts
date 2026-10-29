@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS batch_groups (
   line_key TEXT NOT NULL,
   seq INTEGER NOT NULL,
   status TEXT NOT NULL,
+  keep_folder TEXT,
   PRIMARY KEY (batch_id, group_id)
 );
 CREATE TABLE IF NOT EXISTS settings (

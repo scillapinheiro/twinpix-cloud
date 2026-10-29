@@ -22,6 +22,9 @@ export class Db {
     if (!hasColumn('batches', 'not_restored')) {
       this.sql.exec('ALTER TABLE batches ADD COLUMN not_restored INTEGER NOT NULL DEFAULT 0');
     }
+    if (!hasColumn('batch_groups', 'keep_folder')) {
+      this.sql.exec('ALTER TABLE batch_groups ADD COLUMN keep_folder TEXT');
+    }
   }
 
   close(): void {

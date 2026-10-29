@@ -1,14 +1,76 @@
-import type { BatchLine, BatchPreview, BatchStatus, BatchSummary, ScanSummary } from '@twinpix/shared';
+import type { BatchItem, BatchLine, BatchPreview, BatchStatus, BatchSummary, ScanSummary } from '@twinpix/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { BATCH_STATUS_TEXT, UndoBatchButton } from '../components/BatchBits';
 import { BatchConfirmDialog } from '../components/BatchConfirmDialog';
+import { Thumbnail } from '../components/Thumbnail';
+import { differingFields, FIELD_LABELS, fieldValue, type FieldKey } from '../lib/differing-fields';
 import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes } from '../lib/format';
 
 const ACTIVE: BatchStatus[] = ['running', 'paused', 'waiting-network', 'needs-auth', 'undoing'];
 const path = (folder: string, name: string) => `${folder === '/' ? '' : folder}/${name}`;
+const PAGE = 20;
+const LIST_FIELDS: FieldKey[] = ['takenAt', 'modifiedAt', 'size'];
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** Arquivos que saem de um item se a cópia ficar em `folder` (a cópia que fica vem de keepByFolder). */
+function keepIdFor(it: BatchItem, line: BatchLine, folder: string): string {
+  return it.keepByFolder[folder] ?? it.keep.id;
+}
+function lineStats(l: BatchLine, folder: string): { files: number; bytes: number } {
+  if (folder === l.keepFolder) return { files: l.fileCount, bytes: l.bytes };
+  let files = 0;
+  let bytes = 0;
+  for (const it of l.items) {
+    const keepId = keepIdFor(it, l, folder);
+    for (const f of [it.keep, ...it.remove]) {
+      if (f.id !== keepId) { files++; bytes += f.size; }
+    }
+  }
+  return { files, bytes };
+}
+
+function BatchItems({ line, folder }: { line: BatchLine; folder: string }) {
+  const [shown, setShown] = useState(PAGE);
+  return (
+    <div className="batch-items-wrap">
+      <p className="muted">São cópias idênticas: o conteúdo é o mesmo byte a byte, mesmo quando o nome do arquivo é diferente.</p>
+      <ul className="batch-items">
+        {line.items.slice(0, shown).map((it) => {
+          const keepId = keepIdFor(it, line, folder);
+          const all = [it.keep, ...it.remove];
+          const diffs = differingFields(all);
+          return (
+            <li key={it.groupId} className="batch-item">
+              {all.map((f) => (
+                <div key={f.id} className={`batch-file${f.id === keepId ? ' keeps' : ''}`}>
+                  <div className="batch-thumb"><Thumbnail fileId={f.id} alt={f.name} /></div>
+                  <div className="batch-file-info">
+                    <div>
+                      <strong>{f.id === keepId ? '★ fica' : 'sai'}</strong>: {path(f.folderPath, f.name)}{' '}
+                      <a className="batch-link" href={f.webUrl} target="_blank" rel="noreferrer">Abrir no OneDrive ↗</a>
+                    </div>
+                    <div className="batch-file-meta">
+                      {LIST_FIELDS.map((k) => (
+                        <span key={k}>{FIELD_LABELS[k]}: <span className={diffs.has(k) ? 'diff' : undefined}>{fieldValue(f, k)}</span> </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </li>
+          );
+        })}
+      </ul>
+      {shown < line.items.length && (
+        <button type="button" className="link" onClick={() => setShown((n) => n + PAGE)}>
+          mostrar mais ({line.items.length - shown} restantes)
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function Batch() {
   const { scanId } = useParams();
@@ -48,13 +110,24 @@ export function Batch() {
 function BatchPreviewView({ preview, scanId, onStarted }: { preview: BatchPreview; scanId: string; onStarted: (b: BatchSummary) => void }) {
   const [marked, setMarked] = useState<Set<string>>(new Set(preview.lines.map((l) => l.key)));
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [choice, setChoice] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
   const moveButton = useRef<HTMLButtonElement>(null);
 
   const chosen = preview.lines.filter((l) => marked.has(l.key));
-  const files = chosen.reduce((s, l) => s + l.fileCount, 0);
+  const folderOf = (l: BatchLine) => choice[l.key] ?? l.keepFolder;
+  const stats = chosen.map((l) => lineStats(l, folderOf(l)));
+  const files = stats.reduce((s, x) => s + x.files, 0);
   const groups = chosen.reduce((s, l) => s + l.groupCount, 0);
-  const bytes = chosen.reduce((s, l) => s + l.bytes, 0);
+  const bytes = stats.reduce((s, x) => s + x.bytes, 0);
+  const inverted = chosen.filter((l) => folderOf(l) !== l.keepFolder);
+  const pick = (l: BatchLine, folder: string) =>
+    setChoice((c) => {
+      const next = { ...c };
+      if (folder === l.keepFolder) delete next[l.key];
+      else next[l.key] = folder;
+      return next;
+    });
   const flip = (set: Set<string>, key: string) => {
     const next = new Set(set);
     if (next.has(key)) next.delete(key);
@@ -87,32 +160,47 @@ function BatchPreviewView({ preview, scanId, onStarted }: { preview: BatchPrevie
             <p className="notice">{plural(preview.tiesCount, 'grupo sem regra clara fica', 'grupos sem regra clara ficam')} para a revisão um por um.</p>
           )}
         </div>
+        <div className="row batch-marks">
+          <span>{marked.size} de {preview.lines.length} linhas marcadas</span>
+          <button type="button" className="link" onClick={() => setMarked(new Set(preview.lines.map((l) => l.key)))}>Marcar todas</button>
+          <button type="button" className="link" onClick={() => setMarked(new Set())}>Desmarcar todas</button>
+        </div>
         <ul className="batch-lines">
-          {preview.lines.map((l: BatchLine) => (
-            <li key={l.key} className="card batch-line">
-              <label className="batch-line-head">
-                <input type="checkbox" checked={marked.has(l.key)} onChange={() => setMarked((m) => flip(m, l.key))} />
-                <span>
-                  <strong>{plural(l.groupCount, 'grupo', 'grupos')}</strong> · fica em <strong>{l.keepFolder}</strong> · sai de{' '}
-                  <strong>{l.removeFolders.join(', ')}</strong> · {formatBytes(l.bytes)}
-                </span>
-              </label>
-              <p className="muted batch-reason">regra: {l.reasons.map((r) => r.replace(/^regra:\s*/, '')).join('; ')}</p>
-              <button type="button" className="link" aria-expanded={open.has(l.key)} onClick={() => setOpen((o) => flip(o, l.key))}>
-                {open.has(l.key) ? 'esconder lista' : 'ver lista'}
-              </button>
-              {open.has(l.key) && (
-                <ul className="batch-items muted">
-                  {l.items.map((it) => (
-                    <li key={it.groupId}>
-                      fica: {path(it.keep.folderPath, it.keep.name)}
-                      {it.remove.map((r) => <span key={r.id}> · sai: {path(r.folderPath, r.name)}</span>)}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
+          {preview.lines.map((l: BatchLine) => {
+            const keepFolder = folderOf(l);
+            const outFolders = l.keepOptions.filter((f) => f !== keepFolder);
+            const changed = keepFolder !== l.keepFolder;
+            const st = lineStats(l, keepFolder);
+            return (
+              <li key={l.key} className="card batch-line">
+                <label className="batch-line-head">
+                  <input type="checkbox" checked={marked.has(l.key)} onChange={() => setMarked((m) => flip(m, l.key))} />
+                  <span>
+                    <strong>{plural(l.groupCount, 'grupo', 'grupos')}</strong> · fica em <strong>{keepFolder}</strong> · sai de{' '}
+                    <strong>{outFolders.join(', ')}</strong> · {formatBytes(st.bytes)}
+                    {changed && <span className="badge-chosen"> escolhido por você</span>}
+                  </span>
+                </label>
+                <p className="muted batch-reason">regra: {l.reasons.map((r) => r.replace(/^regra:\s*/, '')).join('; ')}</p>
+                {l.removeFolders.length === 1 ? (
+                  <button type="button" className="link" onClick={() => pick(l, changed ? l.keepFolder : l.removeFolders[0])}>
+                    {changed ? `⇄ Voltar à sugestão: manter em ${l.keepFolder}` : `⇄ Inverter: manter em ${l.removeFolders[0]}`}
+                  </button>
+                ) : (
+                  <label className="batch-keep-select">
+                    Manter em:{' '}
+                    <select value={keepFolder} onChange={(e) => pick(l, e.target.value)}>
+                      {l.keepOptions.map((f) => <option key={f} value={f}>{f}</option>)}
+                    </select>
+                  </label>
+                )}
+                <button type="button" className="link" aria-expanded={open.has(l.key)} onClick={() => setOpen((o) => flip(o, l.key))}>
+                  {open.has(l.key) ? 'esconder lista' : 'ver lista'}
+                </button>
+                {open.has(l.key) && <BatchItems line={l} folder={keepFolder} />}
+              </li>
+            );
+          })}
         </ul>
         <div className="action-bar">
           <span className="batch-total">{plural(groups, 'grupo', 'grupos')} marcados · {formatBytes(bytes)}</span>
@@ -126,9 +214,10 @@ function BatchPreviewView({ preview, scanId, onStarted }: { preview: BatchPrevie
           files={files}
           groups={groups}
           bytes={bytes}
+          inverted={inverted.map((l) => ({ key: l.key, folder: folderOf(l), groups: l.groupCount }))}
           onCancel={cancel}
           onConfirm={async () => {
-            const b = await apiFetch<BatchSummary>(`/api/scans/${scanId}/batch`, { method: 'POST', body: { lineKeys: chosen.map((l) => l.key) } });
+            const b = await apiFetch<BatchSummary>(`/api/scans/${scanId}/batch`, { method: 'POST', body: { lineKeys: chosen.map((l) => l.key), ...(inverted.length ? { keepFolders: Object.fromEntries(inverted.map((l) => [l.key, folderOf(l)])) } : {}) } });
             onStarted(b);
           }}
         />

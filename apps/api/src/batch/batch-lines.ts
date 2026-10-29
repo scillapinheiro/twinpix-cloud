@@ -5,6 +5,8 @@ export interface BatchGroupInput {
   kind: 'identical';
   files: CloudItem[];
   suggestion: Suggestion;
+  /** Cópia que ficaria se a pasta indicada fosse escolhida (calculada com as regras). */
+  keepByFolder?: Record<string, string>;
 }
 
 const RULE_PREFIX = 'regra: ';
@@ -35,7 +37,7 @@ export function buildBatchLines(groups: BatchGroupInput[]): { lines: BatchLine[]
     const key = lineKeyOf(keep.folderPath, removeFolders);
     let line = byKey.get(key);
     if (!line) {
-      line = { key, keepFolder: keep.folderPath, removeFolders, reasons: [], groupCount: 0, fileCount: 0, bytes: 0, items: [] };
+      line = { key, keepFolder: keep.folderPath, removeFolders, keepOptions: [keep.folderPath, ...removeFolders], reasons: [], groupCount: 0, fileCount: 0, bytes: 0, items: [] };
       byKey.set(key, line);
       reasons.set(key, new Set());
     }
@@ -45,8 +47,13 @@ export function buildBatchLines(groups: BatchGroupInput[]): { lines: BatchLine[]
     reasons.get(key)!.add(reason);
     const item: BatchItem = {
       groupId: g.groupId,
-      keep: { name: keep.name, folderPath: keep.folderPath },
-      remove: remove.map((f) => ({ id: f.id, name: f.name, folderPath: f.folderPath, size: f.size })),
+      keep,
+      remove,
+      keepByFolder: Object.fromEntries(
+        [keep.folderPath, ...removeFolders]
+          .map((folder): [string, string | undefined] => [folder, g.keepByFolder?.[folder] ?? (folder === keep.folderPath ? keep.id : undefined)])
+          .filter((e): e is [string, string] => e[1] !== undefined),
+      ),
     };
     line.items.push(item);
     line.groupCount++;

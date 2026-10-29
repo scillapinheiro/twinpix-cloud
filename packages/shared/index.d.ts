@@ -138,14 +138,18 @@ export interface NestedRoot {
 
 export interface BatchItem {
   groupId: number;
-  keep: { name: string; folderPath: string };
-  remove: Array<{ id: string; name: string; folderPath: string; size: number }>;
+  keep: CloudItem;
+  remove: CloudItem[];
+  /** Pasta escolhida para manter → id da cópia que ficaria nela (desempate pela regra, dentro da pasta). */
+  keepByFolder: Record<string, string>;
 }
 
 export interface BatchLine {
   key: string;
   keepFolder: string;
   removeFolders: string[];
+  /** [keepFolder, ...removeFolders]: pastas onde dá para escolher manter a cópia. */
+  keepOptions: string[];
   reasons: string[];
   groupCount: number;
   fileCount: number;

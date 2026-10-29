@@ -40,6 +40,13 @@ describe('buildBatchLines', () => {
     expect(lines[0].fileCount).toBe(2);
   });
 
+  it('keepOptions = pasta que fica + pastas que saem, e cada item traz a cópia que ficaria em cada pasta', () => {
+    const { lines } = buildBatchLines([{ ...g(1, [f('a', '/A'), f('b', '/B'), f('c', '/B')], 'a'), keepByFolder: { '/A': 'a', '/B': 'c' } }]);
+    expect(lines[0].keepOptions).toEqual(['/A', '/B']);
+    expect(lines[0].items[0].keepByFolder).toEqual({ '/A': 'a', '/B': 'c' });
+    expect(lines[0].items[0].keep.id).toBe('a');
+  });
+
   it('empate vai para tiesCount e grupos inválidos são ignorados', () => {
     const r = buildBatchLines([
       g(1, [f('a', '/A'), f('b', '/B')], 'a', true),
@@ -91,7 +98,9 @@ describe('buildBatchLines', () => {
           const src = groups.find((x) => x.groupId === item.groupId)!;
           const keep = src.files.find((x) => x.id === src.suggestion.keepId)!;
           const removeIds = item.remove.map((r) => r.id);
-          expect(item.keep).toEqual({ name: `${keep.id}.jpg`, folderPath: keep.folderPath });
+          expect(item.keep).toEqual(keep);
+          expect(line.keepOptions).toEqual([line.keepFolder, ...line.removeFolders]);
+          for (const folder of line.keepOptions) expect(src.files.some((x) => x.folderPath === folder)).toBe(true);
           expect(line.keepFolder).toBe(keep.folderPath);
           expect(src.suggestion.fallback).toBe(false);
           expect(removeIds).not.toContain(keep.id);

@@ -60,11 +60,11 @@ beforeEach(async () => {
 });
 
 const lineFor = (folder: string) => batch.preview(scanId).lines.find((l) => l.removeFolders.includes(folder))!;
-function manualBatch(line: { key: string; items: Array<{ groupId: number }> }, status = 'paused'): number {
+function manualBatch(line: { key: string; items: Array<{ groupId: number }> }, status = 'paused', keepFolder: string | null = null): number {
   const { lastInsertRowid } = db.sql.prepare('INSERT INTO batches (scan_id, created_at, status) VALUES (?, ?, ?)').run(scanId, new Date().toISOString(), status);
   const id = Number(lastInsertRowid);
   line.items.forEach((it, i) =>
-    db.sql.prepare("INSERT INTO batch_groups (batch_id, group_id, line_key, seq, status) VALUES (?, ?, ?, ?, 'pending')").run(id, it.groupId, line.key, i));
+    db.sql.prepare("INSERT INTO batch_groups (batch_id, group_id, line_key, seq, status, keep_folder) VALUES (?, ?, ?, ?, 'pending', ?)").run(id, it.groupId, line.key, i, keepFolder));
   return id;
 }
 const inGroup = (gid: number) => (db.sql.prepare('SELECT file_id FROM dup_group_files WHERE group_id = ?').all(gid) as Array<{ file_id: string }>).map((r) => r.file_id);
@@ -295,5 +295,97 @@ describe('BatchService', () => {
     batch.undo(s.id);
     await batch.whenIdle(s.id);
     expect(batch.summary(s.id)).toMatchObject({ status: 'undone', restoredFiles: 2, notRestoredFiles: 0 });
+  });
+
+  describe('inverter (escolher a pasta que fica)', () => {
+    it('prévia traz keepOptions e a cópia que ficaria em cada pasta', () => {
+      const d = lineFor('/D');
+      expect(d.keepOptions).toEqual(['/A', '/D']);
+      const item = d.items[0];
+      expect(item.keep.id).toBe('a4');
+      expect(item.keepByFolder).toEqual({ '/A': 'a4', '/D': 'd4' });
+      expect(item.remove.map((r) => r.webUrl).every(Boolean)).toBe(true);
+    });
+
+    it('pasta fora das opções (ou de linha não marcada) dá 400 e nada é criado', () => {
+      const line = lineFor('/B');
+      expect(() => batch.start(scanId, [line.key], { [line.key]: '/Z' })).toThrow('Pasta escolhida inválida. Abra o lote de novo.');
+      expect(() => batch.start(scanId, [line.key], { [lineFor('/C').key]: '/A' })).toThrow('Pasta escolhida inválida. Abra o lote de novo.');
+      expect(db.sql.prepare('SELECT COUNT(*) n FROM batches').get()).toEqual({ n: 0 });
+    });
+
+    it('linha invertida move as cópias da pasta sugerida e mantém a da pasta escolhida', async () => {
+      const line = lineFor('/B');
+      const s = batch.start(scanId, [line.key], { [line.key]: '/B' });
+      await batch.whenIdle(s.id);
+      expect(batch.summary(s.id)).toMatchObject({ status: 'done', doneGroups: 2, skippedGroups: 0, movedFiles: 2 });
+      expect(cloud.isInTrash('a1') && cloud.isInTrash('a2')).toBe(true);
+      for (const id of ['b1', 'b2', 'a3', 'c3', 'a4', 'd4', 'd4x']) expect(cloud.isInTrash(id)).toBe(false);
+      await expectEveryGroupKeepsACopy();
+    });
+
+    it('escolher a própria pasta sugerida equivale a não inverter', async () => {
+      const line = lineFor('/B');
+      const s = batch.start(scanId, [line.key], { [line.key]: line.keepFolder });
+      await batch.whenIdle(s.id);
+      expect(cloud.isInTrash('b1') && cloud.isInTrash('b2')).toBe(true);
+      expect(cloud.isInTrash('a1') || cloud.isInTrash('a2')).toBe(false);
+      await expectEveryGroupKeepsACopy();
+    });
+
+    it('pasta escolhida com 2 cópias: a regra desempata dentro dela e as outras saem', async () => {
+      const line = lineFor('/D');
+      const s = batch.start(scanId, [line.key], { [line.key]: '/D' });
+      await batch.whenIdle(s.id);
+      expect(batch.summary(s.id)).toMatchObject({ status: 'done', doneGroups: 1, movedFiles: 2 });
+      expect(cloud.isInTrash('a4') && cloud.isInTrash('d4x')).toBe(true);
+      expect(cloud.isInTrash('d4')).toBe(false);
+      await expectEveryGroupKeepsACopy();
+    });
+
+    it('composição mudou (regra mudou a linha): pulado também com inversão', async () => {
+      const line = lineFor('/B');
+      const id = manualBatch(line, 'paused', '/B');
+      setRules(db, [{ type: 'inFolder', path: '/B' }]);
+      batch.resume(id);
+      await batch.whenIdle(id);
+      expect(batch.summary(id)).toMatchObject({ status: 'done', doneGroups: 0, skippedGroups: 2, movedFiles: 0 });
+      expect(cloud.calls).not.toContain('moveToTrash');
+      await expectEveryGroupKeepsACopy();
+    });
+
+    it('a cópia da pasta escolhida mudou: grupo pulado, nada dele movido', async () => {
+      const line = lineFor('/B');
+      const gid = line.items.find((i) => i.remove[0].id === 'b1')!.groupId;
+      const id = manualBatch(line, 'paused', '/B');
+      cloud.updateFile('b1', { quickXorHash: 'outra' });
+      batch.resume(id);
+      await batch.whenIdle(id);
+      expect(cloud.isInTrash('a1')).toBe(false);
+      expect(cloud.isInTrash('b1')).toBe(false);
+      expect(batch.summary(id).skippedGroups).toBeGreaterThanOrEqual(1);
+      expect(inGroup(gid)).toEqual(['a1']);
+      await expectEveryGroupKeepsACopy();
+    });
+
+    it('composição muda entre a leitura e a trava: reconferido dentro do apply, nada movido', async () => {
+      const line = lineFor('/B');
+      const real = actions.apply.bind(actions);
+      vi.spyOn(actions, 'apply').mockImplementation((...args) => {
+        setRules(db, [{ type: 'inFolder', path: '/B' }]);
+        return real(...args);
+      });
+      const s = batch.start(scanId, [line.key], { [line.key]: '/B' });
+      await batch.whenIdle(s.id);
+      expect(batch.summary(s.id)).toMatchObject({ doneGroups: 0, skippedGroups: 2, movedFiles: 0 });
+      expect(cloud.calls).not.toContain('moveToTrash');
+      await expectEveryGroupKeepsACopy();
+    });
+
+    it('migração: banco antigo sem keep_folder ganha a coluna e segue abrindo', () => {
+      const cols = (db.sql.prepare('PRAGMA table_info(batch_groups)').all() as Array<{ name: string }>).map((c) => c.name);
+      expect(cols).toContain('keep_folder');
+      expect(() => new Db(':memory:')).not.toThrow();
+    });
   });
 });
