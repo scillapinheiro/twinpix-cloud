@@ -6,3 +6,7 @@ dist/
 *.lsjson*
 listagens/
 *.sqlite-*
+
+# Documentos internos de trabalho (ficam só na máquina)
+docs/HANDOFF.md
+docs/superpowers/
