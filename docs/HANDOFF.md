@@ -14,7 +14,7 @@ A implementação foi dividida em planos:
 | Plano | Conteúdo | Situação |
 |---|---|---|
 | **1** | Base + **cópias idênticas** de ponta a ponta + modo demonstração | **Implementado e revisado** (branch `plano-1-identicas`) |
-| 2 | **Lote das idênticas** (prévia por par de pastas, desfazer lote) + atalhos de teclado | Em planejamento (ordem redefinida com a autora em 29/10) |
+| 2 | **Lote das idênticas** (prévia por par de pastas, inverter, desfazer lote) + atalhos de teclado | **Implementado e revisado** (29/10, tarde) |
 | 3 | Reconciliação de pastas | A planejar |
 | 4 | Prováveis cópias | A planejar |
 | 5 | Testes de contrato com o OneDrive real, trava da pasta de teste, validação com as listagens do rclone (§10), acabamento | A planejar |
@@ -55,6 +55,22 @@ A implementação foi dividida em planos:
 Com o OneDrive de verdade (só depois de combinar a pasta de teste):
 
     npm run build && npm start
+
+### Plano 2 (lote + atalhos), concluído em 29/10/2026
+- **Lote das idênticas:** botão "Revisar em lote" (análise concluída). Prévia agrupada por par de
+  pastas, todas as linhas marcadas por padrão, "Marcar todas"/"Desmarcar todas", "ver lista" com
+  miniatura, datas e tamanho (diferenças em laranja), ★ na cópia que fica e "Abrir no OneDrive".
+  "⇄ Inverter"/"Manter em:" escolhe a pasta que fica. Grupos sem regra clara ficam fora.
+- **Segurança do lote:** o navegador envia exatamente os grupos e a ★ vistos (`keeps`); se algo
+  mudou, "A prévia mudou. Abra o lote de novo.". Cada grupo passa por `ActionsService.apply`
+  (trava global, conferência dos dois lados, reconferência dentro da trava). A ★ fica gravada
+  (`keep_id`); se a escolha mudar, o grupo é pulado. Pausar/continuar, retomada após reinício,
+  espera sem internet, "Desfazer este lote" (página do lote e Histórico).
+- **Atalhos na revisão um por um:** Enter abre a confirmação e Enter no modal move; P pula; ← volta.
+- Testes: API 211, web 69; typecheck e build OK; teste de ponta a ponta do lote na demo.
+- Pendências pequenas do Plano 2 (não bloqueiam): erros antigos gravados por builds intermediários
+  podem aparecer crus no Histórico; atalhos não ignoram inputs de data/arquivo (não existem na
+  revisão); contagem do desfazer pode errar por 1 numa corrida estreita com desfazer manual.
 
 ## Decisões tomadas durante a implementação
 
