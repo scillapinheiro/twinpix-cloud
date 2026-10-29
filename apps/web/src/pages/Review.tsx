@@ -43,7 +43,7 @@ export function Review() {
       setLoading(false);
     }
   }
-  const shortcuts = useRef<{ open: () => void; skip: () => void; back: () => void } | null>(null);
+  const shortcuts = useRef<{ open: () => void; skip: () => void; back: () => void; markOthers: () => void } | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -59,6 +59,9 @@ export function Review() {
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         keys.back();
+      } else if (e.key === 'x' || e.key === 'X') {
+        e.preventDefault();
+        keys.markOthers();
       }
     };
     document.addEventListener('keydown', onKey);
@@ -178,6 +181,12 @@ export function Review() {
     open: () => { if (canDelete) setConfirmingId(group.id); },
     skip: () => void skip(),
     back: () => { if (group.position > 1) void back(); },
+    markOthers: () => {
+      const others = group.files.filter((f) => f.id !== group.suggestion.keepId).map((f) => f.id);
+      if (others.length === 0 || group.status === 'resolved') return;
+      setMarked(new Set(others));
+      setConfirmingId(group.id);
+    },
   };
 
   return (
@@ -259,7 +268,7 @@ export function Review() {
         >
           Excluir marcadas ({marked.size}) <kbd className="key-hint" aria-hidden="true">Enter</kbd>
         </button>
-        <span className="shortcut-legend muted">Atalhos: Enter confirma · P pula · ← volta</span>
+        <span className="shortcut-legend muted">Atalhos: Enter confirma · P pula · ← volta · X marca as outras</span>
       </div>
     </section>
 

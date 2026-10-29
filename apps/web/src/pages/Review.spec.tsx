@@ -267,8 +267,54 @@ describe('atalhos de teclado', () => {
   it('mostra as dicas e a legenda', async () => {
     renderReview();
     await screen.findByText(/Grupo 12 de 445/);
-    expect(screen.getByText('Atalhos: Enter confirma · P pula · ← volta')).toBeInTheDocument();
+    expect(screen.getByText('Atalhos: Enter confirma · P pula · ← volta · X marca as outras')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pular' })).toHaveTextContent('Pular P');
+  });
+
+  it('X marca as não sugeridas e abre o modal; Enter confirma uma vez; X com o modal aberto não faz nada', async () => {
+    marks = [];
+    renderReview();
+    await screen.findByText(/Grupo 12 de 445/);
+    await userEvent.keyboard('x');
+    await screen.findByRole('dialog');
+    await screen.findByText(/1 arquivo vai para a lixeira/);
+    expect(count(/\/apply$/)).toBe(0);
+    await userEvent.keyboard('X');
+    expect(count(/\/preview$/)).toBe(1);
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{Enter}');
+    expect(await screen.findByText('Resultado')).toBeInTheDocument();
+    expect(count(/\/apply$/)).toBe(1);
+  });
+
+  it('X durante o carregamento não faz nada', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('/thumbnail')) return new Response(JSON.stringify({ url: null }));
+      await gate;
+      return new Response(JSON.stringify({ ...group, preMarkedIds: [] }));
+    }));
+    renderReview();
+    fireEvent.keyDown(document.body, { key: 'x' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    release();
+    await screen.findByText(/Grupo 12 de 445/);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('X é ignorada com Ctrl e em campo de texto', async () => {
+    marks = [];
+    renderReview();
+    await screen.findByText(/Grupo 12 de 445/);
+    await userEvent.keyboard('{Control>}x{/Control}');
+    const input = document.createElement('input');
+    input.type = 'text';
+    document.body.appendChild(input);
+    input.focus();
+    await userEvent.keyboard('x');
+    input.remove();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('Enter abre o modal, não confirma sozinho; Enter de novo confirma uma vez e Enter leva ao próximo grupo', async () => {
@@ -496,6 +542,17 @@ describe('modo prováveis cópias', () => {
     expect(calls.some((c) => c.url === '/api/scans/1/groups/current?kind=probable' && calls.indexOf(c) > 0)).toBe(true);
     expect(screen.getByTestId('where').textContent).toContain('/revisao/1/grupo/9');
     expect(screen.getByTestId('where').textContent).toContain('tipo=provaveis');
+  });
+
+  it('X nas prováveis marca todas menos a sugerida e abre o modal; sem X, abrir continua sem marcas', async () => {
+    renderProbable();
+    await screen.findByText(/Prováveis cópias/);
+    fireEvent.keyDown(document, { key: 'Enter' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'X' });
+    await screen.findByRole('dialog');
+    await userEvent.click(await screen.findByRole('button', { name: 'Mover para a lixeira' }));
+    expect(JSON.parse(calls.find((c) => c.url.endsWith('/apply'))!.body!)).toEqual({ deleteIds: ['b'] });
   });
 
   it('pular avança para o próximo grupo provável e preserva o tipo na URL', async () => {
