@@ -60,4 +60,10 @@ describe('GraphClient', () => {
     await client.request('GET', 'https://graph.microsoft.com/v1.0/me/drive/items/1/children?$skiptoken=abc');
     expect((fetchMock.mock.calls[0] as unknown[])[0]).toBe('https://graph.microsoft.com/v1.0/me/drive/items/1/children?$skiptoken=abc');
   });
+
+  it('recusa URL absoluta fora do Graph sem chamar fetch', async () => {
+    const { client, fetchMock } = setup([json(200, {})]);
+    await expect(client.request('GET', 'https://evil.example.com/x')).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

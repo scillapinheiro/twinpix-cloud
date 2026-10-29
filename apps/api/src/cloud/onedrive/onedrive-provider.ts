@@ -1,6 +1,6 @@
 import type { CloudFolder, CloudItem, RestoreResult } from '@twinpix/shared';
 import type { ChildrenPage, CloudProvider } from '../cloud-provider';
-import { InvalidLinkError } from '../errors';
+import { GraphError, InvalidLinkError } from '../errors';
 import type { GraphClient } from './graph-client';
 import { mapFile, mapFolder, type DriveItem } from './map-drive-item';
 
@@ -59,7 +59,9 @@ export class OneDriveProvider implements CloudProvider {
 
   async moveToTrash(id: string): Promise<'moved' | 'already-gone'> {
     const { status } = await this.graph.request('DELETE', `/me/drive/items/${encodeURIComponent(id)}`);
-    return status === 404 ? 'already-gone' : 'moved';
+    if (status === 404) return 'already-gone';
+    if (status === 200 || status === 204) return 'moved';
+    throw new GraphError(status, '');
   }
 
   async restore(id: string): Promise<RestoreResult> {
@@ -83,7 +85,7 @@ export class OneDriveProvider implements CloudProvider {
     if (status === 404 || !data) throw new InvalidLinkError('Não encontrei essa pasta. Confira se o link está completo.');
     if (!data.folder) throw new InvalidLinkError('Este link não é de uma pasta.');
     const own = await this.getOwnDriveId();
-    if (data.parentReference?.driveId && data.parentReference.driveId !== own) {
+    if (data.parentReference?.driveId && data.parentReference.driveId.toLowerCase() !== own.toLowerCase()) {
       throw new InvalidLinkError('Esta pasta é de outra conta. Nesta versão, só dá para analisar pastas do seu próprio OneDrive.');
     }
     return mapFolder(data);

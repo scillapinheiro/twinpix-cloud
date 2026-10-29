@@ -25,7 +25,11 @@ export class GraphClient {
   }
 
   async request<T>(method: string, pathOrUrl: string, body?: unknown): Promise<{ status: number; data: T | null }> {
-    const url = pathOrUrl.startsWith('https://') ? pathOrUrl : `${BASE}${pathOrUrl}`;
+    const absolute = pathOrUrl.startsWith('https://');
+    if (absolute && !pathOrUrl.startsWith('https://graph.microsoft.com/')) {
+      throw new Error('URL fora do Microsoft Graph recusada.');
+    }
+    const url = absolute ? pathOrUrl : `${BASE}${pathOrUrl}`;
     let forceRefresh = false;
     let refreshed = false;
     let retries = 0;

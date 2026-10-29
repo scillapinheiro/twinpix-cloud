@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { InvalidLinkError } from '../errors';
+import { GraphError, InvalidLinkError } from '../errors';
 import type { GraphClient } from './graph-client';
 import { encodeShareUrl, OneDriveProvider } from './onedrive-provider';
 
@@ -60,6 +60,21 @@ describe('OneDriveProvider', () => {
     expect(await p.restore('A')).toBe('restored');
     expect(await p.restore('B')).toBe('not-in-trash');
     expect(await p.restore('C')).toBe('conflict');
+  });
+
+  it('lixeira: 409 não é confirmado como movido', async () => {
+    const { graph } = fakeGraph({ 'DELETE /me/drive/items/Z': { status: 409, data: null } });
+    await expect(new OneDriveProvider(graph).moveToTrash('Z')).rejects.toBeInstanceOf(GraphError);
+  });
+
+  it('link: compara o id da conta sem diferenciar maiúsculas', async () => {
+    const enc = encodeShareUrl('https://1drv.ms/f/s!abc');
+    const item = { ...folderItem('F', 'Pasta'), parentReference: { driveId: 'MEU', path: '/drive/root:' } };
+    const p = new OneDriveProvider(fakeGraph({
+      'GET /me/drive': { status: 200, data: { id: 'meu' } },
+      [`GET /shares/${enc}/driveItem`]: { status: 200, data: item },
+    }).graph);
+    await expect(p.resolveFolderLink('https://1drv.ms/f/s!abc')).resolves.toMatchObject({ id: 'F' });
   });
 
   it('codifica o link de compartilhamento no formato u!base64url', () => {
