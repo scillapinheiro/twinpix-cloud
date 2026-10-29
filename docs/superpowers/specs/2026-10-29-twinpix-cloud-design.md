@@ -104,7 +104,23 @@ A sugestão sempre mostra o **motivo** ("regra: mais antiga").
    **Arquivos exclusivos de uma pasta nunca são tocados.**
 5. **Histórico + desfazer**, enquanto o arquivo ainda estiver na lixeira.
 6. **Lote** (aplicar a regra em todas as idênticas) é uma ação separada e opcional.
-   O fluxo padrão é grupo a grupo.
+   O fluxo padrão é grupo a grupo. Detalhes em "Lote das idênticas" abaixo.
+
+### Lote das idênticas *(definido com a autora em 29/10/2026, após o teste real com ~550 grupos)*
+- **Só cópias idênticas.** Prováveis cópias nunca entram em lote.
+- **Prévia agrupada por par de pastas**, independente do nome das pastas: cada linha diz onde a
+  cópia **fica**, de onde as outras **saem**, quantos grupos, quantos arquivos e o espaço, e a
+  regra usada. Ex.: "140 grupos — fica em *Viagem Praia*, sai de *Backup celular 2015* — 1,2 GB".
+  Cada linha pode ser marcada/desmarcada e tem "ver lista" com os arquivos.
+- **Grupos sem regra clara** (empate resolvido só pela ordem alfabética) **ficam fora do lote** e
+  seguem para a revisão um por um; a prévia informa quantos.
+- Confirmação final (modal) com o total de arquivos e o espaço.
+- Execução em segundo plano, um grupo por vez, **com as mesmas proteções** do um por um (trava,
+  conferência dos dois lados, diário), com progresso, pausar/continuar e espera automática se a
+  internet cair. Grupo que mudou desde a prévia é pulado e volta para a revisão.
+- **"Desfazer este lote"** no Histórico, além do desfazer item a item.
+- **Atalhos de teclado** na revisão um por um: Enter abre a confirmação (e, no modal, confirma),
+  P pula, ← volta, Esc fecha o modal.
 
 ## 7. Telas (esboços aprovados em `.superpowers/brainstorm/*/content/`)
 

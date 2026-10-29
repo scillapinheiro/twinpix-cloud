@@ -14,9 +14,10 @@ A implementação foi dividida em planos:
 | Plano | Conteúdo | Situação |
 |---|---|---|
 | **1** | Base + **cópias idênticas** de ponta a ponta + modo demonstração | **Implementado e revisado** (branch `plano-1-identicas`) |
-| 2 | Prováveis cópias e lote (aplicar a regra em todas as idênticas) | A planejar |
+| 2 | **Lote das idênticas** (prévia por par de pastas, desfazer lote) + atalhos de teclado | Em planejamento (ordem redefinida com a autora em 29/10) |
 | 3 | Reconciliação de pastas | A planejar |
-| 4 | Testes de contrato com o OneDrive real, trava da pasta de teste, validação com as listagens do rclone (§10), acabamento | A planejar |
+| 4 | Prováveis cópias | A planejar |
+| 5 | Testes de contrato com o OneDrive real, trava da pasta de teste, validação com as listagens do rclone (§10), acabamento | A planejar |
 
 ## Estado atual
 
