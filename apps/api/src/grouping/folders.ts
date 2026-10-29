@@ -5,8 +5,8 @@ function trimSlash(p: string): string {
 }
 
 export function isInsideFolder(folderPath: string, folder: string): boolean {
-  const child = trimSlash(folderPath);
-  const parent = trimSlash(folder);
+  const child = trimSlash(folderPath).toLowerCase();
+  const parent = trimSlash(folder).toLowerCase();
   if (parent === '/') return true;
   return child === parent || child.startsWith(parent + '/');
 }

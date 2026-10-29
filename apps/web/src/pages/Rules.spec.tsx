@@ -58,3 +58,17 @@ it('não oferece critério simples que já está na lista, mas deixa repetir pas
   expect(labels).toContain('está na pasta…');
   expect(labels).toContain('não está na pasta…');
 });
+
+it('tira a barra final do caminho da pasta, menos na raiz', async () => {
+  const puts = setup();
+  await screen.findByText(/1\. nome sem sufixo/);
+  for (const typed of ['/Imagens/Viagem/', '/']) {
+    await userEvent.click(screen.getByRole('button', { name: 'Adicionar regra' }));
+    await userEvent.selectOptions(screen.getByLabelText('Critério'), 'inFolder');
+    await userEvent.type(screen.getByLabelText('Pasta'), typed);
+    await userEvent.click(screen.getByRole('button', { name: 'Incluir regra' }));
+  }
+  await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+  await screen.findByText('Regras salvas.');
+  expect(puts[0]).toEqual([...initial, { type: 'inFolder', path: '/Imagens/Viagem' }, { type: 'inFolder', path: '/' }]);
+});

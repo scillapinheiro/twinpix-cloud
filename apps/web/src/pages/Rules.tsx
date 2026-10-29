@@ -58,7 +58,8 @@ export function Rules() {
 
   function add() {
     if (selectedType === 'inFolder' || selectedType === 'notInFolder') {
-      const path = newPath.trim();
+      const typed = newPath.trim();
+      const path = typed.length > 1 ? typed.replace(/\/+$/, '') || '/' : typed;
       if (!path.startsWith('/')) { setAddError('Escreva o caminho começando com "/", por exemplo /Imagens/Viagem.'); return; }
       change([...rules!, { type: selectedType, path }]);
     } else {

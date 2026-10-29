@@ -61,6 +61,11 @@ describe('suggestKeep', () => {
     expect(suggestKeep(files, [{ type: 'notInFolder', path: '/Fotos' }]).keepId).toBe('a');
   });
 
+  it('regra de pasta ignora maiúsculas e minúsculas', () => {
+    const files = [f({ id: 'a', folderPath: '/Backup/2015' }), f({ id: 'b', folderPath: '/Imagens/Viagem/2020' })];
+    expect(suggestKeep(files, [{ type: 'inFolder', path: '/imagens/viagem' }]).keepId).toBe('b');
+  });
+
   it('maior tamanho e mais antiga (modificada em)', () => {
     expect(suggestKeep([f({ id: 'a', size: 1 }), f({ id: 'b', size: 2 })], [{ type: 'largestSize' }]).keepId).toBe('b');
     expect(

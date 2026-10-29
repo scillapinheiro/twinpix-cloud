@@ -8,6 +8,11 @@ describe('isInsideFolder', () => {
     expect(isInsideFolder('/AB', '/A')).toBe(false);
     expect(isInsideFolder('/qualquer', '/')).toBe(true);
   });
+
+  it('ignora maiúsculas e minúsculas', () => {
+    expect(isInsideFolder('/Imagens/Viagem/2020', '/imagens/viagem')).toBe(true);
+    expect(findNestedRoots(['/Fotos', '/fotos/a'])).toEqual([{ inner: '/fotos/a', outer: '/Fotos' }]);
+  });
 });
 
 describe('findNestedRoots', () => {
