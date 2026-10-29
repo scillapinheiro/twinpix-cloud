@@ -39,6 +39,8 @@ export function seedDemo(p: FakeCloudProvider): void {
     p.addFile(dia.id, { name: `IMG_000${i}.JPG`, ...common });
     p.addFile(diaCopia.id, { name: `IMG_000${i}.JPG`, ...common, modifiedAt: '2012-01-01T00:00:00Z' });
   }
+  // Foto que só existe em "07-06-07" (a outra pasta fica toda contida nela).
+  p.addFile(dia.id, { name: 'IMG_0005.JPG', size: 800_005, quickXorHash: 'demo-2007-5', takenAt: '2007-06-07T15:00:00Z', ...canon });
 
   // Arquivos únicos e um sem hash (vai para "não analisados").
   p.addFile(c2016.id, { name: 'IMG_20160401_090000.jpg', size: 2_000_000, ...samsung });

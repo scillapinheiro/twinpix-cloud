@@ -157,16 +157,19 @@ describe('API em modo demonstração', () => {
     const cluster = clusters.find((c) => c.folders.some((f) => f.path.endsWith('/07-06-07')) && c.folders.some((f) => f.path.endsWith('/minhas fotos/07-06-07')));
     expect(cluster, 'conjunto 07-06-07').toBeDefined();
     const keepFolder = cluster!.suggestedKeep;
+    expect(keepFolder.endsWith('/Minhas imagens/07-06-07')).toBe(true);
+    expect(cluster!.folders.find((f) => f.path.endsWith('/minhas fotos/07-06-07'))!.situation).toBe('contained');
     const otherFolders = cluster!.folders.map((f) => f.path).filter((p) => p !== keepFolder);
 
     const q = `key=${encodeURIComponent(cluster!.key)}&keep=${encodeURIComponent(keepFolder)}`;
     const plan = (await api().get(`${base}/plan?${q}`)).body as ReconcilePlan;
-    expect(plan.items.length).toBeGreaterThanOrEqual(4);
-    expect(plan.deleteFiles.length).toBeGreaterThanOrEqual(4);
+    expect(plan.items).toHaveLength(4);
+    expect(plan.deleteFiles).toHaveLength(4);
     for (const f of plan.deleteFiles) expect(otherFolders).toContain(f.folderPath);
     for (const f of plan.keepFiles) expect(f.folderPath).toBe(keepFolder);
 
-    const uniqueBefore = (await api().get(`${base}/unique?key=${encodeURIComponent(cluster!.key)}&folder=${encodeURIComponent(keepFolder)}`)).body as Array<{ id: string }>;
+    const uniqueBefore = (await api().get(`${base}/unique?key=${encodeURIComponent(cluster!.key)}&folder=${encodeURIComponent(keepFolder)}`)).body as Array<{ id: string; name?: string }>;
+    expect(uniqueBefore.map((u: { name?: string }) => u.name)).toContain('IMG_0005.JPG');
     // Sem os itens vistos, recusa.
     await api().post(`${base}/apply`, { key: cluster!.key, keepFolder }).expect(400);
     const sent = (await api().post(`${base}/apply`, { key: cluster!.key, keepFolder, items: plan.items }).expect(200)).body as BatchSummary;
@@ -181,11 +184,12 @@ describe('API em modo demonstração', () => {
 
     const cloud = app.get<FakeCloudProvider>(CLOUD_PROVIDER, { strict: false });
     for (const f of plan.deleteFiles) expect(cloud.isInTrash(f.id), `${f.name} deveria estar na lixeira`).toBe(true);
-    for (const it of plan.items) {
-      expect(cloud.isInTrash(it.keepId)).toBe(false);
-      expect(await cloud.getItem(it.keepId)).not.toBeNull();
+    for (const item of plan.items) {
+      expect(cloud.isInTrash(item.keepId)).toBe(false);
+      expect(await cloud.getItem(item.keepId)).not.toBeNull();
     }
     // Arquivos únicos nunca são tocados.
+    for (const f of plan.deleteFiles) expect(f.folderPath.endsWith('/minhas fotos/07-06-07')).toBe(true);
     for (const u of uniqueBefore) expect(cloud.isInTrash(u.id), `único ${u.id}`).toBe(false);
 
     // Os arquivos que saíram não aparecem mais no conjunto/plano.
