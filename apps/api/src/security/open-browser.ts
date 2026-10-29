@@ -6,7 +6,9 @@ export function openBrowser(url: string): void {
     : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]]
     : ['xdg-open', [url]];
   try {
-    spawn(cmd, args as string[], { stdio: 'ignore', detached: true }).unref();
+    const child = spawn(cmd, args as string[], { stdio: 'ignore', detached: true });
+    child.on('error', () => {});
+    child.unref();
   } catch {
     // Sem navegador disponível: o endereço já foi mostrado no terminal.
   }

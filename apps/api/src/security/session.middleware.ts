@@ -12,7 +12,8 @@ function safeEqual(a: string, b: string): boolean {
 
 export function sessionMiddleware(token: string, allowedOrigins: string[]): RequestHandler {
   return (req, res, next) => {
-    if (!req.path.startsWith('/api/') || EXEMPT.has(req.path)) return next();
+    const path = req.path.toLowerCase();
+    if (!(path === '/api' || path.startsWith('/api/')) || EXEMPT.has(path)) return next();
     const origin = req.headers.origin;
     if (origin && !allowedOrigins.includes(origin)) {
       res.status(403).json({ message: 'Origem não permitida.' });

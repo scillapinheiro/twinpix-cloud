@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { AppModule } from './app.module';
 import { loadConfig, loadDotEnv } from './config';
 import { DomainErrorFilter } from './http/domain-error.filter';
+import { hostGuard } from './security/host-guard';
 import { openBrowser } from './security/open-browser';
 import { sessionMiddleware } from './security/session.middleware';
 
@@ -14,6 +15,10 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(config), {
     logger: ['error', 'warn'],
   });
+  app.set('case sensitive routing', true);
+  app.set('strict routing', true);
+  const allowedHosts = config.allowedOrigins.map((o) => new URL(o).host);
+  app.use(hostGuard(allowedHosts));
   app.use(sessionMiddleware(config.sessionToken, config.allowedOrigins));
   app.setGlobalPrefix('api');
   app.useGlobalFilters(new DomainErrorFilter());

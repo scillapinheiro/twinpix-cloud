@@ -37,4 +37,26 @@ describe('sessionMiddleware', () => {
     await request(app()).get('/api/auth/login').expect(200);
     await request(app()).get('/index.html').expect(200);
   });
+
+  it('recusa variações de maiúsculas e barra final sem token', async () => {
+    await request(app()).get('/API/coisa').expect(401);
+    await request(app()).get('/Api/coisa/').expect(401);
+    await request(app()).get('/api/coisa/').expect(401);
+  });
+
+  it('aceita origem permitida com token certo', async () => {
+    await request(app())
+      .get('/api/coisa')
+      .set('X-TwinPix-Token', 'segredo')
+      .set('Origin', 'http://127.0.0.1:4317')
+      .expect(200);
+  });
+
+  it('recusa Origin: null mesmo com token', async () => {
+    await request(app()).get('/api/coisa').set('X-TwinPix-Token', 'segredo').set('Origin', 'null').expect(403);
+  });
+
+  it('rota isenta continua aberta mesmo com origem de outro site', async () => {
+    await request(app()).get('/api/auth/login').set('Origin', 'https://site-malicioso.example').expect(200);
+  });
 });
