@@ -408,3 +408,53 @@ it('lote pausado com arquivos movidos oferece "Desfazer este lote"', async () =>
   renderBatch();
   expect(await screen.findByRole('button', { name: 'Desfazer este lote' })).toBeInTheDocument();
 });
+
+describe('modo prováveis (?tipo=provaveis)', () => {
+  const probPreview: BatchPreview = {
+    scanId: 1, tiesCount: 0, pendingCount: 9,
+    lines: [{
+      key: 'P|Q', keepFolder: '/Fotos', removeFolders: ['/Fotos'], keepOptions: ['/Fotos'], reasons: ['nome sem sufixo de cópia'],
+      groupCount: 2, fileCount: 2, bytes: 4000,
+      items: [
+        { groupId: 7, keep: cloudItem({ id: 'k7', name: 'a.jpg', folderPath: '/Fotos' }), remove: [cloudItem({ id: 'r7', name: 'a (1).jpg', folderPath: '/Fotos' })], keepByFolder: {} },
+        { groupId: 8, keep: cloudItem({ id: 'k8', name: 'b.jpg', folderPath: '/Fotos' }), remove: [cloudItem({ id: 'r8', name: 'b (1).jpg', folderPath: '/Fotos' })], keepByFolder: {} },
+      ],
+    }],
+  };
+  function renderProb() {
+    const f = fetch as ReturnType<typeof vi.fn>;
+    const orig = f.getMockImplementation()!;
+    f.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/scans/1/batch?kind=probable' && (init?.method ?? 'GET') === 'GET') { calls.push({ url, method: 'GET' }); return new Response(JSON.stringify(probPreview)); }
+      if (url === '/api/scans/1/batch?kind=probable') { calls.push({ url, method: 'POST', body: init?.body as string }); return new Response(JSON.stringify(summary({ kind: 'probable' }))); }
+      if (url.endsWith('/thumbnail')) return new Response(JSON.stringify({ url: 'blob:x' }));
+      return orig(url, init);
+    });
+    render(<MemoryRouter initialEntries={['/lote/1?tipo=provaveis']}><Routes><Route path="/lote/:scanId" element={<Batch />} /></Routes></MemoryRouter>);
+  }
+
+  it('pede kind=probable, mostra título e aviso, linhas desmarcadas e sem Inverter', async () => {
+    renderProb();
+    expect(await screen.findByRole('heading', { name: 'Lote das prováveis regravações' })).toBeInTheDocument();
+    expect(calls.some((c) => c.url === '/api/scans/1/batch?kind=probable')).toBe(true);
+    expect(screen.getByRole('note')).toHaveTextContent('Podem ser a original e uma versão editada. Confira antes de excluir.');
+    expect(screen.getAllByRole('checkbox').every((c) => !(c as HTMLInputElement).checked)).toBe(true);
+    expect(screen.getByRole('button', { name: 'Mover para a lixeira (0 arquivos)' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /Inverter/ })).toBeNull();
+  });
+
+  it('ver lista mostra as miniaturas de cara e o POST leva kind=probable com os keeps das marcadas', async () => {
+    renderProb();
+    await screen.findByText('2 grupos');
+    await userEvent.click(screen.getByRole('button', { name: 'ver lista' }));
+    expect(await screen.findAllByRole('img', { name: 'a.jpg' })).toHaveLength(1);
+    expect(await screen.findAllByRole('img', { name: 'a (1).jpg' })).toHaveLength(1);
+    await userEvent.click(screen.getByRole('checkbox'));
+    await userEvent.click(screen.getByRole('button', { name: /Mover para a lixeira \(/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
+    const post = calls.find((c) => c.method === 'POST')!;
+    expect(post.url).toBe('/api/scans/1/batch?kind=probable');
+    expect(JSON.parse(post.body!)).toEqual({ lineKeys: ['P|Q'], keeps: { 7: 'k7', 8: 'k8' } });
+  });
+});

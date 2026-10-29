@@ -1,7 +1,7 @@
 import type { BatchItem, BatchLine, BatchPreview, BatchSummary } from '@twinpix/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { findOpenBatch, OTHER_BATCH_NOTICE } from '../components/BatchBits';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { BATCH_TITLE, findOpenBatch, OTHER_BATCH_NOTICE } from '../components/BatchBits';
 import { BatchProgress } from '../components/BatchProgress';
 import { BatchConfirmDialog } from '../components/BatchConfirmDialog';
 import { Thumbnail } from '../components/Thumbnail';
@@ -44,11 +44,13 @@ function lineStats(l: BatchLine, folder: string): { files: number; bytes: number
   return { files, bytes };
 }
 
-function BatchItems({ line, folder }: { line: BatchLine; folder: string }) {
+function BatchItems({ line, folder, probable }: { line: BatchLine; folder: string; probable: boolean }) {
   const [shown, setShown] = useState(PAGE);
   return (
     <div className="batch-items-wrap">
-      <p className="muted">São cópias idênticas: o conteúdo é o mesmo byte a byte, mesmo quando o nome do arquivo é diferente.</p>
+      {probable
+        ? <p className="muted">São prováveis regravações: parecem a mesma foto ou vídeo, mas o conteúdo não é igual byte a byte. Confira as miniaturas.</p>
+        : <p className="muted">São cópias idênticas: o conteúdo é o mesmo byte a byte, mesmo quando o nome do arquivo é diferente.</p>}
       <ul className="batch-items">
         {line.items.slice(0, shown).map((it) => {
           const keepId = keepIdFor(line, it, folder);
@@ -87,6 +89,9 @@ function BatchItems({ line, folder }: { line: BatchLine; folder: string }) {
 
 export function Batch() {
   const { scanId } = useParams();
+  const [search] = useSearchParams();
+  const probable = search.get('tipo') === 'provaveis';
+  const kind = probable ? 'probable' : 'lines';
   const [preview, setPreview] = useState<BatchPreview | null>(null);
   const [batch, setBatch] = useState<BatchSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -100,11 +105,11 @@ export function Batch() {
       try {
         const all = await apiFetch<BatchSummary[]>('/api/batches').catch(() => [] as BatchSummary[]);
         // Lote aberto (deste ou de outro tipo/análise) impede começar outro: mostra ele.
-        const open = findOpenBatch(all, Number(scanId), 'lines');
+        const open = findOpenBatch(all, Number(scanId), kind);
         if (open) {
           if (!cancelled) setBatch(open);
         } else {
-          const p = await apiFetch<BatchPreview>(`/api/scans/${scanId}/batch`);
+          const p = await apiFetch<BatchPreview>(`/api/scans/${scanId}/batch${probable ? '?kind=probable' : ''}`);
           if (!cancelled) { setBatch(null); setPreview(p); }
         }
       } catch (e) {
@@ -114,28 +119,30 @@ export function Batch() {
       }
     })();
     return () => { cancelled = true; };
-  }, [scanId, reloads]);
+  }, [scanId, reloads, probable, kind]);
 
   if (error) return <><p className="alert">{error}</p><p><Link to={`/varredura/${scanId}`}>Voltar à análise</Link></p></>;
   if (!loaded) return <p>Carregando…</p>;
   if (batch) {
-    const other = batch.kind !== 'lines' || batch.scanId !== Number(scanId);
+    const other = batch.kind !== kind || batch.scanId !== Number(scanId);
     return (
       <BatchProgress
         key={batch.id}
         initial={batch}
         scanId={String(batch.scanId)}
         notice={other ? OTHER_BATCH_NOTICE : undefined}
-        afterFinish={other ? <button type="button" className="button primary" onClick={() => { setLoaded(false); setReloads((n) => n + 1); }}>Ir para o lote das idênticas</button> : undefined}
+        afterFinish={other ? <button type="button" className="button primary" onClick={() => { setLoaded(false); setReloads((n) => n + 1); }}>{probable ? 'Ir para o lote das prováveis' : 'Ir para o lote das idênticas'}</button> : undefined}
       />
     );
   }
-  if (preview) return <BatchPreviewView preview={preview} scanId={scanId!} onStarted={setBatch} />;
+  if (preview) return <BatchPreviewView key={kind} preview={preview} scanId={scanId!} probable={probable} onStarted={setBatch} />;
   return null;
 }
 
-function BatchPreviewView({ preview, scanId, onStarted }: { preview: BatchPreview; scanId: string; onStarted: (b: BatchSummary) => void }) {
-  const [marked, setMarked] = useState<Set<string>>(new Set(preview.lines.map((l) => l.key)));
+function BatchPreviewView({ preview, scanId, probable, onStarted }: { preview: BatchPreview; scanId: string; probable: boolean; onStarted: (b: BatchSummary) => void }) {
+  // Prováveis: tudo desmarcado; a autora escolhe o que mover depois de ver as miniaturas.
+  const [marked, setMarked] = useState<Set<string>>(new Set(probable ? [] : preview.lines.map((l) => l.key)));
+  const title = probable ? BATCH_TITLE.probable : 'Revisar em lote';
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [choice, setChoice] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
@@ -166,7 +173,7 @@ function BatchPreviewView({ preview, scanId, onStarted }: { preview: BatchPrevie
   if (preview.lines.length === 0) {
     return (
       <section className="card">
-        <h1>Revisar em lote</h1>
+        <h1>{title}</h1>
         <p>Não há grupos para o lote.</p>
         {preview.tiesCount > 0 && <p className="notice">{plural(preview.tiesCount, 'grupo sem regra clara fica', 'grupos sem regra clara ficam')} para a revisão um por um.</p>}
         <div className="row"><Link className="button primary" to={`/revisao/${scanId}`}>Revisão um por um</Link></div>
@@ -178,11 +185,23 @@ function BatchPreviewView({ preview, scanId, onStarted }: { preview: BatchPrevie
     <>
       <section className="batch" inert={confirming}>
         <div className="card">
-          <h1>Revisar em lote</h1>
-          <p>
-            Só cópias idênticas. Em cada grupo, fica a cópia sugerida pela regra; as outras vão para a lixeira do OneDrive.
-            Dá para desfazer pelo Histórico.
-          </p>
+          <h1>{title}</h1>
+          {probable ? (
+            <>
+              <p className="notice probable-warning" role="note">
+                <span aria-hidden="true">⚠ </span>Podem ser a original e uma versão editada. Confira antes de excluir.
+              </p>
+              <p>
+                Só grupos que parecem a mesma gravação, com a cópia sem sufixo de cópia no nome. Em cada grupo, fica essa cópia; as outras
+                vão para a lixeira do OneDrive. Nada vem marcado: marque as linhas que quiser mover. Dá para desfazer pelo Histórico.
+              </p>
+            </>
+          ) : (
+            <p>
+              Só cópias idênticas. Em cada grupo, fica a cópia sugerida pela regra; as outras vão para a lixeira do OneDrive.
+              Dá para desfazer pelo Histórico.
+            </p>
+          )}
           {preview.tiesCount > 0 && (
             <p className="notice">{plural(preview.tiesCount, 'grupo sem regra clara fica', 'grupos sem regra clara ficam')} para a revisão um por um.</p>
           )}
@@ -225,7 +244,7 @@ function BatchPreviewView({ preview, scanId, onStarted }: { preview: BatchPrevie
                 <button type="button" className="link" aria-expanded={open.has(l.key)} onClick={() => setOpen((o) => flip(o, l.key))}>
                   {open.has(l.key) ? 'esconder lista' : 'ver lista'}
                 </button>
-                {open.has(l.key) && <BatchItems line={l} folder={keepFolder} />}
+                {open.has(l.key) && <BatchItems line={l} folder={keepFolder} probable={probable} />}
               </li>
             );
           })}
@@ -247,7 +266,7 @@ function BatchPreviewView({ preview, scanId, onStarted }: { preview: BatchPrevie
           onConfirm={async () => {
             // A ★ de cada grupo das linhas marcadas, a mesma do "ver lista": o servidor recusa se a prévia mudou.
             const keeps = Object.fromEntries(chosen.flatMap((l) => l.items.map((it) => [it.groupId, keepIdFor(l, it, folderOf(l))])));
-            const b = await apiFetch<BatchSummary>(`/api/scans/${scanId}/batch`, {
+            const b = await apiFetch<BatchSummary>(`/api/scans/${scanId}/batch${probable ? '?kind=probable' : ''}`, {
               method: 'POST',
               body: { lineKeys: chosen.map((l) => l.key), ...(inverted.length ? { keepFolders: Object.fromEntries(inverted.map((l) => [l.key, folderOf(l)])) } : {}), keeps },
             });

@@ -525,6 +525,7 @@ describe('modo prováveis cópias', () => {
     expect(calls[0].url).toBe('/api/scans/1/groups/current?kind=probable');
     for (const box of screen.getAllByRole('checkbox', { name: 'Excluir esta cópia' })) expect(box).not.toBeChecked();
     expect(screen.queryByText('Revisar em lote')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Lote das prováveis regravações' })).toHaveAttribute('href', '/lote/1?tipo=provaveis');
     expect(screen.getAllByText('★ Sugerida para manter').length).toBeGreaterThan(0);
   });
 

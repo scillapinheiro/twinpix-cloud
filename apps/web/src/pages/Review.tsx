@@ -197,6 +197,7 @@ export function Review() {
           Grupo {group.position} de {group.total} · {probable ? 'Prováveis cópias' : 'Cópias idênticas'} · {formatBytes(group.bytesFreedSoFar)} liberados até agora
         </strong>
         {!probable && <>{' '}<Link className="batch-link" to={`/lote/${scanId}`}>Revisar em lote</Link></>}
+        {probable && <>{' '}<Link className="batch-link" to={`/lote/${scanId}?tipo=provaveis`}>Lote das prováveis regravações</Link></>}
         {probable && (
           <p className="notice probable-warning" role="note">
             <span aria-hidden="true">⚠ </span>Podem ser a original e uma versão editada. Confira antes de excluir.

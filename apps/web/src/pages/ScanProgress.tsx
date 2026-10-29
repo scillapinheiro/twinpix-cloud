@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes } from '../lib/format';
+import { ProbableBatchButton } from '../components/ProbableBatchButton';
 
 const STATUS_TEXT: Record<ScanSummary['status'], string> = {
   running: 'Analisando… (só lendo informações; nada é baixado)',
@@ -122,6 +123,7 @@ export function ScanProgress() {
         {scan.status !== 'cancelled' && scan.probablePending + scan.probableSkipped > 0 && (
           <Link className="button" to={`/revisao/${scan.id}?tipo=provaveis`}>Revisar prováveis cópias</Link>
         )}
+        <ProbableBatchButton scan={scan} />
         {scan.status === 'done' && clusterCount > 0 && (
           <Link className="button" to={`/pastas-repetidas/${scan.id}`}>Pastas repetidas ({clusterCount})</Link>
         )}

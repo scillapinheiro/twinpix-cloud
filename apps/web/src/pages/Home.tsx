@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes } from '../lib/format';
+import { ProbableBatchButton } from '../components/ProbableBatchButton';
 import { plural } from '../lib/plural';
 
 export function Home() {
@@ -58,6 +59,7 @@ export function Home() {
         {latest && <Link className="button" to={`/varredura/${latest.id}`}>Ver análise</Link>}
         {latest && latest.groupsPending + latest.groupsSkipped > 0 && <Link className="button primary" to={`/revisao/${latest.id}`}>Continuar revisão</Link>}
         {latest && latest.probablePending + latest.probableSkipped > 0 && <Link className="button" to={`/revisao/${latest.id}?tipo=provaveis`}>Revisar prováveis cópias</Link>}
+        <ProbableBatchButton scan={latest} />
         <Link className="button primary" to="/pastas">Nova análise</Link>
       </div>
     </section>
