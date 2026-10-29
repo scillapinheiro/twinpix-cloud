@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import type { ActionResult, GroupView, ActionStatus, ApplyResult, DeletionPreview, HistoryEntry, UndoResponse } from '@twinpix/shared';
-import type { CloudItem } from '@twinpix/shared';
+import type { BatchKind, CloudItem } from '@twinpix/shared';
 import type { CloudProvider } from '../cloud/cloud-provider';
 import { ForbiddenError } from '../cloud/errors';
 import { ReviewService } from '../review/review.service';
@@ -146,13 +146,14 @@ export class ActionsService implements OnModuleInit {
   history(): HistoryEntry[] {
     const rows = this.db.sql
       .prepare(
-        `SELECT a.id action_id, a.group_id, a.status, a.error, a.created_at action_created_at, a.batch_id, f.*
+        `SELECT a.id action_id, a.group_id, a.status, a.error, a.created_at action_created_at, a.batch_id, b.kind batch_kind, f.*
          FROM actions a
+         LEFT JOIN batches b ON b.id = a.batch_id
          JOIN dup_groups g ON g.id = a.group_id
          JOIN files f ON f.scan_id = g.scan_id AND f.id = a.file_id
          ORDER BY a.id DESC`,
       )
-      .all() as Array<FileRow & { action_id: number; group_id: number; status: ActionStatus; error: string | null; action_created_at: string; batch_id: number | null }>;
+      .all() as Array<FileRow & { action_id: number; group_id: number; status: ActionStatus; error: string | null; action_created_at: string; batch_id: number | null; batch_kind: BatchKind | null }>;
     return rows.map((r) => ({
       actionId: r.action_id,
       groupId: r.group_id,
@@ -161,6 +162,7 @@ export class ActionsService implements OnModuleInit {
       error: r.error,
       createdAt: r.action_created_at,
       batchId: r.batch_id,
+      batchKind: r.batch_kind,
     }));
   }
 

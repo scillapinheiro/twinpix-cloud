@@ -114,6 +114,7 @@ export interface HistoryEntry {
   error: string | null;
   createdAt: string;
   batchId: number | null;
+  batchKind: BatchKind | null;
 }
 
 export type RestoreResult = 'restored' | 'not-in-trash' | 'conflict';
@@ -166,8 +167,11 @@ export interface BatchPreview {
 
 export type BatchStatus = 'running' | 'paused' | 'waiting-network' | 'needs-auth' | 'done' | 'undoing' | 'undone' | 'error';
 
+export type BatchKind = 'lines' | 'folders';
+
 export interface BatchSummary {
   id: number;
+  kind: BatchKind;
   scanId: number;
   status: BatchStatus;
   createdAt: string;

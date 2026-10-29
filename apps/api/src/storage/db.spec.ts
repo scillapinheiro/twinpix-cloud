@@ -56,6 +56,8 @@ describe('Db', () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL, file_id TEXT NOT NULL,
       kept_file_id TEXT NOT NULL, status TEXT NOT NULL, error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       INSERT INTO actions (group_id, file_id, kept_file_id, status, created_at, updated_at) VALUES (1, 'f', 'k', 'done', 'x', 'x');
+      CREATE TABLE batches (id INTEGER PRIMARY KEY AUTOINCREMENT, scan_id INTEGER NOT NULL, created_at TEXT NOT NULL, status TEXT NOT NULL, error TEXT);
+      INSERT INTO batches (scan_id, created_at, status) VALUES (1, 'x', 'done');
       CREATE TABLE batch_groups (batch_id INTEGER NOT NULL, group_id INTEGER NOT NULL, line_key TEXT NOT NULL, seq INTEGER NOT NULL, status TEXT NOT NULL, PRIMARY KEY (batch_id, group_id));
       INSERT INTO batch_groups (batch_id, group_id, line_key, seq, status) VALUES (7, 3, 'k', 0, 'pending');`);
     old.close();
@@ -65,12 +67,15 @@ describe('Db', () => {
       expect(cols.filter((c) => c === 'batch_id')).toHaveLength(1);
       const bcols = (db.sql.prepare('PRAGMA table_info(batches)').all() as Array<{ name: string }>).map((c) => c.name);
       expect(bcols).toContain('not_restored');
+      expect(bcols.filter((c) => c === 'kind')).toHaveLength(1);
       const gcols = (db.sql.prepare('PRAGMA table_info(batch_groups)').all() as Array<{ name: string }>).map((c) => c.name);
       expect(gcols.filter((c) => c === 'keep_folder')).toHaveLength(1);
       expect(gcols.filter((c) => c === 'keep_id')).toHaveLength(1);
-      expect(db.sql.prepare('SELECT batch_id, group_id, line_key, keep_folder, keep_id FROM batch_groups').all()).toEqual([
-        { batch_id: 7, group_id: 3, line_key: 'k', keep_folder: null, keep_id: null },
+      expect(gcols.filter((c) => c === 'delete_ids')).toHaveLength(1);
+      expect(db.sql.prepare('SELECT batch_id, group_id, line_key, keep_folder, keep_id, delete_ids FROM batch_groups').all()).toEqual([
+        { batch_id: 7, group_id: 3, line_key: 'k', keep_folder: null, keep_id: null, delete_ids: null },
       ]);
+      expect(db.sql.prepare('SELECT kind FROM batches').get()).toEqual({ kind: 'lines' });
       expect(db.sql.prepare('SELECT batch_id FROM actions').get()).toEqual({ batch_id: null });
       db.close();
     }

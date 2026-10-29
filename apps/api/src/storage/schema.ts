@@ -74,7 +74,8 @@ CREATE TABLE IF NOT EXISTS batches (
   created_at TEXT NOT NULL,
   status TEXT NOT NULL,
   error TEXT,
-  not_restored INTEGER NOT NULL DEFAULT 0
+  not_restored INTEGER NOT NULL DEFAULT 0,
+  kind TEXT NOT NULL DEFAULT 'lines'
 );
 CREATE TABLE IF NOT EXISTS batch_groups (
   batch_id INTEGER NOT NULL REFERENCES batches(id),
@@ -84,6 +85,7 @@ CREATE TABLE IF NOT EXISTS batch_groups (
   status TEXT NOT NULL,
   keep_folder TEXT,
   keep_id TEXT,
+  delete_ids TEXT,
   PRIMARY KEY (batch_id, group_id)
 );
 CREATE TABLE IF NOT EXISTS settings (

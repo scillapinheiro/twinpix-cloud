@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import type { BatchPreview, GroupView, BatchStatus, BatchSummary } from '@twinpix/shared';
+import type { BatchPreview, GroupView, BatchStatus, BatchSummary, BatchKind, ReconcileItem, ReconcilePlan } from '@twinpix/shared';
 import { ActionsService } from '../actions/actions.service';
 import { OfflineError, ReconnectRequiredError } from '../cloud/errors';
 import { ReviewService } from '../review/review.service';
@@ -25,7 +25,7 @@ export const BATCH_ERRORS = {
   notRestored: 'Algum arquivo não foi restaurado por um erro inesperado. Confira no Histórico.',
 } as const;
 
-interface BatchGroupRow { group_id: number; line_key: string; keep_folder: string | null; keep_id: string | null }
+interface BatchGroupRow { group_id: number; line_key: string; keep_folder: string | null; keep_id: string | null; delete_ids: string | null }
 
 @Injectable()
 export class BatchService implements OnModuleInit {
@@ -133,6 +133,51 @@ export class BatchService implements OnModuleInit {
   }
 
   /**
+   * Lote de pastas: executa exatamente o plano que a autora viu. `sentItems` são os itens da prévia;
+   * se diferem do plano recalculado (grupos, cópia que fica ou cópias que saem), recusa.
+   */
+  startFolders(scanId: number, plan: ReconcilePlan, sentItems: ReconcileItem[]): BatchSummary {
+    const changed = () => new BadRequestException('A prévia mudou. Abra as pastas repetidas de novo.');
+    const scan = this.db.sql.prepare('SELECT status FROM scans WHERE id = ?').get(scanId) as { status: string } | undefined;
+    if (!scan) throw new NotFoundException('Varredura não encontrada.');
+    if (scan.status === 'running' || scan.status === 'waiting-network') {
+      throw new BadRequestException('Espere a análise terminar para revisar em lote.');
+    }
+    const active = this.db.sql
+      .prepare("SELECT 1 FROM batches WHERE status IN ('running', 'waiting-network', 'undoing') LIMIT 1")
+      .get();
+    if (active) throw new BadRequestException('Já existe um lote em andamento.');
+    if (!Array.isArray(sentItems) || sentItems.length === 0 || sentItems.length !== plan.items.length) throw changed();
+    const sentByGroup = new Map<number, ReconcileItem>();
+    for (const it of sentItems) {
+      if (!it || typeof it.groupId !== 'number' || typeof it.keepId !== 'string' || !Array.isArray(it.deleteIds) || sentByGroup.has(it.groupId)) throw changed();
+      sentByGroup.set(it.groupId, it);
+    }
+    for (const want of plan.items) {
+      const got = sentByGroup.get(want.groupId);
+      if (!got || got.keepId !== want.keepId) throw changed();
+      const a = new Set(want.deleteIds);
+      if (got.deleteIds.length !== want.deleteIds.length || got.deleteIds.some((d) => typeof d !== 'string' || !a.has(d)) || new Set(got.deleteIds).size !== a.size) throw changed();
+      if (want.deleteIds.length === 0 || a.has(want.keepId)) throw changed();
+    }
+
+    const sql = this.db.sql;
+    const id = sql.transaction(() => {
+      const { lastInsertRowid } = sql
+        .prepare("INSERT INTO batches (scan_id, created_at, status, kind) VALUES (?, ?, 'running', 'folders')")
+        .run(scanId, nowIso());
+      const batchId = Number(lastInsertRowid);
+      plan.items.forEach((item, seq) => {
+        sql.prepare("INSERT INTO batch_groups (batch_id, group_id, line_key, seq, status, keep_folder, keep_id, delete_ids) VALUES (?, ?, ?, ?, 'pending', NULL, ?, ?)")
+          .run(batchId, item.groupId, plan.clusterKey, seq, item.keepId, JSON.stringify(item.deleteIds));
+      });
+      return batchId;
+    })();
+    this.launch(id, 'apply');
+    return this.summary(id);
+  }
+
+  /**
    * Desfazendo = 'undoing', ou 'waiting-network' sem grupos pendentes (o desfazer encerra os pendentes
    * ao começar; uma execução esperando rede sempre tem o grupo atual pendente).
    */
@@ -189,8 +234,8 @@ export class BatchService implements OnModuleInit {
 
   summary(id: number): BatchSummary {
     const sql = this.db.sql;
-    const b = sql.prepare('SELECT scan_id, created_at, status, error, not_restored FROM batches WHERE id = ?').get(id) as
-      | { scan_id: number; created_at: string; status: BatchStatus; error: string | null; not_restored: number }
+    const b = sql.prepare('SELECT scan_id, created_at, status, error, not_restored, kind FROM batches WHERE id = ?').get(id) as
+      | { scan_id: number; created_at: string; status: BatchStatus; error: string | null; not_restored: number; kind: BatchKind }
       | undefined;
     if (!b) throw new NotFoundException('Lote não encontrado.');
     const n = (q: string) => (sql.prepare(q).get(id) as { n: number }).n;
@@ -198,6 +243,7 @@ export class BatchService implements OnModuleInit {
       n(`SELECT COUNT(*) n FROM actions WHERE batch_id = ? AND status = '${status}'`);
     return {
       id,
+      kind: b.kind,
       scanId: b.scan_id,
       status: b.status,
       createdAt: b.created_at,
@@ -248,7 +294,7 @@ export class BatchService implements OnModuleInit {
         return;
       }
       const next = sql
-        .prepare("SELECT group_id, line_key, keep_folder, keep_id FROM batch_groups WHERE batch_id = ? AND status = 'pending' ORDER BY seq LIMIT 1")
+        .prepare("SELECT group_id, line_key, keep_folder, keep_id, delete_ids FROM batch_groups WHERE batch_id = ? AND status = 'pending' ORDER BY seq LIMIT 1")
         .get(id) as BatchGroupRow | undefined;
       if (!next) {
         this.setStatus(id, 'done');
@@ -276,6 +322,7 @@ export class BatchService implements OnModuleInit {
   }
 
   private async processGroup(batchId: number, row: BatchGroupRow): Promise<'done' | 'skipped'> {
+    if (row.delete_ids !== null) return this.processFolderGroup(batchId, row);
     const view = this.review.view(row.group_id);
     if (!this.stillMatches(view, row.line_key)) return 'skipped';
     // A mesma conferência roda de novo dentro da trava do ActionsService, com o grupo recalculado.
@@ -300,6 +347,22 @@ export class BatchService implements OnModuleInit {
         v.files.length === deleteIds.length + 1 &&
         deleteIds.every((id) => v.files.some((f) => f.id === id)),
     });
+    return result.stale || result.skipped ? 'skipped' : 'done';
+  }
+
+  /** Lote de pastas: a cópia que fica e as que saem foram gravadas; tudo precisa continuar ativo no grupo. */
+  private async processFolderGroup(batchId: number, row: BatchGroupRow): Promise<'done' | 'skipped'> {
+    const keepId = row.keep_id;
+    const deleteIds = JSON.parse(row.delete_ids as string) as string[];
+    const intact = (v: GroupView): boolean =>
+      v.status === 'pending' &&
+      keepId !== null &&
+      deleteIds.length > 0 &&
+      !deleteIds.includes(keepId) &&
+      v.files.some((f) => f.id === keepId) &&
+      deleteIds.every((id) => v.files.some((f) => f.id === id));
+    if (!intact(this.review.view(row.group_id))) return 'skipped';
+    const result = await this.actions.apply(row.group_id, deleteIds, { batchId, expect: intact });
     return result.stale || result.skipped ? 'skipped' : 'done';
   }
 

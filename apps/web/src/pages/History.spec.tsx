@@ -6,7 +6,7 @@ import { History } from './History';
 
 it('lista o histórico e desfaz', async () => {
   const entry = {
-    actionId: 3, groupId: 7, status: 'done', error: null, batchId: null, createdAt: '2026-10-29T10:00:00Z',
+    actionId: 3, groupId: 7, status: 'done', error: null, batchId: null, batchKind: null, createdAt: '2026-10-29T10:00:00Z',
     file: { id: 'b', name: 'x 1.jpg', folderPath: '/A', size: 1000 },
   };
   const fetchMock = vi.fn(async (url: string) => {
@@ -23,7 +23,7 @@ it('lista o histórico e desfaz', async () => {
 
 it('mostra lotes, rótulo "lote #N" e desfaz o lote após confirmar', async () => {
   const entry = {
-    actionId: 3, groupId: 7, status: 'done', error: null, batchId: 4, createdAt: '2026-10-29T10:00:00Z',
+    actionId: 3, groupId: 7, status: 'done', error: null, batchId: 4, batchKind: 'lines', createdAt: '2026-10-29T10:00:00Z',
     file: { id: 'b', name: 'x 1.jpg', folderPath: '/A', size: 1000 },
   };
   const batch = { id: 4, scanId: 1, status: 'done', createdAt: '2026-10-29T10:00:00Z', totalGroups: 2, doneGroups: 2, skippedGroups: 0, movedFiles: 5, movedBytes: 2_000_000, failedFiles: 0, restoredFiles: 0, notRestoredFiles: 0, error: null };

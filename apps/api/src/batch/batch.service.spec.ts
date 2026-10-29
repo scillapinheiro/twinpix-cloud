@@ -7,6 +7,7 @@ import { ReviewService } from '../review/review.service';
 import { setRules } from '../review/rules-settings';
 import { ScanService } from '../scan/scan.service';
 import { Db } from '../storage/db';
+import type { ReconcileItem, ReconcilePlan } from '@twinpix/shared';
 import { BatchService } from './batch.service';
 
 let db: Db;
@@ -48,6 +49,8 @@ beforeEach(async () => {
   cloud.addFile(A.id, { id: 'a3', name: 'a3.jpg', quickXorHash: 'h3', size: 300, ...old });
   cloud.addFile(C.id, { id: 'c3', name: 'a3.jpg', quickXorHash: 'h3', size: 300, ...nw });
   const D = cloud.addFolder(cloud.rootId, 'D');
+  cloud.addFile(B.id, { id: 'u1', name: 'u1.jpg', quickXorHash: 'hu', size: 50, ...nw });
+  cloud.addFile(D.id, { id: 'u2', name: 'u2.jpg', quickXorHash: null, size: 60, ...nw });
   cloud.addFile(A.id, { id: 'a4', name: 'a4.jpg', quickXorHash: 'h4', size: 400, ...old });
   cloud.addFile(D.id, { id: 'd4', name: 'a4.jpg', quickXorHash: 'h4', size: 400, ...nw });
   cloud.addFile(D.id, { id: 'd4x', name: 'a4 (1).jpg', quickXorHash: 'h4', size: 400, ...nw });
@@ -618,5 +621,88 @@ describe('BatchService: cópia fixada sem pasta escolhida', () => {
     expect(cloud.isInTrash('e1')).toBe(false);
     expect(cloud.isInTrash('e2') && cloud.isInTrash('f1')).toBe(true);
     await expectEveryGroupKeepsACopy();
+  });
+
+  describe('lote de pastas', () => {
+    const gidOf = (fileId: string) => (db.sql.prepare('SELECT group_id FROM dup_group_files WHERE file_id = ?').get(fileId) as { group_id: number }).group_id;
+    /** Plano à mão: mantém a1 (pasta /A) e d4 (pasta /D, com d4x extra que fica); saem b1 e a4. */
+    const plan = (): ReconcilePlan => ({
+      clusterKey: 'k', keepFolder: '/A',
+      items: [
+        { groupId: gidOf('a1'), keepId: 'a1', deleteIds: ['b1'] },
+        { groupId: gidOf('a4'), keepId: 'd4', deleteIds: ['a4'] },
+      ],
+      deleteFiles: [], bytes: 0, remaining: [],
+    });
+    const sentOf = (p: ReconcilePlan): ReconcileItem[] => p.items.map((i) => ({ ...i, deleteIds: [...i.deleteIds] }));
+    /** Arquivos sem cópia em nenhum grupo (só existem em uma pasta): nunca podem ser tocados. */
+    const uniqueIds = (): string[] =>
+      (db.sql.prepare('SELECT id FROM files WHERE scan_id = ? AND id NOT IN (SELECT file_id FROM dup_group_files)').all(scanId) as Array<{ id: string }>).map((r) => r.id);
+    const expectUniquesUntouched = (): void => {
+      expect(uniqueIds().sort()).toEqual(['u1', 'u2']);
+      for (const id of uniqueIds()) expect(cloud.isInTrash(id), `${id} foi tocado`).toBe(false);
+    };
+
+    it('migra colunas: kind padrão lines e delete_ids nulo', () => {
+      const s = startBatch([lineFor('/B').key]);
+      expect(batch.summary(s.id).kind).toBe('lines');
+      expect((db.sql.prepare('SELECT delete_ids FROM batch_groups').get() as { delete_ids: string | null }).delete_ids).toBeNull();
+    });
+
+    it('move só os delete_ids, mantém a cópia extra da pasta escolhida e desfaz tudo', async () => {
+      const p = plan();
+      const s = batch.startFolders(scanId, p, sentOf(p));
+      expect(s.kind).toBe('folders');
+      await batch.whenIdle(s.id);
+      expect(batch.summary(s.id)).toMatchObject({ status: 'done', totalGroups: 2, doneGroups: 2, skippedGroups: 0, movedFiles: 2 });
+      expect(cloud.isInTrash('b1') && cloud.isInTrash('a4')).toBe(true);
+      expect(cloud.isInTrash('d4') || cloud.isInTrash('d4x') || cloud.isInTrash('a1')).toBe(false);
+      expect(actions.history().every((h) => h.batchId === s.id)).toBe(true);
+      expectUniquesUntouched();
+      await expectEveryGroupKeepsACopy();
+      batch.undo(s.id);
+      await batch.whenIdle(s.id);
+      expect(batch.summary(s.id)).toMatchObject({ status: 'undone', restoredFiles: 2, notRestoredFiles: 0 });
+      for (const id of ['a1', 'a2', 'a3', 'a4', 'b1', 'b2', 'c3', 'd4', 'd4x']) expect(cloud.isInTrash(id)).toBe(false);
+      await expectEveryGroupKeepsACopy();
+    });
+
+    it('delete_id que sumiu: grupo pulado sem mover nada', async () => {
+      const p = plan();
+      // O plano foi visto com a4 ativo; antes de rodar, a4 sai por fora (um a um).
+      await actions.apply(gidOf('a4'), ['a4'], {});
+      const s = batch.startFolders(scanId, p, sentOf(p));
+      await batch.whenIdle(s.id);
+      expect(batch.summary(s.id)).toMatchObject({ doneGroups: 1, skippedGroups: 1 });
+      expect(cloud.isInTrash('d4')).toBe(false);
+      expect(cloud.isInTrash('b1')).toBe(true);
+      expectUniquesUntouched();
+      await expectEveryGroupKeepsACopy();
+    });
+
+    it('itens enviados diferentes do plano: 400 e nada criado', () => {
+      const p = plan();
+      const bad = [sentOf(p).slice(0, 1), [{ ...sentOf(p)[0], keepId: 'b1' }, sentOf(p)[1]], [{ ...sentOf(p)[0], deleteIds: ['b1', 'a4'] }, sentOf(p)[1]]];
+      for (const sent of bad) {
+        expect(() => batch.startFolders(scanId, p, sent)).toThrow('A prévia mudou. Abra as pastas repetidas de novo.');
+      }
+      expect(() => batch.startFolders(scanId, p, null as never)).toThrow(BadRequestException);
+      expect((db.sql.prepare('SELECT COUNT(*) n FROM batches').get() as { n: number }).n).toBe(0);
+    });
+
+    it('recusa com lote ativo', () => {
+      const p = plan();
+      batch.startFolders(scanId, p, sentOf(p));
+      expect(() => batch.startFolders(scanId, p, sentOf(p))).toThrow('Já existe um lote em andamento.');
+    });
+
+    it('lista e histórico mostram o tipo', async () => {
+      const p = plan();
+      const s = batch.startFolders(scanId, p, sentOf(p));
+      await batch.whenIdle(s.id);
+      expect(batch.list()[0].kind).toBe('folders');
+      expect(actions.history()[0].batchKind).toBe('folders');
+      expectUniquesUntouched();
+    });
   });
 });

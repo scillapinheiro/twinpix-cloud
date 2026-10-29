@@ -28,6 +28,12 @@ export class Db {
     if (!hasColumn('batch_groups', 'keep_id')) {
       this.sql.exec('ALTER TABLE batch_groups ADD COLUMN keep_id TEXT');
     }
+    if (!hasColumn('batches', 'kind')) {
+      this.sql.exec("ALTER TABLE batches ADD COLUMN kind TEXT NOT NULL DEFAULT 'lines'");
+    }
+    if (!hasColumn('batch_groups', 'delete_ids')) {
+      this.sql.exec('ALTER TABLE batch_groups ADD COLUMN delete_ids TEXT');
+    }
   }
 
   close(): void {

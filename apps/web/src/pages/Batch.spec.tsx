@@ -32,7 +32,7 @@ const preview: BatchPreview = {
   ],
 };
 const summary = (over: Partial<BatchSummary> = {}): BatchSummary => ({
-  id: 9, scanId: 1, status: 'running', createdAt: '', totalGroups: 145, doneGroups: 20, skippedGroups: 0,
+  id: 9, kind: 'lines', scanId: 1, status: 'running', createdAt: '', totalGroups: 145, doneGroups: 20, skippedGroups: 0,
   movedFiles: 25, movedBytes: 300_000_000, failedFiles: 0, restoredFiles: 0, notRestoredFiles: 0, error: null, ...over,
 });
 
