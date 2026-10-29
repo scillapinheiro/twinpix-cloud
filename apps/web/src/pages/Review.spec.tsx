@@ -345,6 +345,46 @@ describe('atalhos de teclado', () => {
     expect(calls.filter((c) => /skip/.test(c))).toEqual([]);
   });
 
+  const enabledBox = () => screen.getAllByRole('checkbox', { name: 'Excluir esta cópia' }).find((b) => !(b as HTMLInputElement).disabled)!;
+
+  it('com foco numa caixa "Excluir esta cópia", P pula, ← volta e Enter abre a confirmação', async () => {
+    renderReview();
+    await screen.findByText(/Grupo 12 de 445/);
+    const box = enabledBox();
+    box.focus();
+    expect(document.activeElement).toBe(box);
+    await userEvent.keyboard('p');
+    await waitFor(() => expect(count(/\/groups\/7\/skip$/)).toBe(1));
+    enabledBox().focus();
+    await userEvent.keyboard('{ArrowLeft}');
+    await waitFor(() => expect(count(/\/groups\/7\/previous$/)).toBe(1));
+    await screen.findByText(/Grupo 11 de 445/);
+    const again = enabledBox();
+    again.focus();
+    const before = (again as HTMLInputElement).checked;
+    await userEvent.keyboard('{Enter}');
+    await screen.findByRole('dialog');
+    expect((again as HTMLInputElement).checked).toBe(before);
+    expect(count(/\/apply$/)).toBe(0);
+  });
+
+  it('campos de texto (busca, número), área de texto e select continuam ignorando os atalhos', async () => {
+    render(
+      <MemoryRouter initialEntries={['/revisao/1']}>
+        <input aria-label="numero" type="number" />
+        <textarea aria-label="nota" />
+        <select aria-label="lista"><option>a</option></select>
+        <Routes><Route path="/revisao/:scanId" element={<Review />} /></Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByText(/Grupo 12 de 445/);
+    for (const label of ['numero', 'nota', 'lista']) {
+      screen.getByLabelText(label).focus();
+      await userEvent.keyboard('p{ArrowLeft}');
+    }
+    expect(calls.filter((c) => /skip|previous|preview/.test(c))).toEqual([]);
+  });
+
   it('depois do resultado, Enter/P/Enter repetido enquanto o próximo grupo carrega não reabrem o modal nem enviam nada', async () => {
     const next: GroupView = { ...group, id: 8, position: 13, files: [
       { ...base, id: 'c', name: 'y.jpg', modifiedAt: '2015-02-07T10:00:00Z' },
