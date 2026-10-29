@@ -18,13 +18,13 @@ export interface ScanOptions {
 
 interface FolderRow { folder_id: string; path: string; page_token: string | null }
 
-@Injectable()
 export const SCAN_ERRORS = {
   unexpected: 'A análise parou por um erro inesperado.',
   reconnect: 'A conexão com o OneDrive expirou. Conecte de novo.',
 } as const;
 const KNOWN_SCAN_ERRORS: ReadonlySet<string> = new Set(Object.values(SCAN_ERRORS));
 
+@Injectable()
 export class ScanService implements OnModuleInit {
   private readonly running = new Map<number, Promise<void>>();
   private readonly pauseRequested = new Set<number>();
