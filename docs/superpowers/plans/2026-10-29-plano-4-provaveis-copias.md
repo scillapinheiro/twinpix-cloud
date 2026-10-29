@@ -41,8 +41,8 @@ Dois ou mais arquivos ativos da análise formam um **grupo de prováveis cópias
   cadeia após ordenar por duração; uma diferença > 1000 ms inicia novo grupo);
 - o grupo precisa ter **pelo menos dois conteúdos diferentes** (hashes distintos, ou hash ausente
   em algum): se todos forem idênticos, é caso das idênticas e não entra aqui.
-- Chave estável do grupo: `p:${kind}:${baseName}:${width}x${height}:${takenAt}` (+ `:${índice da
-  cadeia}` para vídeos).
+- Chave estável do grupo: `p:${kind}:${baseName}:${width}x${height}:${takenAt}` (+ `:${id do primeiro
+  membro da cadeia na ordem (durationMs, id)}` para vídeos).
 
 ---
 
@@ -72,8 +72,9 @@ Commit: `feat: encontra prováveis cópias (mesmo nome-base, dimensões e data)`
 `review.controller.ts` (+spec), `apps/api/src/storage/schema.ts`/`db.ts` (+spec), `packages/shared/index.d.ts`,
 specs de lote e pastas (verificação).
 
-- `regroup` também grava os grupos de `groupProbable` (`kind='probable'`, mesma regra de posição
-  fixa na inserção; reabre grupo `resolved`/`skipped` que ganhou arquivo novo, como nas idênticas).
+- Os grupos de `groupProbable` (`kind='probable'`) são calculados **uma vez, quando a análise
+  termina** (não a cada pasta), com posição fixa na inserção. Assim as chaves não mudam durante a
+  varredura. (A revisão de prováveis só fica disponível com a análise concluída.)
 - Análises **já concluídas** antes deste plano: coluna `scans.probable_done INTEGER NOT NULL
   DEFAULT 0` (migração idempotente); `onModuleInit` calcula os grupos prováveis das análises
   `done` com `probable_done = 0` e marca 1. Análises novas marcam 1 ao terminar.
