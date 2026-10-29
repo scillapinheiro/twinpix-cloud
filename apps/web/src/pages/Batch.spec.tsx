@@ -261,3 +261,48 @@ describe('ScanProgress', () => {
     expect(screen.queryByRole('link', { name: 'Revisar em lote' })).toBeNull();
   });
 });
+
+it('mais de uma pasta de saída mostra o seletor "Manter em:" e o POST leva a escolha', async () => {
+  const base = preview.lines[0];
+  const line = {
+    ...base, removeFolders: ['/B', '/C'], keepOptions: ['/Viagem Praia', '/B', '/C'],
+    items: [{ ...base.items[0], keepByFolder: { '/Viagem Praia': 'k1', '/B': 'r1', '/C': 'r2' } }],
+  };
+  const f = fetch as ReturnType<typeof vi.fn>;
+  const orig = f.getMockImplementation()!;
+  f.mockImplementation(async (url: string, init?: RequestInit) =>
+    url === '/api/scans/1/batch' && init?.method === 'GET' ? new Response(JSON.stringify({ ...preview, lines: [line] })) : orig(url, init));
+  renderBatch();
+  await screen.findByText('140 grupos');
+  expect(screen.queryByRole('button', { name: /Inverter/ })).toBeNull();
+  await userEvent.selectOptions(screen.getByLabelText('Manter em:'), '/C');
+  expect(screen.getByText(/escolhido por você/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /Mover para a lixeira \(/ }));
+  expect(screen.getByRole('dialog')).toHaveTextContent('fica em /C');
+  await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
+  await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
+  expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body!)).toEqual({ lineKeys: ['A|B'], keepFolders: { 'A|B': '/C' } });
+});
+
+it('não oferece inverter se a prévia não diz qual cópia ficaria na outra pasta', async () => {
+  const base = preview.lines[0];
+  const line = { ...base, items: [{ ...base.items[0], keepByFolder: { '/Viagem Praia': 'k1' } }] };
+  const f = fetch as ReturnType<typeof vi.fn>;
+  const orig = f.getMockImplementation()!;
+  f.mockImplementation(async (url: string, init?: RequestInit) =>
+    url === '/api/scans/1/batch' && init?.method === 'GET' ? new Response(JSON.stringify({ ...preview, lines: [line] })) : orig(url, init));
+  renderBatch();
+  await screen.findByText('140 grupos');
+  expect(screen.queryByRole('button', { name: /Inverter/ })).toBeNull();
+});
+
+it('inverter e depois desmarcar a linha: o POST não leva keepFolders', async () => {
+  renderBatch();
+  await screen.findByText('140 grupos');
+  await userEvent.click(screen.getAllByRole('button', { name: /Inverter/ })[0]);
+  await userEvent.click(screen.getAllByRole('checkbox')[0]);
+  await userEvent.click(screen.getByRole('button', { name: /Mover para a lixeira \(/ }));
+  await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
+  await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
+  expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body!)).toEqual({ lineKeys: ['C|D'] });
+});

@@ -382,10 +382,45 @@ describe('BatchService', () => {
       await expectEveryGroupKeepsACopy();
     });
 
-    it('migração: banco antigo sem keep_folder ganha a coluna e segue abrindo', () => {
-      const cols = (db.sql.prepare('PRAGMA table_info(batch_groups)').all() as Array<{ name: string }>).map((c) => c.name);
-      expect(cols).toContain('keep_folder');
-      expect(() => new Db(':memory:')).not.toThrow();
+    it('keepFolders que não é objeto simples dá 400 e nada é criado', () => {
+      const line = lineFor('/B');
+      for (const bad of [[], null, 'x', 5, ['/A']]) {
+        expect(() => batch.start(scanId, [line.key], bad as never)).toThrow('Pasta escolhida inválida. Abra o lote de novo.');
+      }
+      expect(db.sql.prepare('SELECT COUNT(*) n FROM batches').get()).toEqual({ n: 0 });
+    });
+
+    it('a cópia que fica é fixada ao iniciar (keep_id = a ★ da prévia)', () => {
+      const line = lineFor('/D');
+      const s = batch.start(scanId, [line.key], { [line.key]: '/D' });
+      const rows = db.sql.prepare('SELECT keep_id, keep_folder FROM batch_groups WHERE batch_id = ?').all(s.id);
+      expect(rows).toEqual([{ keep_id: 'd4', keep_folder: '/D' }]);
+    });
+
+    it('cópia fixada na prévia difere da que a escolha atual manteria: pulado, nada movido', async () => {
+      const line = lineFor('/D');
+      const id = manualBatch(line, 'paused', '/D');
+      // A prévia fixou d4x, mas hoje a regra escolheria d4 dentro de /D: nada pode ser movido.
+      db.sql.prepare('UPDATE batch_groups SET keep_id = ? WHERE batch_id = ?').run('d4x', id);
+      batch.resume(id);
+      await batch.whenIdle(id);
+      expect(batch.summary(id)).toMatchObject({ doneGroups: 0, skippedGroups: 1, movedFiles: 0 });
+      expect(cloud.calls).not.toContain('moveToTrash');
+      await expectEveryGroupKeepsACopy();
+    });
+
+    it('regra muda entre a leitura e a trava (com pasta escolhida): pulado', async () => {
+      const line = lineFor('/D');
+      const real = actions.apply.bind(actions);
+      vi.spyOn(actions, 'apply').mockImplementation((...args) => {
+        setRules(db, [{ type: 'largestSize' }]);
+        return real(...args);
+      });
+      const s = batch.start(scanId, [line.key], { [line.key]: '/D' });
+      await batch.whenIdle(s.id);
+      expect(batch.summary(s.id)).toMatchObject({ doneGroups: 0, skippedGroups: 1, movedFiles: 0 });
+      expect(cloud.calls).not.toContain('moveToTrash');
+      await expectEveryGroupKeepsACopy();
     });
   });
 });

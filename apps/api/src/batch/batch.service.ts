@@ -17,7 +17,7 @@ export interface BatchOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
-interface BatchGroupRow { group_id: number; line_key: string; keep_folder: string | null }
+interface BatchGroupRow { group_id: number; line_key: string; keep_folder: string | null; keep_id: string | null }
 
 @Injectable()
 export class BatchService implements OnModuleInit {
@@ -51,9 +51,9 @@ export class BatchService implements OnModuleInit {
     const ids = (sql
       .prepare("SELECT id FROM dup_groups WHERE scan_id = ? AND status = 'pending' AND kind = 'identical' ORDER BY position")
       .all(scanId) as Array<{ id: number }>).map((r) => r.id);
+    const rules = getRules(this.db);
     const inputs: BatchGroupInput[] = ids.map((id) => {
       const v = this.review.view(id);
-      const rules = getRules(this.db);
       const keepByFolder: Record<string, string> = {};
       for (const folder of new Set(v.files.map((f) => f.folderPath))) {
         keepByFolder[folder] = suggestKeep(v.files.filter((f) => f.folderPath === folder), rules).keepId;
@@ -74,11 +74,13 @@ export class BatchService implements OnModuleInit {
     const byKey = new Map(lines.map((l) => [l.key, l]));
     const chosen = [...new Set(lineKeys)].map((k) => byKey.get(k));
     if (chosen.some((l) => !l)) throw new BadRequestException('A prévia mudou. Abra o lote de novo.');
+    const invalid = () => new BadRequestException('Pasta escolhida inválida. Abra o lote de novo.');
+    if (keepFolders === null || typeof keepFolders !== 'object' || Array.isArray(keepFolders)) throw invalid();
     const keepFor = new Map<string, string>();
     for (const [key, folder] of Object.entries(keepFolders)) {
       const line = byKey.get(key);
       if (!line || !chosen.includes(line) || typeof folder !== 'string' || !line.keepOptions.includes(folder)) {
-        throw new BadRequestException('Pasta escolhida inválida. Abra o lote de novo.');
+        throw invalid();
       }
       if (folder !== line.keepFolder) keepFor.set(key, folder);
     }
@@ -92,8 +94,8 @@ export class BatchService implements OnModuleInit {
       let seq = 0;
       for (const line of chosen) {
         for (const item of line!.items) {
-          sql.prepare("INSERT INTO batch_groups (batch_id, group_id, line_key, seq, status, keep_folder) VALUES (?, ?, ?, ?, 'pending', ?)")
-            .run(batchId, item.groupId, line!.key, seq++, keepFor.get(line!.key) ?? null);
+          sql.prepare("INSERT INTO batch_groups (batch_id, group_id, line_key, seq, status, keep_folder, keep_id) VALUES (?, ?, ?, ?, 'pending', ?, ?)")
+            .run(batchId, item.groupId, line!.key, seq++, keepFor.get(line!.key) ?? null, item.keepByFolder[keepFor.get(line!.key) ?? line!.keepFolder] ?? item.keep.id);
         }
       }
       return batchId;
@@ -218,7 +220,7 @@ export class BatchService implements OnModuleInit {
         return;
       }
       const next = sql
-        .prepare("SELECT group_id, line_key, keep_folder FROM batch_groups WHERE batch_id = ? AND status = 'pending' ORDER BY seq LIMIT 1")
+        .prepare("SELECT group_id, line_key, keep_folder, keep_id FROM batch_groups WHERE batch_id = ? AND status = 'pending' ORDER BY seq LIMIT 1")
         .get(id) as BatchGroupRow | undefined;
       if (!next) {
         this.setStatus(id, 'done');
@@ -248,15 +250,15 @@ export class BatchService implements OnModuleInit {
     const view = this.review.view(row.group_id);
     if (!this.stillMatches(view, row.line_key)) return 'skipped';
     // A mesma conferência roda de novo dentro da trava do ActionsService, com o grupo recalculado.
-    const rules = getRules(this.db);
     // Com pasta escolhida, a cópia que fica é a regra aplicada só às cópias dessa pasta; senão, a sugerida.
     const pickKeep = (v: GroupView): string | null => {
       if (row.keep_folder === null) return v.suggestion.keepId;
       const candidates = v.files.filter((f) => f.folderPath === row.keep_folder);
-      return candidates.length ? suggestKeep(candidates, rules).keepId : null;
+      return candidates.length ? suggestKeep(candidates, getRules(this.db)).keepId : null;
     };
     const keepId = pickKeep(view);
-    if (keepId === null) return 'skipped';
+    // A cópia que fica foi fixada ao iniciar (a ★ da prévia); se a escolha atual for outra, pula.
+    if (keepId === null || (row.keep_id !== null && keepId !== row.keep_id)) return 'skipped';
     const deleteIds = view.files.filter((f) => f.id !== keepId).map((f) => f.id);
     const expectedSuggested = view.suggestion.keepId;
     const result = await this.actions.apply(row.group_id, deleteIds, {

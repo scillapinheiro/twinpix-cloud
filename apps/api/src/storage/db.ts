@@ -25,6 +25,9 @@ export class Db {
     if (!hasColumn('batch_groups', 'keep_folder')) {
       this.sql.exec('ALTER TABLE batch_groups ADD COLUMN keep_folder TEXT');
     }
+    if (!hasColumn('batch_groups', 'keep_id')) {
+      this.sql.exec('ALTER TABLE batch_groups ADD COLUMN keep_id TEXT');
+    }
   }
 
   close(): void {

@@ -15,15 +15,19 @@ const LIST_FIELDS: FieldKey[] = ['takenAt', 'modifiedAt', 'size'];
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** Arquivos que saem de um item se a cópia ficar em `folder` (a cópia que fica vem de keepByFolder). */
-function keepIdFor(it: BatchItem, line: BatchLine, folder: string): string {
+function keepIdFor(it: BatchItem, folder: string): string {
   return it.keepByFolder[folder] ?? it.keep.id;
+}
+/** Só oferece a pasta se todos os itens da linha sabem qual cópia ficaria nela. */
+function offeredFolders(l: BatchLine): string[] {
+  return l.keepOptions.filter((f) => f === l.keepFolder || l.items.every((it) => it.keepByFolder[f]));
 }
 function lineStats(l: BatchLine, folder: string): { files: number; bytes: number } {
   if (folder === l.keepFolder) return { files: l.fileCount, bytes: l.bytes };
   let files = 0;
   let bytes = 0;
   for (const it of l.items) {
-    const keepId = keepIdFor(it, l, folder);
+    const keepId = keepIdFor(it, folder);
     for (const f of [it.keep, ...it.remove]) {
       if (f.id !== keepId) { files++; bytes += f.size; }
     }
@@ -38,7 +42,7 @@ function BatchItems({ line, folder }: { line: BatchLine; folder: string }) {
       <p className="muted">São cópias idênticas: o conteúdo é o mesmo byte a byte, mesmo quando o nome do arquivo é diferente.</p>
       <ul className="batch-items">
         {line.items.slice(0, shown).map((it) => {
-          const keepId = keepIdFor(it, line, folder);
+          const keepId = keepIdFor(it, folder);
           const all = [it.keep, ...it.remove];
           const diffs = differingFields(all);
           return (
@@ -168,6 +172,7 @@ function BatchPreviewView({ preview, scanId, onStarted }: { preview: BatchPrevie
         <ul className="batch-lines">
           {preview.lines.map((l: BatchLine) => {
             const keepFolder = folderOf(l);
+            const offered = offeredFolders(l);
             const outFolders = l.keepOptions.filter((f) => f !== keepFolder);
             const changed = keepFolder !== l.keepFolder;
             const st = lineStats(l, keepFolder);
@@ -182,7 +187,7 @@ function BatchPreviewView({ preview, scanId, onStarted }: { preview: BatchPrevie
                   </span>
                 </label>
                 <p className="muted batch-reason">regra: {l.reasons.map((r) => r.replace(/^regra:\s*/, '')).join('; ')}</p>
-                {l.removeFolders.length === 1 ? (
+                {offered.length < 2 ? null : l.removeFolders.length === 1 ? (
                   <button type="button" className="link" onClick={() => pick(l, changed ? l.keepFolder : l.removeFolders[0])}>
                     {changed ? `⇄ Voltar à sugestão: manter em ${l.keepFolder}` : `⇄ Inverter: manter em ${l.removeFolders[0]}`}
                   </button>
@@ -190,7 +195,7 @@ function BatchPreviewView({ preview, scanId, onStarted }: { preview: BatchPrevie
                   <label className="batch-keep-select">
                     Manter em:{' '}
                     <select value={keepFolder} onChange={(e) => pick(l, e.target.value)}>
-                      {l.keepOptions.map((f) => <option key={f} value={f}>{f}</option>)}
+                      {offered.map((f) => <option key={f} value={f}>{f}</option>)}
                     </select>
                   </label>
                 )}
