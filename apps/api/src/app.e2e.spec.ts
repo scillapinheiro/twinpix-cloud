@@ -209,6 +209,36 @@ describe('API em modo demonstração', () => {
     for (const f of plan.deleteFiles) expect(cloud.isInTrash(f.id)).toBe(false);
   });
 
+  it('prováveis cópias: sem pré-marcação → aplicar uma cópia → desfazer; fora do lote', async () => {
+    const root = (await api().get('/api/folders/root')).body;
+    const folders = (await api().get(`/api/folders/${encodeURIComponent(root.id)}/children`)).body;
+    const started = (await api().post('/api/scans', { roots: folders })).body as ScanSummary;
+    const done = await waitDone(started.id);
+    expect(done.probableTotal).toBeGreaterThanOrEqual(2);
+
+    const group = (await api().get(`/api/scans/${started.id}/groups/current?kind=probable`)).body as GroupView;
+    expect(group.files.length).toBeGreaterThanOrEqual(2);
+    expect(group.preMarkedIds).toEqual([]);
+
+    const victim = group.files.find((f) => f.id !== group.suggestion?.keepId) ?? group.files[1];
+    const applied = (await api().post(`/api/groups/${group.id}/apply`, { deleteIds: [victim.id] })).body;
+    expect(applied.stale).toBe(false);
+    expect(applied.results.every((r: { status: string }) => r.status === 'done')).toBe(true);
+    const cloud = app.get<FakeCloudProvider>(CLOUD_PROVIDER, { strict: false });
+    expect(cloud.isInTrash(victim.id)).toBe(true);
+
+    const history = (await api().get('/api/history')).body;
+    const entry = history.find((h: { file: { id: string } }) => h.file.id === victim.id);
+    expect(entry).toBeDefined();
+    expect((await api().post(`/api/actions/${entry.actionId}/undo`)).body.result).toBe('restored');
+    expect(cloud.isInTrash(victim.id)).toBe(false);
+
+    // O lote só tem idênticas: nenhum grupo provável entra.
+    const probableIds = new Set<number>([group.id]);
+    const batch = (await api().get(`/api/scans/${started.id}/batch`)).body as BatchPreview;
+    for (const l of batch.lines) for (const it of l.items) expect(probableIds.has(it.groupId)).toBe(false);
+  });
+
   it('id de análise não numérico devolve 400 nas rotas de pastas repetidas', async () => {
     await api().get('/api/scans/abc/folder-clusters').expect(400);
     await api().get('/api/scans/abc/folder-clusters/plan?key=x&keep=y').expect(400);

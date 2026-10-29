@@ -493,11 +493,33 @@ describe('modo prováveis cópias', () => {
     expect(screen.getByTestId('where').textContent).toContain('/revisao/1/grupo/9');
   });
 
-  it('pular preserva o tipo na URL; fim da revisão reabre pulados do mesmo tipo', async () => {
+  it('pular avança para o próximo grupo provável e preserva o tipo na URL', async () => {
     renderProbable();
     await userEvent.click(await screen.findByRole('button', { name: /Pular/ }));
     await screen.findByText(/Grupo 13 de 445/);
     expect(screen.getByTestId('where').textContent).toContain('/revisao/1/grupo/9');
+  });
+
+  it('Voltar mantém nenhuma cópia marcada', async () => {
+    renderProbable();
+    await screen.findByText(/Prováveis cópias/);
+    await userEvent.click(screen.getByRole('button', { name: '← Voltar' }));
+    await waitFor(() => expect(calls.some((c) => c.url === '/api/groups/7/previous')).toBe(true));
+    for (const box of await screen.findAllByRole('checkbox', { name: 'Excluir esta cópia' })) expect(box).not.toBeChecked();
+  });
+
+  it('abrir /revisao/1/grupo/9?tipo=provaveis não marca nenhuma cópia', async () => {
+    current = probableNext;
+    render(
+      <MemoryRouter initialEntries={['/revisao/1/grupo/9?tipo=provaveis']}>
+        <Routes>
+          <Route path="/revisao/:scanId" element={<Review />} />
+          <Route path="/revisao/:scanId/grupo/:groupId" element={<Review />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByText(/Grupo 13 de 445/);
+    for (const box of screen.getAllByRole('checkbox', { name: 'Excluir esta cópia' })) expect(box).not.toBeChecked();
   });
 
   it('sem grupos: "Rever grupos pulados" usa unskip?kind=probable', async () => {
