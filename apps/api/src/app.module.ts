@@ -2,6 +2,7 @@ import { DynamicModule, Global, Module } from '@nestjs/common';
 import { mkdirSync, rmSync } from 'node:fs';
 import { AuthModule } from './auth/auth.module';
 import { ActionsModule } from './actions/actions.module';
+import { BatchModule } from './batch/batch.module';
 import { CloudModule } from './cloud/cloud.module';
 import type { AppConfig } from './config';
 import { ReviewModule } from './review/review.module';
@@ -36,7 +37,7 @@ export class AppModule {
   static forRoot(config: AppConfig): DynamicModule {
     return {
       module: AppModule,
-      imports: [CoreModule.forRoot(config), AuthModule, CloudModule, ScanModule, ReviewModule, ActionsModule],
+      imports: [CoreModule.forRoot(config), AuthModule, CloudModule, ScanModule, ReviewModule, ActionsModule, BatchModule],
     };
   }
 }
