@@ -1,6 +1,7 @@
 import type { BatchSummary, CloudItem, FolderCluster, FolderStat, ReconcilePlan } from '@twinpix/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { findOpenBatch, OTHER_BATCH_NOTICE } from '../components/BatchBits';
 import { BatchProgress } from '../components/BatchProgress';
 import { ReconcileConfirmDialog } from '../components/ReconcileConfirmDialog';
 import { ApiError, apiFetch } from '../lib/api';
@@ -28,6 +29,10 @@ export function FolderClusters() {
 
   const load = useCallback(async () => {
     try {
+      // Recarregou a página com um lote aberto (pausado, sem conexão…): volta para ele em vez de mostrar os conjuntos.
+      const all = await apiFetch<BatchSummary[]>('/api/batches').catch(() => [] as BatchSummary[]);
+      const open = findOpenBatch(all, Number(scanId), 'folders');
+      if (open) setBatch(open);
       const list = await apiFetch<FolderCluster[]>(`/api/scans/${scanId}/folder-clusters`);
       setClusters(list);
       setIndex(0);
@@ -38,20 +43,22 @@ export function FolderClusters() {
   }, [scanId]);
   useEffect(() => { void load(); }, [load]);
 
-  const back = <p><Link to={`/varredura/${scanId}`}>Voltar à análise</Link></p>;
-  if (error) return <><p className="alert">{error}</p>{back}</>;
-  if (!clusters) return <p>Carregando…</p>;
-
   if (batch) {
+    const other = batch.kind !== 'folders' || batch.scanId !== Number(scanId);
     return (
       <BatchProgress
+        key={batch.id}
         initial={batch}
-        scanId={scanId!}
-        title="Lote de pastas repetidas"
+        scanId={String(batch.scanId)}
+        notice={other ? OTHER_BATCH_NOTICE : undefined}
         afterFinish={<button type="button" className="button primary" onClick={() => { setBatch(null); void load(); }}>Próximo conjunto</button>}
       />
     );
   }
+  const back = <p><Link to={`/varredura/${scanId}`}>Voltar à análise</Link></p>;
+  if (error) return <><p className="alert">{error}</p>{back}</>;
+  if (!clusters) return <p>Carregando…</p>;
+
   if (clusters.length === 0) {
     return (
       <section className="card">

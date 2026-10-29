@@ -1,6 +1,7 @@
-import type { BatchItem, BatchLine, BatchPreview, BatchStatus, BatchSummary } from '@twinpix/shared';
+import type { BatchItem, BatchLine, BatchPreview, BatchSummary } from '@twinpix/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { findOpenBatch, OTHER_BATCH_NOTICE } from '../components/BatchBits';
 import { BatchProgress } from '../components/BatchProgress';
 import { BatchConfirmDialog } from '../components/BatchConfirmDialog';
 import { Thumbnail } from '../components/Thumbnail';
@@ -9,7 +10,6 @@ import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes } from '../lib/format';
 import { plural } from '../lib/plural';
 
-const ACTIVE: BatchStatus[] = ['running', 'paused', 'waiting-network', 'needs-auth', 'undoing'];
 const path = (folder: string, name: string) => `${folder === '/' ? '' : folder}/${name}`;
 const PAGE = 20;
 const LIST_FIELDS: FieldKey[] = ['takenAt', 'modifiedAt', 'size'];
@@ -93,17 +93,20 @@ export function Batch() {
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
+  const [reloads, setReloads] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const all = await apiFetch<BatchSummary[]>('/api/batches').catch(() => [] as BatchSummary[]);
-        const active = all.find((b) => b.scanId === Number(scanId) && ACTIVE.includes(b.status));
-        if (active) {
-          if (!cancelled) setBatch(active);
+        // Lote aberto (deste ou de outro tipo/análise) impede começar outro: mostra ele.
+        const open = findOpenBatch(all, Number(scanId), 'lines');
+        if (open) {
+          if (!cancelled) setBatch(open);
         } else {
           const p = await apiFetch<BatchPreview>(`/api/scans/${scanId}/batch`);
-          if (!cancelled) setPreview(p);
+          if (!cancelled) { setBatch(null); setPreview(p); }
         }
       } catch (e) {
         if (!cancelled) setError((e as ApiError).message);
@@ -112,11 +115,22 @@ export function Batch() {
       }
     })();
     return () => { cancelled = true; };
-  }, [scanId]);
+  }, [scanId, reloads]);
 
   if (error) return <><p className="alert">{error}</p><p><Link to={`/varredura/${scanId}`}>Voltar à análise</Link></p></>;
   if (!loaded) return <p>Carregando…</p>;
-  if (batch) return <BatchProgress initial={batch} scanId={scanId!} />;
+  if (batch) {
+    const other = batch.kind !== 'lines' || batch.scanId !== Number(scanId);
+    return (
+      <BatchProgress
+        key={batch.id}
+        initial={batch}
+        scanId={String(batch.scanId)}
+        notice={other ? OTHER_BATCH_NOTICE : undefined}
+        afterFinish={other ? <button type="button" className="button primary" onClick={() => { setLoaded(false); setReloads((n) => n + 1); }}>Ir para o lote das idênticas</button> : undefined}
+      />
+    );
+  }
   if (preview) return <BatchPreviewView preview={preview} scanId={scanId!} onStarted={setBatch} />;
   return null;
 }

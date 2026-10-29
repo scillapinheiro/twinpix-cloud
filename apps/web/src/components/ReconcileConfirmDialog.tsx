@@ -50,7 +50,8 @@ export function ReconcileConfirmDialog({ plan, uniqueCount, keepFolderUnique, on
   const n = plan.deleteFiles.length;
   const keepRemaining = plan.remaining.find((r) => r.path === plan.keepFolder)?.fileCount ?? 0;
   const extraCopies = Math.max(0, keepRemaining - plan.keepFiles.length - keepFolderUnique);
-  const stale = error !== null && /prévia mudou/i.test(error);
+  // Prévia mudou, ou outro lote ficou aberto: recarregar mostra a situação atual (e o lote aberto).
+  const stale = error !== null && /prévia mudou|lote pausado ou em andamento/i.test(error);
   return (
     <div className="modal-overlay" onClick={(e) => { if (!busy && e.target === e.currentTarget) onCancel(); }}>
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="reconcile-confirm-title" tabIndex={-1} ref={dialogRef}>

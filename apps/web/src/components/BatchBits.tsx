@@ -1,4 +1,4 @@
-import type { BatchStatus } from '@twinpix/shared';
+import type { BatchKind, BatchStatus, BatchSummary } from '@twinpix/shared';
 import { useState } from 'react';
 
 export const BATCH_STATUS_TEXT: Record<BatchStatus, string> = {
@@ -11,6 +11,22 @@ export const BATCH_STATUS_TEXT: Record<BatchStatus, string> = {
   undone: 'Lote desfeito.',
   error: 'O lote parou por um erro. Os arquivos já movidos continuam no histórico e podem ser desfeitos.',
 };
+
+export const BATCH_TITLE: Record<BatchKind, string> = {
+  lines: 'Lote das idênticas',
+  folders: 'Lote de pastas repetidas',
+};
+
+/** Lotes que impedem começar outro (o servidor recusa): a tela deve levar até eles. */
+export const OPEN_BATCH_STATUSES: BatchStatus[] = ['running', 'paused', 'waiting-network', 'needs-auth', 'undoing'];
+
+/** O lote aberto a mostrar: o desta análise e deste tipo primeiro; senão, qualquer lote aberto. */
+export function findOpenBatch(all: BatchSummary[], scanId: number, kind: BatchKind): BatchSummary | undefined {
+  const open = all.filter((b) => OPEN_BATCH_STATUSES.includes(b.status));
+  return open.find((b) => b.scanId === scanId && b.kind === kind) ?? open[0];
+}
+
+export const OTHER_BATCH_NOTICE = 'Termine ou desfaça este lote antes de começar outro.';
 
 export function UndoBatchButton({ onUndo }: { onUndo: () => void | Promise<void> }) {
   const [confirming, setConfirming] = useState(false);

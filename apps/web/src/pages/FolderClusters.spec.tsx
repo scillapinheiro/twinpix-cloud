@@ -26,8 +26,10 @@ const summary: BatchSummary = { id: 7, kind: 'folders', scanId: 1, status: 'runn
 let clusters: FolderCluster[];
 let calls: Array<{ url: string; method: string; body?: string }>;
 let batchGet: BatchSummary;
+let batchList: BatchSummary[];
 beforeEach(() => {
   calls = [];
+  batchList = [];
   clusters = [two];
   batchGet = summary;
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
@@ -36,6 +38,7 @@ beforeEach(() => {
     if (url.startsWith('/api/scans/1/folder-clusters/unique')) return new Response(JSON.stringify([item('u1', '/A', 'unica.jpg')]));
     if (url.startsWith('/api/scans/1/folder-clusters/plan')) return new Response(JSON.stringify(planFor(new URL(url, 'http://x').searchParams.get('keep')!)));
     if (url === '/api/scans/1/folder-clusters/apply') return new Response(JSON.stringify(summary));
+    if (url === '/api/batches') return new Response(JSON.stringify(batchList));
     if (url === '/api/batches/7') return new Response(JSON.stringify(batchGet));
     if (url === '/api/scans/1') return new Response(JSON.stringify({ id: 1, status: 'done', groupsPending: 0, roots: [], foldersDone: 1, foldersTotal: 1, filesFound: 1, groupsTotal: 1, groupsSkipped: 0, bytesFreed: 0, unanalyzedCount: 0, error: null }));
     return new Response('{}', { status: 404 });
@@ -191,6 +194,49 @@ it('Pular e Voltar navegam entre conjuntos', async () => {
   expect(await screen.findByRole('heading', { name: 'Pastas repetidas · 1 de 2' })).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: '← Voltar' }));
   expect(await screen.findByText('Tela da análise')).toBeInTheDocument();
+});
+
+it('ao recarregar, volta para o lote de pastas aberto desta análise', async () => {
+  batchList = [{ ...summary, id: 5, status: 'done' }, { ...summary, status: 'paused' }];
+  batchGet = { ...summary, status: 'paused' };
+  renderPage();
+  expect(await screen.findByRole('heading', { name: 'Lote de pastas repetidas' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Continuar' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Aplicar/ })).toBeNull();
+});
+
+it('lote aberto de outro tipo também aparece, com o título dele', async () => {
+  batchList = [{ ...summary, id: 7, kind: 'lines', status: 'needs-auth' }];
+  batchGet = { ...summary, kind: 'lines', status: 'needs-auth' };
+  renderPage();
+  expect(await screen.findByRole('heading', { name: 'Lote das idênticas' })).toBeInTheDocument();
+  expect(screen.getByText('Termine ou desfaça este lote antes de começar outro.')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Conectar de novo' })).toBeInTheDocument();
+});
+
+it('apply recusado por outro lote aberto: Recarregar leva até esse lote', async () => {
+  const base = globalThis.fetch as unknown as (u: string, i?: RequestInit) => Promise<Response>;
+  vi.stubGlobal('fetch', vi.fn(async (u: string, i?: RequestInit) => {
+    if (u.endsWith('/apply')) {
+      batchList = [{ ...summary, kind: 'lines', status: 'paused' }];
+      return new Response(JSON.stringify({ message: 'Já existe um lote pausado ou em andamento. Termine ou desfaça esse lote primeiro.' }), { status: 400 });
+    }
+    return base(u, i);
+  }));
+  batchGet = { ...summary, kind: 'lines', status: 'paused' };
+  renderPage();
+  await screen.findByText('Resultado: a segunda pasta fica vazia.');
+  await userEvent.click(screen.getByRole('button', { name: /Aplicar/ }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Mover para a lixeira' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Já existe um lote pausado ou em andamento.');
+  await userEvent.click(screen.getByRole('button', { name: 'Recarregar' }));
+  expect(await screen.findByRole('heading', { name: 'Lote das idênticas' })).toBeInTheDocument();
+});
+
+it('lote terminado não prende a página', async () => {
+  batchList = [{ ...summary, status: 'undone' }];
+  renderPage();
+  expect(await screen.findByRole('heading', { name: 'Pastas repetidas · 1 de 1' })).toBeInTheDocument();
 });
 
 describe('entrada em ScanProgress', () => {

@@ -375,3 +375,27 @@ it('erro de um botão continua na tela depois de uma consulta de progresso que d
   await waitFor(() => expect(screen.queryByText('Sem resposta do app.')).toBeNull(), { timeout: 5000 });
   expect(screen.getByText('Não dá para pausar agora.')).toBeInTheDocument();
 }, 10000);
+
+it('lote de pastas aberto aparece no /lote com o título dele (o lote das idênticas espera)', async () => {
+  const f = fetch as ReturnType<typeof vi.fn>;
+  const orig = f.getMockImplementation()!;
+  f.mockImplementation(async (url: string, init?: RequestInit) =>
+    url === '/api/batches' ? new Response(JSON.stringify([summary({ kind: 'folders', status: 'paused' })])) : orig(url, init));
+  renderBatch();
+  expect(await screen.findByRole('heading', { name: 'Lote de pastas repetidas' })).toBeInTheDocument();
+  expect(screen.getByText('Termine ou desfaça este lote antes de começar outro.')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Continuar' })).toBeInTheDocument();
+  expect(calls.some((c) => c.url === '/api/scans/1/batch')).toBe(false);
+});
+
+it('lote das idênticas aberto tem prioridade sobre um de pastas e lote terminado não conta', async () => {
+  const f = fetch as ReturnType<typeof vi.fn>;
+  const orig = f.getMockImplementation()!;
+  f.mockImplementation(async (url: string, init?: RequestInit) =>
+    url === '/api/batches'
+      ? new Response(JSON.stringify([summary({ id: 11, kind: 'folders', status: 'done' }), summary({ status: 'paused' })]))
+      : orig(url, init));
+  renderBatch();
+  expect(await screen.findByRole('heading', { name: 'Lote das idênticas' })).toBeInTheDocument();
+  expect(screen.queryByText('Termine ou desfaça este lote antes de começar outro.')).toBeNull();
+});

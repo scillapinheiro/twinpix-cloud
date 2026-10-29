@@ -4,12 +4,14 @@ import { Link } from 'react-router-dom';
 import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes } from '../lib/format';
 import { plural } from '../lib/plural';
-import { BATCH_STATUS_TEXT, UndoBatchButton } from './BatchBits';
+import { BATCH_STATUS_TEXT, BATCH_TITLE, UndoBatchButton } from './BatchBits';
 
-export function BatchProgress({ initial, scanId, title = 'Lote das idênticas', afterFinish }: {
+export function BatchProgress({ initial, scanId, title = BATCH_TITLE[initial.kind], notice, afterFinish }: {
   initial: BatchSummary;
   scanId: string;
   title?: string;
+  /** Aviso fixo abaixo do título (ex.: lote de outra tela que precisa terminar antes). */
+  notice?: string;
   /** Ações extras (ex.: "Próximo conjunto") mostradas quando o lote termina. */
   afterFinish?: ReactNode;
 }) {
@@ -60,6 +62,7 @@ export function BatchProgress({ initial, scanId, title = 'Lote das idênticas', 
   return (
     <section className="card">
       <h1>{title}</h1>
+      {notice && <p className="notice">{notice}</p>}
       <p className={bad ? 'alert' : undefined} role="status">
         {BATCH_STATUS_TEXT[b.status]}
       </p>
