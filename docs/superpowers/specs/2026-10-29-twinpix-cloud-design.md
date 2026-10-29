@@ -94,7 +94,9 @@ Critérios v1: maior resolução, maior tamanho, mais antiga (tirada em), mais a
 A sugestão sempre mostra o **motivo** ("regra: mais antiga").
 
 ### Proteções
-1. **Prováveis cópias nunca vêm pré-marcadas**: aparece só o selo "sugerida para manter".
+1. **Prováveis cópias nunca vêm pré-marcadas** na revisão um por um: aparece só o selo "sugerida para
+   manter" (a tecla X marca por ação explícita). O lote das prováveis regravações vem com as linhas
+   desmarcadas.
    Pré-marcação existe **apenas** nas idênticas.
 2. **Nunca exclui de verdade**: tudo vai para a **lixeira do OneDrive**.
 3. **Tela de confirmação** antes de qualquer exclusão, inclusive em lote, com a
@@ -107,7 +109,23 @@ A sugestão sempre mostra o **motivo** ("regra: mais antiga").
    O fluxo padrão é grupo a grupo. Detalhes em "Lote das idênticas" abaixo.
 
 ### Lote das idênticas *(definido com a autora em 29/10/2026, após o teste real com ~550 grupos)*
-- **Só cópias idênticas.** Prováveis cópias nunca entram em lote.
+- **Só cópias idênticas**, com uma exceção (abaixo): o **lote das prováveis regravações**.
+
+### Lote das prováveis regravações *(decisão da autora em 29/10/2026, após usar o app: a maioria
+das prováveis cópias reais era a mesma foto regravada, não uma edição)*
+- Página separada do lote das idênticas. Entram **só** pares/grupos de prováveis cópias que parecem
+  regravação, não edição: mesmo nome-base com um deles **sem** sufixo de cópia, mesmas dimensões,
+  mesma data em que foi tirada, mesma câmera (fabricante + modelo, quando houver), **tamanho com
+  diferença de até 2%** e, em vídeos, durações a até 1 s. Os demais continuam só um por um.
+- Fica a cópia **sem sufixo** (empate → regras de prioridade; sem regra clara → fica fora).
+- Prévia por par de pastas como no lote das idênticas, com **miniaturas** no "ver lista";
+  **linhas desmarcadas por padrão**; aviso "São fotos que parecem regravadas (mesma imagem, arquivo
+  um pouco diferente). Confira as miniaturas antes de marcar."
+- Mesmas proteções do lote (prévia exata enviada, conferência dos dois lados dentro da trava,
+  sempre sobra uma cópia, lixeira, pausar/continuar, desfazer lote).
+- **Atalho na revisão um por um:** tecla **X** marca todas as cópias exceto a sugerida para manter e
+  abre a confirmação (Enter confirma). Vale para idênticas e prováveis; continua sendo uma ação
+  explícita, nada vem pré-marcado nas prováveis.
 - **Prévia agrupada por par de pastas**, independente do nome das pastas: cada linha diz onde a
   cópia **fica**, de onde as outras **saem**, quantos grupos, quantos arquivos e o espaço, e a
   regra usada. Ex.: "140 grupos — fica em *Viagem Praia*, sai de *Backup celular 2015* — 1,2 GB".
