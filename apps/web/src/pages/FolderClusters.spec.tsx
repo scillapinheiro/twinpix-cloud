@@ -61,6 +61,8 @@ it('duas pastas: cartões, quadro-resumo, lista dos únicos e prévia', async ()
   expect(screen.getByText(/8 arquivos estão nas duas · 2 só na primeira · 0 só na segunda/)).toBeInTheDocument();
   expect(screen.getByText(/a segunda pasta está toda contida na primeira/)).toBeInTheDocument();
   expect(await screen.findByText('Resultado: a segunda pasta fica vazia.')).toBeInTheDocument();
+  expect(screen.getByText('O que fazer com os arquivos repetidos?')).toBeInTheDocument();
+  expect(screen.getByText(/Os 2 arquivos que só existem em/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Aplicar (2 arquivos para a lixeira)' })).toBeEnabled();
   await userEvent.click(screen.getByRole('button', { name: 'ver lista' }));
   expect(await screen.findByText('/A/unica.jpg')).toBeInTheDocument();
@@ -112,7 +114,9 @@ it('modal confirma e envia os items do plano mostrado, uma vez só com clique du
   const dialog = await screen.findByRole('dialog');
   expect(dialog).toHaveTextContent('Nada é apagado de vez');
   expect(screen.getByRole('list', { name: 'Arquivos que saem' })).toHaveTextContent('/B/b1.jpg');
+  expect(screen.getByRole('heading', { name: 'Cópia que fica de cada arquivo repetido (1)' })).toBeInTheDocument();
   expect(screen.getByRole('list', { name: 'Cópias que ficam' })).toHaveTextContent('/A/a1.jpg');
+  expect(dialog).toHaveTextContent('Também continuam onde estão: 2 arquivos que só existem numa pasta e 7 cópias extras na pasta escolhida.');
   expect(screen.getByRole('list', { name: 'Pastas depois da limpeza' })).toHaveTextContent('/B: fica vazia');
   await userEvent.dblClick(screen.getByRole('button', { name: 'Mover para a lixeira' }));
   expect(await screen.findByText('Lote de pastas repetidas')).toBeInTheDocument();

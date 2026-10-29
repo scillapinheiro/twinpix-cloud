@@ -6,6 +6,10 @@ import { plural } from '../lib/plural';
 
 interface Props {
   plan: ReconcilePlan;
+  /** Arquivos que só existem numa pasta do conjunto (soma). */
+  uniqueCount: number;
+  /** Quantos desses estão na pasta escolhida (para não contar duas vezes as cópias extras). */
+  keepFolderUnique: number;
   /** Envia o lote; se rejeitar, o erro aparece no modal e dá para tentar de novo. */
   onConfirm: () => Promise<void>;
   onCancel: () => void;
@@ -15,7 +19,7 @@ interface Props {
 
 const fileName = (f: { folderPath: string; name: string }) => `${f.folderPath === '/' ? '' : f.folderPath}/${f.name}`;
 
-export function ReconcileConfirmDialog({ plan, onConfirm, onCancel, onReload }: Props) {
+export function ReconcileConfirmDialog({ plan, uniqueCount, keepFolderUnique, onConfirm, onCancel, onReload }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -44,6 +48,8 @@ export function ReconcileConfirmDialog({ plan, onConfirm, onCancel, onReload }: 
   }
 
   const n = plan.deleteFiles.length;
+  const keepRemaining = plan.remaining.find((r) => r.path === plan.keepFolder)?.fileCount ?? 0;
+  const extraCopies = Math.max(0, keepRemaining - plan.keepFiles.length - keepFolderUnique);
   const stale = error !== null && /prévia mudou/i.test(error);
   return (
     <div className="modal-overlay" onClick={(e) => { if (!busy && e.target === e.currentTarget) onCancel(); }}>
@@ -57,10 +63,13 @@ export function ReconcileConfirmDialog({ plan, onConfirm, onCancel, onReload }: 
         <ul className="reconcile-list" aria-label="Arquivos que saem">
           {plan.deleteFiles.map((f) => <li key={f.id}>{fileName(f)}</li>)}
         </ul>
-        <h2>Ficam ({plan.keepFiles.length})</h2>
+        <h2>Cópia que fica de cada arquivo repetido ({plan.keepFiles.length})</h2>
         <ul className="reconcile-list" aria-label="Cópias que ficam">
           {plan.keepFiles.map((f) => <li key={f.id}>{fileName(f)}</li>)}
         </ul>
+        <p className="muted">
+          Também continuam onde estão: {plural(uniqueCount, 'arquivo que só existe numa pasta', 'arquivos que só existem numa pasta')} e {plural(extraCopies, 'cópia extra', 'cópias extras')} na pasta escolhida.
+        </p>
         <h3>Como cada pasta fica</h3>
         <ul aria-label="Pastas depois da limpeza">
           {plan.remaining.map((r) => (

@@ -199,7 +199,7 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
             )}
           </div>
           <fieldset className="reconcile-choice">
-            <legend><strong>{two ? (plan ? `O que fazer com os ${plan.items.length} arquivos repetidos?` : 'O que fazer com os arquivos repetidos?') : 'Manter as cópias repetidas em qual pasta?'}</strong></legend>
+            <legend><strong>{two ? 'O que fazer com os arquivos repetidos?' : 'Manter as cópias repetidas em qual pasta?'}</strong></legend>
             {folders.map((f, i) => (
               <label key={f.path}>
                 <input type="radio" name="keep" checked={choice === f.path} onChange={() => setChoice(f.path)} />
@@ -215,7 +215,7 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
             {planError && <p className="alert" role="alert">{planError}</p>}
             {folders.filter((x) => x.uniqueCount > 0).map((x) => (
               <p key={x.path} className="muted">
-                🔒 {x.uniqueCount === 1 ? 'O arquivo que só existe' : `Os ${x.uniqueCount} arquivos que só existem`} em <strong>{x.path}</strong> <strong>nunca</strong> {x.uniqueCount === 1 ? 'é tocado' : 'são tocados'}.
+                🔒 {x.uniqueCount === 1 ? 'O arquivo que só existe' : `Os ${plural(x.uniqueCount, 'arquivo', 'arquivos')} que só existem`} em <strong>{x.path}</strong> <strong>nunca</strong> {x.uniqueCount === 1 ? 'é tocado' : 'são tocados'}.
               </p>
             ))}
           </fieldset>
@@ -236,6 +236,8 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
       {confirming && plan && (
         <ReconcileConfirmDialog
           plan={plan}
+          uniqueCount={cluster.uniqueFiles}
+          keepFolderUnique={folders.find((x) => x.path === plan.keepFolder)?.uniqueCount ?? 0}
           onCancel={cancel}
           onReload={() => { setConfirming(false); setTick((t) => t + 1); onReload(); }}
           onConfirm={async () => {
