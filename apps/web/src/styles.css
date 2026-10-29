@@ -52,3 +52,4 @@ body { margin: 0; background: var(--bg); }
 .summary-common dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 8px; }
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
+.thumb-placeholder { width: 100%; aspect-ratio: 4 / 3; border-radius: 6px; background: var(--border); display: grid; place-items: center; color: var(--muted); }
