@@ -7,6 +7,7 @@ import { BATCH_OPTIONS, BatchService } from './batch.service';
 @Module({
   imports: [ReviewModule, ActionsModule],
   controllers: [BatchController],
+  exports: [BatchService],
   providers: [BatchService, { provide: BATCH_OPTIONS, useValue: { offlineRetryMs: 30_000 } }],
 })
 export class BatchModule {}
