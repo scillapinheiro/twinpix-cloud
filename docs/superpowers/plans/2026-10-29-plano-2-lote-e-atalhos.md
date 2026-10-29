@@ -326,7 +326,18 @@ e `db.ts` (migração), `apps/web/src/pages/Batch.tsx`, `components/BatchConfirm
 - O modal de confirmação mostra, para linhas alteradas, "fica em <pasta escolhida>".
 - O POST envia `keepFolders` só das linhas marcadas e alteradas.
 
-**Testes:** `keepOptions` na prévia; API recusa pasta inválida; lote com uma linha invertida move
+**Conferir as fotos na prévia** *(pedido da autora ao testar: nomes diferentes nas duas cópias e
+sem como ver as fotos)*:
+- `BatchItem.keep` e cada item de `remove` ganham `id` e `webUrl`.
+- No "ver lista", cada arquivo aparece com **miniatura pequena** (componente `Thumbnail` existente,
+  carregada só quando a lista é aberta), o caminho completo e o link **"Abrir no OneDrive ↗"**.
+- Uma frase explica: "São cópias idênticas: o conteúdo é o mesmo byte a byte, mesmo quando o nome
+  do arquivo é diferente."
+- Em listas longas, mostrar os primeiros 20 itens e um botão "mostrar mais" (para não carregar
+  centenas de miniaturas de uma vez).
+
+**Testes:** `keepOptions` na prévia; API recusa pasta inválida; "ver lista" mostra miniatura e
+link "Abrir no OneDrive" de cada arquivo e o "mostrar mais"; lote com uma linha invertida move
 as cópias da pasta sugerida e mantém a da pasta escolhida (e a asserção de segurança "todo grupo
 mantém uma cópia" continua); grupo que mudou de composição é pulado também com inversão; interface:
 inverter troca o texto e o "ver lista", e o POST leva `keepFolders`.
