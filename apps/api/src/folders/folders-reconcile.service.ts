@@ -29,6 +29,7 @@ export class FoldersReconcileService {
     const sql = this.db.sql;
     const scan = sql.prepare('SELECT status FROM scans WHERE id = ?').get(scanId) as { status: string } | undefined;
     if (!scan) throw new NotFoundException('Varredura não encontrada.');
+    if (scan.status === 'cancelled') throw new BadRequestException('Esta análise foi cancelada.');
     if (scan.status === 'running' || scan.status === 'waiting-network') {
       throw new BadRequestException('Espere a análise terminar para ver as pastas repetidas.');
     }

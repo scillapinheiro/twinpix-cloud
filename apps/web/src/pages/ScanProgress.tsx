@@ -1,6 +1,6 @@
 import type { CloudItem, FolderCluster, ScanSummary } from '@twinpix/shared';
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes } from '../lib/format';
 
@@ -11,10 +11,13 @@ const STATUS_TEXT: Record<ScanSummary['status'], string> = {
   'needs-auth': 'A conexão com o OneDrive expirou.',
   done: 'Análise concluída.',
   error: 'A análise parou por um erro.',
+  cancelled: 'Análise cancelada.',
 };
 
 export function ScanProgress() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [scan, setScan] = useState<ScanSummary | null>(null);
   const [unanalyzed, setUnanalyzed] = useState<CloudItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +47,16 @@ export function ScanProgress() {
   async function act(action: 'pause' | 'resume') {
     setScan(await apiFetch<ScanSummary>(`/api/scans/${id}/${action}`, { method: 'POST' }));
     if (action === 'resume') setTimeout(() => window.location.reload(), 300);
+  }
+
+  async function cancel() {
+    try {
+      await apiFetch<ScanSummary>(`/api/scans/${id}/cancel`, { method: 'POST' });
+      navigate('/');
+    } catch (e) {
+      setConfirmingCancel(false);
+      setError((e as ApiError).message);
+    }
   }
 
   if (error) return <p className="alert">{error}</p>;
@@ -88,6 +101,11 @@ export function ScanProgress() {
         {scan.status === 'running' && <button type="button" className="button" onClick={() => act('pause')}>Pausar</button>}
         {(scan.status === 'paused' || scan.status === 'error' || scan.status === 'needs-auth') && (
           <button type="button" className="button" onClick={() => act('resume')}>Continuar análise</button>
+        )}
+        {['running', 'paused', 'waiting-network', 'needs-auth', 'error'].includes(scan.status) && (
+          confirmingCancel
+            ? <button type="button" className="button danger" onClick={cancel}>Confirmar cancelar análise</button>
+            : <button type="button" className="button" onClick={() => setConfirmingCancel(true)}>Cancelar análise</button>
         )}
         {scan.status === 'needs-auth' && <a className="button primary" href="/api/auth/login">Conectar de novo</a>}
         {scan.groupsPending + scan.groupsSkipped > 0 && (

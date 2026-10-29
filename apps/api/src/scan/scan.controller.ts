@@ -39,6 +39,13 @@ export class ScanController {
     return this.scans.summary(id);
   }
 
+  @Post(':id/cancel')
+  @HttpCode(200)
+  cancel(@Param('id', ParseIntPipe) id: number): ScanSummary {
+    this.scans.cancel(id);
+    return this.scans.summary(id);
+  }
+
   @Get(':id/unanalyzed')
   unanalyzed(@Param('id', ParseIntPipe) id: number): CloudItem[] {
     return this.scans.unanalyzed(id);

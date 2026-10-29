@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { hasTwoActiveFiles } from '../review/review.service';
 import type { CloudFolder, CloudItem, ScanStatus, ScanSummary } from '@twinpix/shared';
 import type { CloudProvider } from '../cloud/cloud-provider';
@@ -72,7 +72,22 @@ export class ScanService implements OnModuleInit {
     else this.setStatus(scanId, 'paused');
   }
 
+  /** Para o laço e marca a análise como cancelada; nunca mais retoma nem calcula prováveis. */
+  cancel(scanId: number): void {
+    const scan = this.db.sql.prepare('SELECT status FROM scans WHERE id = ?').get(scanId) as { status: ScanStatus } | undefined;
+    if (!scan) throw new NotFoundException('Análise não encontrada.');
+    if (scan.status === 'done') throw new BadRequestException('Esta análise já terminou.');
+    if (scan.status === 'cancelled') return;
+    const open = this.db.sql
+      .prepare("SELECT 1 FROM batches WHERE scan_id = ? AND status IN ('running', 'waiting-network', 'undoing', 'paused', 'needs-auth') LIMIT 1")
+      .get(scanId);
+    if (open) throw new BadRequestException('Termine ou desfaça o lote desta análise antes de cancelar.');
+    this.pauseRequested.delete(scanId);
+    this.setStatus(scanId, 'cancelled');
+  }
+
   resume(scanId: number): void {
+    if (this.isCancelled(scanId)) return;
     this.pauseRequested.delete(scanId);
     if (!this.running.has(scanId)) this.launch(scanId);
   }
@@ -82,7 +97,7 @@ export class ScanService implements OnModuleInit {
   }
 
   latest(): ScanSummary | null {
-    const row = this.db.sql.prepare('SELECT id FROM scans ORDER BY id DESC LIMIT 1').get() as { id: number } | undefined;
+    const row = this.db.sql.prepare("SELECT id FROM scans WHERE status != 'cancelled' ORDER BY id DESC LIMIT 1").get() as { id: number } | undefined;
     return row ? this.summary(row.id) : null;
   }
 
@@ -141,8 +156,10 @@ export class ScanService implements OnModuleInit {
   }
 
   private async runLoop(scanId: number): Promise<void> {
+    if (this.isCancelled(scanId)) return;
     this.setStatus(scanId, 'running');
     for (;;) {
+      if (this.isCancelled(scanId)) return;
       if (this.pauseRequested.delete(scanId)) {
         this.setStatus(scanId, 'paused');
         return;
@@ -200,7 +217,7 @@ export class ScanService implements OnModuleInit {
       })();
       if (!page.nextPageToken) return true;
       token = page.nextPageToken;
-      if (this.pauseRequested.has(scanId)) return false;
+      if (this.pauseRequested.has(scanId) || this.isCancelled(scanId)) return false;
     }
   }
 
@@ -274,7 +291,12 @@ export class ScanService implements OnModuleInit {
     })();
   }
 
+  private isCancelled(scanId: number): boolean {
+    return !!this.db.sql.prepare("SELECT 1 FROM scans WHERE id = ? AND status = 'cancelled'").get(scanId);
+  }
+
   private setStatus(scanId: number, status: ScanStatus, error: string | null = null): void {
-    this.db.sql.prepare('UPDATE scans SET status = ?, error = ? WHERE id = ?').run(status, error, scanId);
+    // cancelada é definitivo: o laço em voo não sobrescreve
+    this.db.sql.prepare("UPDATE scans SET status = ?, error = ? WHERE id = ? AND (status != 'cancelled' OR ? = 'cancelled')").run(status, error, scanId, status);
   }
 }

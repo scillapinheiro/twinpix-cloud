@@ -88,6 +88,51 @@ describe('ScanService', () => {
     expect(scan.summary(id)).toMatchObject({ status: 'done', filesFound: 6, groupsTotal: 2 });
   });
 
+  it('cancelar para o laço, não calcula prováveis e não volta no reinício', async () => {
+    const { a, b } = tree();
+    const id = scan.start([a, b]);
+    scan.cancel(id);
+    await scan.whenIdle(id);
+    expect(scan.summary(id).status).toBe('cancelled');
+    expect(scan.summary(id).probableTotal).toBe(0);
+    expect(db.sql.prepare('SELECT probable_done p FROM scans WHERE id = ?').get(id)).toEqual({ p: 0 });
+    scan.resume(id);
+    await scan.whenIdle(id);
+    expect(scan.summary(id).status).toBe('cancelled');
+    const again = new ScanService(db, cloud, { offlineRetryMs: 0 });
+    again.onModuleInit();
+    await again.whenIdle(id);
+    expect(again.summary(id).status).toBe('cancelled');
+  });
+
+  it('cancelar análise pausada, recusar concluída e lote aberto', async () => {
+    const { a, b } = tree();
+    const id = scan.start([a, b]);
+    scan.pause(id);
+    await scan.whenIdle(id);
+    db.sql.prepare("INSERT INTO batches (scan_id, created_at, status) VALUES (?, 'x', 'paused')").run(id);
+    expect(() => scan.cancel(id)).toThrow('Termine ou desfaça o lote desta análise antes de cancelar.');
+    db.sql.prepare("UPDATE batches SET status = 'done'").run();
+    scan.cancel(id);
+    expect(scan.summary(id).status).toBe('cancelled');
+    const id2 = scan.start([a]);
+    await scan.whenIdle(id2);
+    expect(() => scan.cancel(id2)).toThrow('já terminou');
+  });
+
+  it('latest pula análises canceladas', async () => {
+    const { a, b } = tree();
+    const id1 = scan.start([a]);
+    await scan.whenIdle(id1);
+    const id2 = scan.start([b]);
+    scan.cancel(id2);
+    await scan.whenIdle(id2);
+    expect(scan.latest()?.id).toBe(id1);
+    scan.cancel(id2);
+    db.sql.prepare("UPDATE scans SET status = 'cancelled' WHERE id = ?").run(id1);
+    expect(scan.latest()).toBeNull();
+  });
+
   it('retomada após reinício do app (onModuleInit) termina a varredura', async () => {
     const { a, b } = tree();
     const id = scan.start([a, b]);

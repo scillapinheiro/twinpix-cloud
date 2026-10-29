@@ -30,7 +30,7 @@ export interface CloudFolder {
   childCount: number;
 }
 
-export type ScanStatus = 'running' | 'paused' | 'waiting-network' | 'needs-auth' | 'done' | 'error';
+export type ScanStatus = 'running' | 'paused' | 'waiting-network' | 'needs-auth' | 'done' | 'error' | 'cancelled';
 
 export interface ScanSummary {
   id: number;

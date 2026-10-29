@@ -1,0 +1,42 @@
+import type { ScanSummary } from '@twinpix/shared';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { vi } from 'vitest';
+import { ScanProgress } from './ScanProgress';
+
+const scan = (status: ScanSummary['status']): ScanSummary => ({
+  id: 3, status, roots: [{ id: 'r', name: 'A', path: '/A', childCount: 1 }], foldersDone: 1, foldersTotal: 2, filesFound: 4,
+  unanalyzedCount: 0, groupsTotal: 0, groupsPending: 0, groupsSkipped: 0, probableTotal: 0, probablePending: 0, probableSkipped: 0, bytesFreed: 0, error: null,
+});
+
+function view(status: ScanSummary['status']) {
+  const fetchMock = vi.fn(async (url: string) => new Response(JSON.stringify(scan(url.endsWith('/cancel') ? 'cancelled' : status))));
+  vi.stubGlobal('fetch', fetchMock);
+  render(
+    <MemoryRouter initialEntries={['/varredura/3']}>
+      <Routes>
+        <Route path="/varredura/:id" element={<ScanProgress />} />
+        <Route path="/" element={<p>Tela inicial</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  return fetchMock;
+}
+
+describe('cancelar análise', () => {
+  it('confirma em dois cliques, cancela e volta à tela inicial', async () => {
+    const fetchMock = view('paused');
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancelar análise' }));
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/scans/3/cancel', expect.anything());
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar cancelar análise' }));
+    expect(await screen.findByText('Tela inicial')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/scans/3/cancel', expect.objectContaining({ method: 'POST' }));
+  });
+
+  it('não aparece em análise concluída', async () => {
+    view('done');
+    await screen.findByText('Análise concluída.');
+    expect(screen.queryByRole('button', { name: 'Cancelar análise' })).not.toBeInTheDocument();
+  });
+});

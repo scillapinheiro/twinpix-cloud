@@ -55,6 +55,7 @@ export class BatchService implements OnModuleInit {
     const sql = this.db.sql;
     const scan = sql.prepare('SELECT status FROM scans WHERE id = ?').get(scanId) as { status: string } | undefined;
     if (!scan) throw new NotFoundException('Varredura não encontrada.');
+    if (scan.status === 'cancelled') throw new BadRequestException('Esta análise foi cancelada.');
     if (scan.status === 'running' || scan.status === 'waiting-network') {
       throw new BadRequestException('Espere a análise terminar para revisar em lote.');
     }
@@ -141,6 +142,7 @@ export class BatchService implements OnModuleInit {
     const changed = () => new BadRequestException('A prévia mudou. Abra as pastas repetidas de novo.');
     const scan = this.db.sql.prepare('SELECT status FROM scans WHERE id = ?').get(scanId) as { status: string } | undefined;
     if (!scan) throw new NotFoundException('Varredura não encontrada.');
+    if (scan.status === 'cancelled') throw new BadRequestException('Esta análise foi cancelada.');
     if (scan.status === 'running' || scan.status === 'waiting-network') {
       throw new BadRequestException('Espere a análise terminar para revisar em lote.');
     }
