@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ReconnectRequiredError } from '../cloud/errors';
+import { InteractionRequiredAuthError } from '@azure/msal-node';
+import { OfflineError, ReconnectRequiredError } from '../cloud/errors';
 import { loadConfig } from '../config';
 import { AuthService } from './auth.service';
 
@@ -37,6 +38,28 @@ describe('AuthService', () => {
     await expect(new AuthService(config, () => fakePca([]) as any).getAccessToken(false)).rejects.toBeInstanceOf(ReconnectRequiredError);
     const failing = fakePca([{ username: 'p@x' }], async () => { throw new Error('invalid_grant'); });
     await expect(new AuthService(config, () => failing as any).getAccessToken(false)).rejects.toBeInstanceOf(ReconnectRequiredError);
+  });
+
+  it('renovação que exige login de novo pede reconexão', async () => {
+    for (const err of [
+      new InteractionRequiredAuthError('invalid_grant', 'AADSTS70000'),
+      Object.assign(new Error('x'), { errorCode: 'no_account_in_silent_request' }),
+      Object.assign(new Error('x'), { errorCode: 'interaction_required' }),
+    ]) {
+      const pca = fakePca([{ username: 'p@x' }], async () => { throw err; });
+      await expect(new AuthService(config, () => pca as any).getAccessToken(false)).rejects.toBeInstanceOf(ReconnectRequiredError);
+    }
+  });
+
+  it('renovação que falha por falta de rede vira "sem conexão", não pedido de reconexão', async () => {
+    for (const err of [
+      Object.assign(new Error('Network request failed'), { errorCode: 'network_error' }),
+      new TypeError('fetch failed'),
+      Object.assign(new Error('getaddrinfo ENOTFOUND login.microsoftonline.com'), { code: 'ENOTFOUND' }),
+    ]) {
+      const pca = fakePca([{ username: 'p@x' }], async () => { throw err; });
+      await expect(new AuthService(config, () => pca as any).getAccessToken(false)).rejects.toBeInstanceOf(OfflineError);
+    }
   });
 
   it('callback com state desconhecido é recusado', async () => {

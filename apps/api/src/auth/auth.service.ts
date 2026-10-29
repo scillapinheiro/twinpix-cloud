@@ -1,15 +1,32 @@
-import { CryptoProvider, PublicClientApplication } from '@azure/msal-node';
+import { CryptoProvider, InteractionRequiredAuthError, PublicClientApplication } from '@azure/msal-node';
 import { Inject, Injectable } from '@nestjs/common';
 import type { AuthStatus } from '@twinpix/shared';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { ReconnectRequiredError } from '../cloud/errors';
+import { OfflineError, ReconnectRequiredError } from '../cloud/errors';
 import type { TokenSource } from '../cloud/onedrive/graph-client';
 import type { AppConfig } from '../config';
 import { CONFIG } from '../tokens';
 import { createTokenCachePlugin } from './token-cache';
 
 const SCOPES = ['Files.ReadWrite', 'offline_access'];
+
+/** Códigos do MSAL que significam "só entrando de novo resolve". */
+const RECONNECT_CODES = [
+  'invalid_grant', 'interaction_required', 'consent_required', 'login_required',
+  'no_account_in_silent_request', 'no_account_found', 'no_tokens_found',
+];
+
+/**
+ * Só pede reconexão quando o MSAL diz que é preciso entrar de novo; qualquer outra falha na
+ * renovação (rede caiu, DNS, erro de rede do MSAL) é tratada como falta de conexão.
+ */
+function needsReconnect(e: unknown): boolean {
+  if (e instanceof InteractionRequiredAuthError) return true;
+  const { errorCode, message } = (e ?? {}) as { errorCode?: unknown; message?: unknown };
+  const text = `${typeof errorCode === 'string' ? errorCode : ''} ${typeof message === 'string' ? message : ''}`;
+  return RECONNECT_CODES.some((code) => text.includes(code));
+}
 
 type Pca = Pick<PublicClientApplication, 'getTokenCache' | 'acquireTokenSilent' | 'getAuthCodeUrl' | 'acquireTokenByCode'>;
 export type PcaFactory = (config: AppConfig) => Pca;
@@ -84,13 +101,15 @@ export class AuthService implements TokenSource {
   async getAccessToken(forceRefresh: boolean): Promise<string> {
     const account = await this.firstAccount();
     if (!account) throw new ReconnectRequiredError('Conecte o seu OneDrive para continuar.');
+    let result: Awaited<ReturnType<Pca['acquireTokenSilent']>> | null;
     try {
-      const result = await this.client().acquireTokenSilent({ account, scopes: SCOPES, forceRefresh });
-      if (!result?.accessToken) throw new Error('sem token');
-      return result.accessToken;
-    } catch {
-      throw new ReconnectRequiredError();
+      result = await this.client().acquireTokenSilent({ account, scopes: SCOPES, forceRefresh });
+    } catch (e) {
+      if (needsReconnect(e)) throw new ReconnectRequiredError();
+      throw new OfflineError();
     }
+    if (!result?.accessToken) throw new ReconnectRequiredError();
+    return result.accessToken;
   }
 
   private async firstAccount() {
