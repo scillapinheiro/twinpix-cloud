@@ -30,3 +30,8 @@ it('escolhe pastas, entra em subpasta e avisa sobre pasta dentro de outra', asyn
   expect(screen.getByRole('button', { name: /Iniciar análise/ })).toBeEnabled();
   expect(screen.getByRole('button', { name: /Iniciar análise/ })).toHaveClass('button', 'primary');
 });
+
+it('explica que dá para colar o endereço da barra do navegador', async () => {
+  render(<MemoryRouter><FolderPicker /></MemoryRouter>);
+  expect(await screen.findByLabelText(/da barra do navegador ou do botão Compartilhar/)).toHaveAttribute('placeholder', 'https://onedrive.live.com/…');
+});

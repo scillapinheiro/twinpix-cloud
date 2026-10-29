@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GraphError, InvalidLinkError } from '../errors';
 import type { GraphClient } from './graph-client';
-import { encodeShareUrl, OneDriveProvider } from './onedrive-provider';
+import { encodeShareUrl, OneDriveProvider, parseOneDriveAddress } from './onedrive-provider';
+
+const SELECT_FOR_TEST = 'id,name,size,webUrl,createdDateTime,lastModifiedDateTime,parentReference,file,folder,root,fileSystemInfo,photo,image,video';
 
 function fakeGraph(routes: Record<string, { status: number; data: unknown }>) {
   const request = vi.fn(async (method: string, path: string) => {
@@ -96,5 +98,41 @@ describe('OneDriveProvider', () => {
 
     const p4 = new OneDriveProvider(fakeGraph({ ...own, [`GET /shares/${enc}/driveItem`]: { status: 200, data: folderItem('F', 'Pasta') } }).graph);
     await expect(p4.resolveFolderLink('https://1drv.ms/f/s!abc')).resolves.toMatchObject({ id: 'F', path: '/Pasta' });
+  });
+
+  const NEW = 'https://onedrive.live.com/my?id=%2Fpersonal%2F74c059baed225922%2FDocuments%2FeNe%20Solucoes%2FConfraeNe%202023%2FConfra%20eNe%20%28PORTRAIT%29&sortField=LinkFilename&isAscending=true&viewid=35ca777c%2D8a3a%2D4639%2D8d81%2De98facff530b';
+
+  it('parseOneDriveAddress classifica os formatos', () => {
+    expect(parseOneDriveAddress(NEW)).toEqual({ kind: 'path', driveId: '74c059baed225922', path: 'eNe Solucoes/ConfraeNe 2023/Confra eNe (PORTRAIT)' });
+    expect(parseOneDriveAddress('https://onedrive.live.com/my?id=%2Fpersonal%2Fabc%2FDocuments')).toEqual({ kind: 'path', driveId: 'abc', path: '' });
+    expect(parseOneDriveAddress('https://onedrive.live.com/?id=74C059BAED225922%21123&cid=74C059BAED225922')).toEqual({ kind: 'item', driveId: '74C059BAED225922', itemId: '74C059BAED225922!123' });
+    expect(parseOneDriveAddress('https://onedrive.live.com/?id=74C059BAED225922!123&cid=74C059BAED225922')).toMatchObject({ kind: 'item', itemId: '74C059BAED225922!123' });
+    expect(parseOneDriveAddress('https://onedrive.live.com/?id=root&cid=74C059BAED225922')).toMatchObject({ kind: 'item', itemId: 'root' });
+    expect(parseOneDriveAddress('https://1drv.ms/f/s!abc')).toEqual({ kind: 'share' });
+    expect(parseOneDriveAddress('https://onedrive.live.com/?redeem=aHR0cHM&id=X%211&cid=Y')).toEqual({ kind: 'share' });
+    expect(parseOneDriveAddress('http://onedrive.live.com/my?id=%2Fpersonal%2Fabc%2FDocuments')).toBeNull();
+  });
+
+  it('link novo: busca por caminho codificado; outra conta, 404 e arquivo são recusados', async () => {
+    const own = { 'GET /me/drive': { status: 200, data: { id: '74C059BAED225922' } } };
+    const route = 'GET /me/drive/root:/eNe%20Solucoes/ConfraeNe%202023/Confra%20eNe%20(PORTRAIT)';
+    const ok = fakeGraph({ ...own, [route]: { status: 200, data: folderItem('F', 'Confra eNe (PORTRAIT)') } });
+    await expect(new OneDriveProvider(ok.graph).resolveFolderLink(NEW)).resolves.toMatchObject({ id: 'F' });
+    expect(ok.request.mock.calls.map((c) => c[1])).toContain(`/me/drive/root:/eNe%20Solucoes/ConfraeNe%202023/Confra%20eNe%20(PORTRAIT)?$select=${SELECT_FOR_TEST}`);
+
+    const otherUrl = NEW.replace('74c059baed225922', 'outro');
+    await expect(new OneDriveProvider(fakeGraph(own).graph).resolveFolderLink(otherUrl)).rejects.toThrow('outra conta');
+    await expect(new OneDriveProvider(fakeGraph({ ...own, [route]: { status: 404, data: null } }).graph).resolveFolderLink(NEW)).rejects.toThrow('Não encontrei');
+    const file = { ...folderItem('A', 'a.jpg'), folder: undefined, file: { mimeType: 'image/jpeg' } };
+    await expect(new OneDriveProvider(fakeGraph({ ...own, [route]: { status: 200, data: file } }).graph).resolveFolderLink(NEW)).rejects.toThrow('não é de uma pasta');
+  });
+
+  it('link novo sem caminho vai para a raiz; link antigo usa items/<id>', async () => {
+    const own = { 'GET /me/drive': { status: 200, data: { id: 'abc' } } };
+    const root = { ...folderItem('R', 'root'), root: {} };
+    const p1 = new OneDriveProvider(fakeGraph({ ...own, 'GET /me/drive/root': { status: 200, data: root } }).graph);
+    await expect(p1.resolveFolderLink('https://onedrive.live.com/my?id=%2Fpersonal%2FABC%2FDocuments')).resolves.toMatchObject({ id: 'R', path: '/' });
+    const p2 = new OneDriveProvider(fakeGraph({ ...own, 'GET /me/drive/items/ABC!1': { status: 200, data: folderItem('I', 'Velha') } }).graph);
+    await expect(p2.resolveFolderLink('https://onedrive.live.com/?id=ABC%211&cid=ABC')).resolves.toMatchObject({ id: 'I' });
   });
 });

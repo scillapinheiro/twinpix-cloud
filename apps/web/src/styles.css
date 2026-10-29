@@ -36,7 +36,7 @@ a { color: var(--primary); }
 .button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
 .button:focus-visible, .link:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
 .button:disabled { opacity: 0.5; cursor: not-allowed; }
-.link { background: none; border: none; color: var(--primary); cursor: pointer; font-size: inherit; padding: 0 4px; }
+.link { background: none; border: none; color: var(--primary); cursor: pointer; font-size: inherit; font-family: inherit; padding: 0 4px; }
 .alert { background: #fdecea; color: var(--danger); border-radius: var(--radius-sm); padding: 12px; }
 .notice { background: var(--diff-bg); border-left: 4px solid var(--diff); padding: 10px 12px; border-radius: var(--radius-sm); }
 .muted { color: var(--muted); }

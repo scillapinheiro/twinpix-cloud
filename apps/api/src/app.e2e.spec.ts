@@ -83,6 +83,6 @@ describe('API em modo demonstração', () => {
 
   it('link inválido devolve 400 com mensagem', async () => {
     const r = await api().post('/api/folders/resolve-link', { url: 'https://example.com' }).expect(400);
-    expect(r.body.message).toBe('Este link não é do OneDrive.');
+    expect(r.body.message).toBe('No modo demonstração, só dá para escolher as pastas fictícias da lista acima.');
   });
 });

@@ -50,6 +50,7 @@ describe('FakeCloudProvider', () => {
     const sub = p.addFolder(p.rootId, 'Sub');
     expect(await p.resolveFolderLink(`https://fake.onedrive/${sub.id}`)).toEqual(sub);
     await expect(p.resolveFolderLink('https://example.com/x')).rejects.toBeInstanceOf(InvalidLinkError);
+    await expect(p.resolveFolderLink('https://example.com/x')).rejects.toThrow('No modo demonstração');
   });
 
   it('dados de demonstração têm pastas e cópias idênticas', async () => {

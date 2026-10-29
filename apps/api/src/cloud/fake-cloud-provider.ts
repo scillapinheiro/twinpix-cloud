@@ -145,7 +145,7 @@ export class FakeCloudProvider implements CloudProvider {
 
   async resolveFolderLink(url: string): Promise<CloudFolder> {
     this.enter('resolveFolderLink');
-    if (!url.startsWith(LINK_PREFIX)) throw new InvalidLinkError('Este link não é do OneDrive.');
+    if (!url.startsWith(LINK_PREFIX)) throw new InvalidLinkError('No modo demonstração, só dá para escolher as pastas fictícias da lista acima.');
     const node = this.folders.get(url.slice(LINK_PREFIX.length));
     if (!node) throw new InvalidLinkError('Não encontrei essa pasta. Confira se o link está completo.');
     return this.withCount(node.folder);

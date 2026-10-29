@@ -14,6 +14,33 @@ export function encodeShareUrl(url: string): string {
   return 'u!' + Buffer.from(url, 'utf8').toString('base64').replace(/=+$/, '').replace(/\//g, '_').replace(/\+/g, '-');
 }
 
+export type OneDriveAddress =
+  | { kind: 'path'; driveId: string; path: string }
+  | { kind: 'item'; driveId: string; itemId: string }
+  | { kind: 'share' };
+
+/** Classifica o endereço colado: barra do navegador (novo/antigo) ou link de compartilhamento. null = inválido. */
+export function parseOneDriveAddress(url: string): OneDriveAddress | null {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'https:') return null;
+  if (u.hostname !== 'onedrive.live.com') return { kind: 'share' };
+  if (u.searchParams.has('redeem')) return { kind: 'share' };
+  const id = u.searchParams.get('id');
+  if (!id) return { kind: 'share' };
+  const m = /^\/personal\/([^/]+)\/Documents(?:\/(.*))?$/i.exec(id);
+  if (m) return { kind: 'path', driveId: m[1], path: (m[2] ?? '').replace(/\/+$/, '') };
+  const cid = u.searchParams.get('cid');
+  if (cid && (id === 'root' || /^[0-9a-f]+!\d+$/i.test(id))) return { kind: 'item', driveId: cid, itemId: id };
+  return { kind: 'share' };
+}
+
+const OTHER_ACCOUNT = 'Esta pasta é de outra conta. Nesta versão, só dá para analisar pastas do seu próprio OneDrive.';
+
 export class OneDriveProvider implements CloudProvider {
   private ownDriveId: string | null = null;
 
@@ -81,20 +108,39 @@ export class OneDriveProvider implements CloudProvider {
     if (!LINK_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) {
       throw new InvalidLinkError('Este link não é do OneDrive.');
     }
-    const { status, data } = await this.graph.request<DriveItem>('GET', `/shares/${encodeShareUrl(url)}/driveItem?$select=${SELECT}`);
+    const addr = parseOneDriveAddress(url);
+    if (!addr) throw new InvalidLinkError('Isso não parece um link. Copie o endereço da pasta no OneDrive e cole aqui.');
+    if (addr.kind === 'share') {
+      const { status, data } = await this.graph.request<DriveItem>('GET', `/shares/${encodeShareUrl(url)}/driveItem?$select=${SELECT}`);
+      const folder = this.requireFolder(status, data);
+      const own = await this.getOwnDriveId();
+      if (folder.parentReference?.driveId && folder.parentReference.driveId.toLowerCase() !== own.toLowerCase()) {
+        throw new InvalidLinkError(OTHER_ACCOUNT);
+      }
+      return mapFolder(folder);
+    }
+    const own = await this.getOwnDriveId();
+    if (addr.driveId.toLowerCase() !== own.toLowerCase()) throw new InvalidLinkError(OTHER_ACCOUNT);
+    if (addr.kind === 'path' && addr.path === '') return this.getRoot();
+    if (addr.kind === 'item' && addr.itemId === 'root') return this.getRoot();
+    const route = addr.kind === 'path'
+      ? `/me/drive/root:/${addr.path.split('/').map(encodeURIComponent).join('/')}`
+      : `/me/drive/items/${encodeURIComponent(addr.itemId)}`;
+    const { status, data } = await this.graph.request<DriveItem>('GET', `${route}?$select=${SELECT}`);
+    return mapFolder(this.requireFolder(status, data));
+  }
+
+  private requireFolder(status: number, data: DriveItem | null | undefined): DriveItem {
     if (status === 404 || !data) throw new InvalidLinkError('Não encontrei essa pasta. Confira se o link está completo.');
     if (!data.folder) throw new InvalidLinkError('Este link não é de uma pasta.');
-    const own = await this.getOwnDriveId();
-    if (data.parentReference?.driveId && data.parentReference.driveId.toLowerCase() !== own.toLowerCase()) {
-      throw new InvalidLinkError('Esta pasta é de outra conta. Nesta versão, só dá para analisar pastas do seu próprio OneDrive.');
-    }
-    return mapFolder(data);
+    return data;
   }
 
   private async getOwnDriveId(): Promise<string> {
     if (!this.ownDriveId) {
       const { data } = await this.graph.request<{ id: string }>('GET', '/me/drive?$select=id');
-      this.ownDriveId = data?.id ?? '';
+      if (!data?.id) return '';
+      this.ownDriveId = data.id;
     }
     return this.ownDriveId;
   }
