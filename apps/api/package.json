@@ -1,0 +1,35 @@
+{
+  "name": "@twinpix/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "dev": "TWINPIX_DEV_ORIGIN=http://localhost:5173 TWINPIX_SESSION_TOKEN=dev-local nest start --watch",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^3.0.0",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "better-sqlite3": "^12.0.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@swc/core": "^1.7.0",
+    "@twinpix/shared": "*",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "@types/supertest": "^6.0.2",
+    "express": "^5.0.0",
+    "fast-check": "^4.0.0",
+    "supertest": "^7.0.0",
+    "unplugin-swc": "^1.5.1",
+    "vitest": "^3.2.0"
+  }
+}

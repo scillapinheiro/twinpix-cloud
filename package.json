@@ -1,0 +1,17 @@
+{
+  "name": "twinpix-cloud",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "dev": "npm run dev -w apps/api & npm run dev -w apps/web & wait",
+    "build": "npm run build -w apps/web && npm run build -w apps/api",
+    "start": "npm run start -w apps/api",
+    "demo": "npm run build && node apps/api/dist/main.js --demo",
+    "test": "npm run test -ws --if-present",
+    "typecheck": "npm run typecheck -ws --if-present"
+  },
+  "devDependencies": { "typescript": "^5.9.0" }
+}
