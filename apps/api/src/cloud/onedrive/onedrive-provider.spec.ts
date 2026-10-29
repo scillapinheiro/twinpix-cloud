@@ -5,6 +5,8 @@ import { encodeShareUrl, OneDriveProvider, parseOneDriveAddress } from './onedri
 
 const SELECT_FOR_TEST = 'id,name,size,webUrl,createdDateTime,lastModifiedDateTime,parentReference,file,folder,root,fileSystemInfo,photo,image,video';
 
+const inDrive = (i: ReturnType<typeof folderItem>, driveId: string) => ({ ...i, parentReference: { ...i.parentReference, driveId } });
+
 function fakeGraph(routes: Record<string, { status: number; data: unknown }>) {
   const request = vi.fn(async (method: string, path: string) => {
     const key = `${method} ${path.split('?')[0]}`;
@@ -116,7 +118,7 @@ describe('OneDriveProvider', () => {
   it('link novo: busca por caminho codificado; outra conta, 404 e arquivo são recusados', async () => {
     const own = { 'GET /me/drive': { status: 200, data: { id: '74C059BAED225922' } } };
     const route = 'GET /me/drive/root:/eNe%20Solucoes/ConfraeNe%202023/Confra%20eNe%20(PORTRAIT)';
-    const ok = fakeGraph({ ...own, [route]: { status: 200, data: folderItem('F', 'Confra eNe (PORTRAIT)') } });
+    const ok = fakeGraph({ ...own, [route]: { status: 200, data: inDrive(folderItem('F', 'Confra eNe (PORTRAIT)'), '74c059baed225922') } });
     await expect(new OneDriveProvider(ok.graph).resolveFolderLink(NEW)).resolves.toMatchObject({ id: 'F' });
     expect(ok.request.mock.calls.map((c) => c[1])).toContain(`/me/drive/root:/eNe%20Solucoes/ConfraeNe%202023/Confra%20eNe%20(PORTRAIT)?$select=${SELECT_FOR_TEST}`);
 
@@ -132,7 +134,32 @@ describe('OneDriveProvider', () => {
     const root = { ...folderItem('R', 'root'), root: {} };
     const p1 = new OneDriveProvider(fakeGraph({ ...own, 'GET /me/drive/root': { status: 200, data: root } }).graph);
     await expect(p1.resolveFolderLink('https://onedrive.live.com/my?id=%2Fpersonal%2FABC%2FDocuments')).resolves.toMatchObject({ id: 'R', path: '/' });
-    const p2 = new OneDriveProvider(fakeGraph({ ...own, 'GET /me/drive/items/ABC!1': { status: 200, data: folderItem('I', 'Velha') } }).graph);
+    const p2 = new OneDriveProvider(fakeGraph({ ...own, 'GET /me/drive/items/ABC!1': { status: 200, data: inDrive(folderItem('I', 'Velha'), 'abc') } }).graph);
     await expect(p2.resolveFolderLink('https://onedrive.live.com/?id=ABC%211&cid=ABC')).resolves.toMatchObject({ id: 'I' });
+  });
+
+  it('parse recusa segmentos perigosos, vazios, controle e id estranho', () => {
+    const mk = (p: string) => `https://onedrive.live.com/my?id=${encodeURIComponent(`/personal/abc/Documents/${p}`)}`;
+    expect(parseOneDriveAddress(mk('..'))).toBeNull();
+    expect(parseOneDriveAddress(mk('a/./b'))).toBeNull();
+    expect(parseOneDriveAddress(mk('../../shares/u!X/driveItem'))).toBeNull();
+    expect(parseOneDriveAddress(mk('a//b'))).toBeNull();
+    expect(parseOneDriveAddress(mk('a/ /b'))).toBeNull();
+    expect(parseOneDriveAddress(mk('a\nb'))).toBeNull();
+    expect(parseOneDriveAddress('https://onedrive.live.com/my?id=%2Fpersonal%2Fabc%2FDocuments%0A')).toBeNull();
+    expect(parseOneDriveAddress('https://onedrive.live.com/my?id=%2Fpersonal%2Fabc')).toBeNull();
+    expect(parseOneDriveAddress(mk('ok/pasta'))).toMatchObject({ kind: 'path', path: 'ok/pasta' });
+  });
+
+  it('pasta de outra conta é recusada nos ramos de caminho e de item', async () => {
+    const own = { 'GET /me/drive': { status: 200, data: { id: 'abc' } } };
+    const foreign = inDrive(folderItem('F', 'x'), 'outro');
+    const p1 = new OneDriveProvider(fakeGraph({ ...own, 'GET /me/drive/root:/x': { status: 200, data: foreign } }).graph);
+    await expect(p1.resolveFolderLink('https://onedrive.live.com/my?id=%2Fpersonal%2Fabc%2FDocuments%2Fx')).rejects.toThrow('outra conta');
+    const p2 = new OneDriveProvider(fakeGraph({ ...own, 'GET /me/drive/items/ABC!1': { status: 200, data: foreign } }).graph);
+    await expect(p2.resolveFolderLink('https://onedrive.live.com/?id=ABC%211&cid=ABC')).rejects.toThrow('outra conta');
+    const noDrive = { ...folderItem('F', 'x'), parentReference: { path: '/drive/root:' } };
+    const p3 = new OneDriveProvider(fakeGraph({ ...own, 'GET /me/drive/root:/x': { status: 200, data: noDrive } }).graph);
+    await expect(p3.resolveFolderLink('https://onedrive.live.com/my?id=%2Fpersonal%2Fabc%2FDocuments%2Fx')).rejects.toThrow('outra conta');
   });
 });

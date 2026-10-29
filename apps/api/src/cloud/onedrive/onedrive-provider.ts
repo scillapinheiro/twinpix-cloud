@@ -14,6 +14,9 @@ export function encodeShareUrl(url: string): string {
   return 'u!' + Buffer.from(url, 'utf8').toString('base64').replace(/=+$/, '').replace(/\//g, '_').replace(/\+/g, '-');
 }
 
+// eslint-disable-next-line no-control-regex
+const CONTROL = /[\u0000-\u001f\u007f]/;
+
 export type OneDriveAddress =
   | { kind: 'path'; driveId: string; path: string }
   | { kind: 'item'; driveId: string; itemId: string }
@@ -32,8 +35,13 @@ export function parseOneDriveAddress(url: string): OneDriveAddress | null {
   if (u.searchParams.has('redeem')) return { kind: 'share' };
   const id = u.searchParams.get('id');
   if (!id) return { kind: 'share' };
-  const m = /^\/personal\/([^/]+)\/Documents(?:\/(.*))?$/i.exec(id);
-  if (m) return { kind: 'path', driveId: m[1], path: (m[2] ?? '').replace(/\/+$/, '') };
+  if (id.startsWith('/')) {
+    const m = /^\/personal\/([^/]+)\/Documents(?:\/(.*))?$/is.exec(id);
+    if (!m || CONTROL.test(id)) return null;
+    const path = (m[2] ?? '').replace(/\/+$/, '');
+    if (path !== '' && path.split('/').some((seg) => seg.trim() === '' || seg === '.' || seg === '..')) return null;
+    return { kind: 'path', driveId: m[1], path };
+  }
   const cid = u.searchParams.get('cid');
   if (cid && (id === 'root' || /^[0-9a-f]+!\d+$/i.test(id))) return { kind: 'item', driveId: cid, itemId: id };
   return { kind: 'share' };
@@ -110,29 +118,26 @@ export class OneDriveProvider implements CloudProvider {
     }
     const addr = parseOneDriveAddress(url);
     if (!addr) throw new InvalidLinkError('Isso não parece um link. Copie o endereço da pasta no OneDrive e cole aqui.');
-    if (addr.kind === 'share') {
-      const { status, data } = await this.graph.request<DriveItem>('GET', `/shares/${encodeShareUrl(url)}/driveItem?$select=${SELECT}`);
-      const folder = this.requireFolder(status, data);
-      const own = await this.getOwnDriveId();
-      if (folder.parentReference?.driveId && folder.parentReference.driveId.toLowerCase() !== own.toLowerCase()) {
-        throw new InvalidLinkError(OTHER_ACCOUNT);
-      }
-      return mapFolder(folder);
-    }
     const own = await this.getOwnDriveId();
-    if (addr.driveId.toLowerCase() !== own.toLowerCase()) throw new InvalidLinkError(OTHER_ACCOUNT);
+    if (addr.kind !== 'share' && addr.driveId.toLowerCase() !== own.toLowerCase()) throw new InvalidLinkError(OTHER_ACCOUNT);
     if (addr.kind === 'path' && addr.path === '') return this.getRoot();
     if (addr.kind === 'item' && addr.itemId === 'root') return this.getRoot();
-    const route = addr.kind === 'path'
-      ? `/me/drive/root:/${addr.path.split('/').map(encodeURIComponent).join('/')}`
-      : `/me/drive/items/${encodeURIComponent(addr.itemId)}`;
+    const route = addr.kind === 'share'
+      ? `/shares/${encodeShareUrl(url)}/driveItem`
+      : addr.kind === 'path'
+        ? `/me/drive/root:/${addr.path.split('/').map(encodeURIComponent).join('/')}`
+        : `/me/drive/items/${encodeURIComponent(addr.itemId)}`;
     const { status, data } = await this.graph.request<DriveItem>('GET', `${route}?$select=${SELECT}`);
-    return mapFolder(this.requireFolder(status, data));
+    return mapFolder(this.requireFolder(status, data, own));
   }
 
-  private requireFolder(status: number, data: DriveItem | null | undefined): DriveItem {
+  private requireFolder(status: number, data: DriveItem | null | undefined, own: string): DriveItem {
     if (status === 404 || !data) throw new InvalidLinkError('Não encontrei essa pasta. Confira se o link está completo.');
     if (!data.folder) throw new InvalidLinkError('Este link não é de uma pasta.');
+    if (!data.root) {
+      const drive = data.parentReference?.driveId;
+      if (!drive || drive.toLowerCase() !== own.toLowerCase()) throw new InvalidLinkError(OTHER_ACCOUNT);
+    }
     return data;
   }
 

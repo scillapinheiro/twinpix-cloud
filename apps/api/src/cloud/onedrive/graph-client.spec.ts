@@ -66,4 +66,12 @@ describe('GraphClient', () => {
     await expect(client.request('GET', 'https://evil.example.com/x')).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('recusa segmentos . e .. sem chamar o fetch', async () => {
+    const { client, fetchMock } = setup([]);
+    await expect(client.request('GET', '/me/drive/root:/../x')).rejects.toThrow();
+    await expect(client.request('GET', '/me/drive/root:/%2e%2E/x')).rejects.toThrow();
+    await expect(client.request('GET', 'https://graph.microsoft.com/v1.0/me/../shares/x')).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

@@ -11,6 +11,7 @@ interface Options {
 }
 
 const BASE = 'https://graph.microsoft.com/v1.0';
+const DOT_SEGMENT = /^(\.|%2e){1,2}$/i;
 const MAX_WAIT_MS = 60_000;
 
 export class GraphClient {
@@ -28,6 +29,10 @@ export class GraphClient {
     const absolute = pathOrUrl.startsWith('https://');
     if (absolute && !pathOrUrl.startsWith('https://graph.microsoft.com/')) {
       throw new Error('URL fora do Microsoft Graph recusada.');
+    }
+    const rawPath = (absolute ? pathOrUrl.slice('https://graph.microsoft.com'.length) : pathOrUrl).split(/[?#]/)[0];
+    if (rawPath.split('/').some((seg) => DOT_SEGMENT.test(seg))) {
+      throw new Error('Caminho com segmentos relativos recusado.');
     }
     const url = absolute ? pathOrUrl : `${BASE}${pathOrUrl}`;
     let forceRefresh = false;
