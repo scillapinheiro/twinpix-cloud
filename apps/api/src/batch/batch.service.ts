@@ -25,6 +25,8 @@ export const BATCH_ERRORS = {
   notRestored: 'Algum arquivo não foi restaurado por um erro inesperado. Confira no Histórico.',
 } as const;
 
+export const BATCH_OPEN_MESSAGE = 'Já existe um lote pausado ou em andamento. Termine ou desfaça esse lote primeiro.';
+
 interface BatchGroupRow { group_id: number; line_key: string; keep_folder: string | null; keep_id: string | null; delete_ids: string | null }
 
 @Injectable()
@@ -81,10 +83,7 @@ export class BatchService implements OnModuleInit {
    */
   start(scanId: number, lineKeys: string[], keepFolders: Record<string, string> = {}, keeps?: Record<string, string>): BatchSummary {
     if (!lineKeys.length) throw new BadRequestException('Escolha pelo menos uma linha.');
-    const active = this.db.sql
-      .prepare("SELECT 1 FROM batches WHERE status IN ('running', 'waiting-network', 'undoing') LIMIT 1")
-      .get();
-    if (active) throw new BadRequestException('Já existe um lote em andamento.');
+    this.assertNoOpenBatch();
     const { lines } = this.preview(scanId);
     const byKey = new Map(lines.map((l) => [l.key, l]));
     const chosen = [...new Set(lineKeys)].map((k) => byKey.get(k));
@@ -143,10 +142,7 @@ export class BatchService implements OnModuleInit {
     if (scan.status === 'running' || scan.status === 'waiting-network') {
       throw new BadRequestException('Espere a análise terminar para revisar em lote.');
     }
-    const active = this.db.sql
-      .prepare("SELECT 1 FROM batches WHERE status IN ('running', 'waiting-network', 'undoing') LIMIT 1")
-      .get();
-    if (active) throw new BadRequestException('Já existe um lote em andamento.');
+    this.assertNoOpenBatch();
     if (plan.items.length === 0) throw new BadRequestException('Não há nada para mover nessas pastas.');
     if (!Array.isArray(sentItems) || sentItems.length !== plan.items.length) throw changed();
     const sentByGroup = new Map<number, ReconcileItem>();
@@ -176,6 +172,14 @@ export class BatchService implements OnModuleInit {
     })();
     this.launch(id, 'apply');
     return this.summary(id);
+  }
+
+  /** Um lote por vez: pausado ou esperando reconexão também conta (a tela leva até ele). */
+  private assertNoOpenBatch(): void {
+    const open = this.db.sql
+      .prepare("SELECT 1 FROM batches WHERE status IN ('running', 'waiting-network', 'undoing', 'paused', 'needs-auth') LIMIT 1")
+      .get();
+    if (open) throw new BadRequestException(BATCH_OPEN_MESSAGE);
   }
 
   /**

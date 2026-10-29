@@ -217,7 +217,7 @@ describe('BatchService', () => {
     expect(() => startBatch(['nada'])).toThrow('A prévia mudou. Abra o lote de novo.');
     expect(() => startBatch([])).toThrow('Escolha pelo menos uma linha.');
     const s = startBatch([line.key]);
-    expect(() => startBatch([lineFor('/C').key])).toThrow('Já existe um lote em andamento.');
+    expect(() => startBatch([lineFor('/C').key])).toThrow('Já existe um lote pausado ou em andamento. Termine ou desfaça esse lote primeiro.');
     await batch.whenIdle(s.id);
     await expectEveryGroupKeepsACopy();
   });
@@ -777,7 +777,19 @@ describe('BatchService: cópia fixada sem pasta escolhida', () => {
     it('recusa com lote ativo', () => {
       const p = plan();
       batch.startFolders(scanId, p, sentOf(p));
-      expect(() => batch.startFolders(scanId, p, sentOf(p))).toThrow('Já existe um lote em andamento.');
+      expect(() => batch.startFolders(scanId, p, sentOf(p))).toThrow('Já existe um lote pausado ou em andamento. Termine ou desfaça esse lote primeiro.');
+    });
+
+    it('lote pausado ou esperando reconexão também impede começar outro (pastas ou linhas)', () => {
+      const p = plan();
+      for (const status of ['paused', 'needs-auth']) {
+        db.sql.prepare('DELETE FROM batch_groups').run();
+        db.sql.prepare('DELETE FROM batches').run();
+        manualBatch(lineFor('/B'), status);
+        expect(() => batch.startFolders(scanId, p, sentOf(p))).toThrow('Já existe um lote pausado ou em andamento. Termine ou desfaça esse lote primeiro.');
+        expect(() => startBatch([lineFor('/C').key])).toThrow('Já existe um lote pausado ou em andamento. Termine ou desfaça esse lote primeiro.');
+      }
+      expect((db.sql.prepare('SELECT COUNT(*) n FROM batches').get() as { n: number }).n).toBe(1);
     });
 
     it('lista e histórico mostram o tipo', async () => {
