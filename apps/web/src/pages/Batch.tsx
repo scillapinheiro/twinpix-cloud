@@ -250,6 +250,7 @@ function BatchProgress({ initial, scanId }: { initial: BatchSummary; scanId: str
   const [b, setB] = useState(initial);
   const [pending, setPending] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [pollError, setPollError] = useState<string | null>(null);
   const finished = b.status === 'done' || b.status === 'undone' || b.status === 'error';
 
   useEffect(() => {
@@ -261,11 +262,11 @@ function BatchProgress({ initial, scanId }: { initial: BatchSummary; scanId: str
         const next = await apiFetch<BatchSummary>(`/api/batches/${initial.id}`);
         if (dead) return;
         setB(next);
-        setActionError(null);
+        setPollError(null);
         if (!['done', 'undone', 'error'].includes(next.status)) timer = setTimeout(tick, 1000);
       } catch (e) {
         if (dead) return;
-        setActionError((e as ApiError).message);
+        setPollError((e as ApiError).message);
         timer = setTimeout(tick, 3000);
       }
     };
@@ -287,7 +288,7 @@ function BatchProgress({ initial, scanId }: { initial: BatchSummary; scanId: str
     }
   }
 
-  const pct = b.totalGroups ? Math.round((b.doneGroups / b.totalGroups) * 100) : 0;
+  const pct = b.totalGroups ? Math.round(((b.doneGroups + b.skippedGroups) / b.totalGroups) * 100) : 0;
   const bad = b.status === 'error' || b.status === 'needs-auth';
 
   return (
@@ -315,6 +316,7 @@ function BatchProgress({ initial, scanId }: { initial: BatchSummary; scanId: str
           )}
         </ul>
       )}
+      {pollError && <p className="alert">{pollError}</p>}
       {actionError && <p className="alert" role="alert">{actionError}</p>}
       <div className="row">
         {(b.status === 'running' || b.status === 'waiting-network') && <button type="button" className="button" onClick={() => void act('pause')}>Pausar</button>}

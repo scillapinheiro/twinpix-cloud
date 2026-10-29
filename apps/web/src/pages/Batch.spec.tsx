@@ -346,3 +346,32 @@ it('pasta fora de keepOptions (empate dentro dela) não é oferecida, mas contin
   expect(screen.queryByRole('button', { name: /Inverter/ })).toBeNull();
   expect(document.querySelector('.batch-line-head')).toHaveTextContent('sai de /Backup celular 2015');
 });
+
+it('barra de progresso conta grupos feitos e pulados', async () => {
+  const f = fetch as ReturnType<typeof vi.fn>;
+  const orig = f.getMockImplementation()!;
+  f.mockImplementation(async (url: string, init?: RequestInit) =>
+    url === '/api/batches' ? new Response(JSON.stringify([summary({ status: 'paused', totalGroups: 10, doneGroups: 3, skippedGroups: 2 })])) : orig(url, init));
+  renderBatch();
+  expect(await screen.findByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
+});
+
+it('erro de um botão continua na tela depois de uma consulta de progresso que deu certo', async () => {
+  batchGet = summary({ status: 'running' });
+  const f = fetch as ReturnType<typeof vi.fn>;
+  const orig = f.getMockImplementation()!;
+  let pollFails = true;
+  f.mockImplementation(async (url: string, init?: RequestInit) => {
+    if (url === '/api/batches') return new Response(JSON.stringify([summary({ status: 'running' })]));
+    if (url === '/api/batches/9/pause') return new Response(JSON.stringify({ message: 'Não dá para pausar agora.' }), { status: 400 });
+    if (url === '/api/batches/9' && pollFails) { pollFails = false; return new Response(JSON.stringify({ message: 'Sem resposta do app.' }), { status: 500 }); }
+    return orig(url, init);
+  });
+  renderBatch();
+  await userEvent.click(await screen.findByRole('button', { name: 'Pausar' }));
+  expect(await screen.findByText('Não dá para pausar agora.')).toBeInTheDocument();
+  // 1ª consulta falha (erro de consulta aparece), a 2ª dá certo: só o erro de consulta some.
+  expect(await screen.findByText('Sem resposta do app.', undefined, { timeout: 3000 })).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByText('Sem resposta do app.')).toBeNull(), { timeout: 5000 });
+  expect(screen.getByText('Não dá para pausar agora.')).toBeInTheDocument();
+}, 10000);
