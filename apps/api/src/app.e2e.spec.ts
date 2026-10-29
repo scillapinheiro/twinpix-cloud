@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import type { BatchLine, BatchPreview, BatchSummary, GroupView, ScanSummary } from '@twinpix/shared';
+import type { BatchLine, BatchPreview, BatchSummary, FolderCluster, GroupView, ReconcilePlan, ScanSummary } from '@twinpix/shared';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -144,6 +144,71 @@ describe('API em modo demonstração', () => {
     expect(undone.status).toBe('undone');
     expect(undone.restoredFiles).toBe(summary.movedFiles);
     expect(undone.notRestoredFiles).toBe(0);
+  });
+
+  it('reconciliação de pastas: conjunto 07-06-07 → prévia → executar → só as cópias da outra pasta vão à lixeira → desfazer', async () => {
+    const root = (await api().get('/api/folders/root')).body;
+    const folders = (await api().get(`/api/folders/${encodeURIComponent(root.id)}/children`)).body;
+    const started = (await api().post('/api/scans', { roots: folders })).body as ScanSummary;
+    await waitDone(started.id);
+    const base = `/api/scans/${started.id}/folder-clusters`;
+
+    const clusters = (await api().get(base)).body as FolderCluster[];
+    const cluster = clusters.find((c) => c.folders.some((f) => f.path.endsWith('/07-06-07')) && c.folders.some((f) => f.path.endsWith('/minhas fotos/07-06-07')));
+    expect(cluster, 'conjunto 07-06-07').toBeDefined();
+    const keepFolder = cluster!.suggestedKeep;
+    const otherFolders = cluster!.folders.map((f) => f.path).filter((p) => p !== keepFolder);
+
+    const q = `key=${encodeURIComponent(cluster!.key)}&keep=${encodeURIComponent(keepFolder)}`;
+    const plan = (await api().get(`${base}/plan?${q}`)).body as ReconcilePlan;
+    expect(plan.items.length).toBeGreaterThanOrEqual(4);
+    expect(plan.deleteFiles.length).toBeGreaterThanOrEqual(4);
+    for (const f of plan.deleteFiles) expect(otherFolders).toContain(f.folderPath);
+    for (const f of plan.keepFiles) expect(f.folderPath).toBe(keepFolder);
+
+    const uniqueBefore = (await api().get(`${base}/unique?key=${encodeURIComponent(cluster!.key)}&folder=${encodeURIComponent(keepFolder)}`)).body as Array<{ id: string }>;
+    // Sem os itens vistos, recusa.
+    await api().post(`${base}/apply`, { key: cluster!.key, keepFolder }).expect(400);
+    const sent = (await api().post(`${base}/apply`, { key: cluster!.key, keepFolder, items: plan.items }).expect(200)).body as BatchSummary;
+    let summary = sent;
+    for (let i = 0; i < 200 && summary.status !== 'done'; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+      summary = (await api().get(`/api/batches/${sent.id}`)).body;
+    }
+    expect(summary.status).toBe('done');
+    expect(summary).toMatchObject({ totalGroups: plan.items.length, doneGroups: plan.items.length, failedFiles: 0 });
+    expect(summary.movedFiles).toBe(plan.deleteFiles.length);
+
+    const cloud = app.get<FakeCloudProvider>(CLOUD_PROVIDER, { strict: false });
+    for (const f of plan.deleteFiles) expect(cloud.isInTrash(f.id), `${f.name} deveria estar na lixeira`).toBe(true);
+    for (const it of plan.items) {
+      expect(cloud.isInTrash(it.keepId)).toBe(false);
+      expect(await cloud.getItem(it.keepId)).not.toBeNull();
+    }
+    // Arquivos únicos nunca são tocados.
+    for (const u of uniqueBefore) expect(cloud.isInTrash(u.id), `único ${u.id}`).toBe(false);
+
+    // Os arquivos que saíram não aparecem mais no conjunto/plano.
+    const afterClusters = (await api().get(base)).body as FolderCluster[];
+    expect(afterClusters.find((c) => c.key === cluster!.key)).toBeUndefined();
+    await api().get(`${base}/plan?${q}`).expect(404);
+
+    await api().post(`/api/batches/${sent.id}/undo`).expect(200);
+    let undone = summary;
+    for (let i = 0; i < 200 && undone.status !== 'undone'; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+      undone = (await api().get(`/api/batches/${sent.id}`)).body;
+    }
+    expect(undone.status).toBe('undone');
+    expect(undone.restoredFiles).toBe(summary.movedFiles);
+    expect(undone.notRestoredFiles).toBe(0);
+    for (const f of plan.deleteFiles) expect(cloud.isInTrash(f.id)).toBe(false);
+  });
+
+  it('id de análise não numérico devolve 400 nas rotas de pastas repetidas', async () => {
+    await api().get('/api/scans/abc/folder-clusters').expect(400);
+    await api().get('/api/scans/abc/folder-clusters/plan?key=x&keep=y').expect(400);
+    await api().post('/api/scans/abc/folder-clusters/apply', { key: 'x', keepFolder: 'y', items: [] }).expect(400);
   });
 
   it('link inválido devolve 400 com mensagem', async () => {
