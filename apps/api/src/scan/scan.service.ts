@@ -1,4 +1,5 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { hasTwoActiveFiles } from '../review/review.service';
 import type { CloudFolder, CloudItem, ScanStatus, ScanSummary } from '@twinpix/shared';
 import type { CloudProvider } from '../cloud/cloud-provider';
 import { ForbiddenError, OfflineError, ReconnectRequiredError } from '../cloud/errors';
@@ -97,11 +98,11 @@ export class ScanService implements OnModuleInit {
       filesFound: count('SELECT COUNT(*) n FROM files WHERE scan_id = ?'),
       unanalyzedCount: count('SELECT COUNT(*) n FROM files WHERE scan_id = ? AND quick_xor_hash IS NULL'),
       groupsTotal: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'identical'"),
-      groupsPending: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'identical' AND status IN ('pending', 'stale')"),
-      groupsSkipped: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'identical' AND status = 'skipped'"),
+      groupsPending: count(`SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'identical' AND status IN ('pending', 'stale') AND ${hasTwoActiveFiles('dup_groups')}`),
+      groupsSkipped: count(`SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'identical' AND status = 'skipped' AND ${hasTwoActiveFiles('dup_groups')}`),
       probableTotal: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'probable'"),
-      probablePending: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'probable' AND status IN ('pending', 'stale')"),
-      probableSkipped: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'probable' AND status = 'skipped'"),
+      probablePending: count(`SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'probable' AND status IN ('pending', 'stale') AND ${hasTwoActiveFiles('dup_groups')}`),
+      probableSkipped: count(`SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'probable' AND status = 'skipped' AND ${hasTwoActiveFiles('dup_groups')}`),
       bytesFreed: (sql.prepare(
         `SELECT COALESCE(SUM(f.size), 0) n FROM actions a
          JOIN dup_groups g ON g.id = a.group_id

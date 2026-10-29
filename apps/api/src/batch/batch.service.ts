@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleIni
 import type { BatchPreview, GroupView, BatchStatus, BatchSummary, BatchKind, ReconcileItem, ReconcilePlan } from '@twinpix/shared';
 import { ActionsService } from '../actions/actions.service';
 import { OfflineError, ReconnectRequiredError } from '../cloud/errors';
-import { ReviewService } from '../review/review.service';
+import { ReviewService, hasTwoActiveFiles } from '../review/review.service';
 import type { Db } from '../storage/db';
 import { nowIso } from '../storage/rows';
 import { suggestKeep } from '../rules/suggest-keep';
@@ -59,7 +59,9 @@ export class BatchService implements OnModuleInit {
       throw new BadRequestException('Espere a análise terminar para revisar em lote.');
     }
     const ids = (sql
-      .prepare("SELECT id FROM dup_groups WHERE scan_id = ? AND status = 'pending' AND kind = 'identical' ORDER BY position")
+      .prepare(
+        `SELECT id FROM dup_groups WHERE scan_id = ? AND status = 'pending' AND kind = 'identical' AND ${hasTwoActiveFiles('dup_groups')} ORDER BY position`,
+      )
       .all(scanId) as Array<{ id: number }>).map((r) => r.id);
     const rules = getRules(this.db);
     const inputs: BatchGroupInput[] = ids.map((id) => {

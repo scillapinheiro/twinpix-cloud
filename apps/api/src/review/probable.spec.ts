@@ -200,4 +200,18 @@ describe('prováveis cópias', () => {
     expect(cloud.isInTrash(del[0])).toBe(false);
     await expect(actions.apply(g.id, g.files.map((f) => f.id))).rejects.toThrow();
   });
+
+  it('contadores e prévia do lote ignoram grupos com menos de 2 ativos', async () => {
+    const first = review.current(scanId)!;
+    const [x] = first.files.map((f) => f.id);
+    const gid = Number(db.sql.prepare("INSERT INTO dup_groups (scan_id, kind, key, position, status) VALUES (?, 'probable', 'p:extra', 99, 'pending')").run(scanId).lastInsertRowid);
+    db.sql.prepare('INSERT INTO dup_group_files (group_id, file_id) VALUES (?, ?), (?, ?)').run(gid, x, gid, 'p1a');
+    expect(scan.summary(scanId).probablePending).toBe(3);
+    await actions.apply(gid, [x]); // x some do grupo idêntico `first` (fica com 1 ativo)
+    expect(scan.summary(scanId)).toMatchObject({ groupsPending: 1, probablePending: 2 });
+    const batch = new BatchService(db, review, actions, { offlineRetryMs: 0, sleep: async () => {} });
+    expect(batch.preview(scanId).pendingCount).toBe(1);
+    db.sql.prepare("UPDATE dup_groups SET status = 'skipped' WHERE id = ?").run(first.id);
+    expect(scan.summary(scanId).groupsSkipped).toBe(0);
+  });
 });

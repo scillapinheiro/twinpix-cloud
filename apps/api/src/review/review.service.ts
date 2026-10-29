@@ -9,6 +9,11 @@ import { getRules } from './rules-settings';
 type Kind = GroupView['kind'];
 interface GroupRow { id: number; scan_id: number; kind: Kind; position: number; status: GroupStatus }
 
+/** Condição SQL: o grupo (tabela com o alias dado) tem 2+ arquivos ativos (mesmo critério de activeFileIds). */
+export const hasTwoActiveFiles = (alias: string) =>
+  `(SELECT COUNT(*) FROM dup_group_files gf WHERE gf.group_id = ${alias}.id
+     AND NOT EXISTS (SELECT 1 FROM actions a WHERE a.file_id = gf.file_id AND a.status IN ('done','pending'))) >= 2`;
+
 const cursorColumn = (kind: Kind) => (kind === 'probable' ? 'cursor_probable_id' : 'cursor_group_id');
 
 @Injectable()
