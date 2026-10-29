@@ -3,3 +3,6 @@ node_modules/
 .env
 *.sqlite
 dist/
+*.lsjson*
+listagens/
+*.sqlite-*
