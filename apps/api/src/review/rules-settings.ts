@@ -6,9 +6,19 @@ const KEY = 'rules';
 
 export function getRules(db: Db): RuleCriterion[] {
   const row = db.sql.prepare('SELECT value FROM settings WHERE key = ?').get(KEY) as { value: string } | undefined;
-  if (!row) return DEFAULT_RULES;
-  const parsed: unknown = JSON.parse(row.value);
-  return isValidRules(parsed) ? parsed : DEFAULT_RULES;
+  if (!row) return defaults();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(row.value);
+  } catch {
+    return defaults();
+  }
+  return isValidRules(parsed) ? parsed : defaults();
+}
+
+/** Cópia, para que quem recebe possa alterar sem mexer no padrão compartilhado. */
+function defaults(): RuleCriterion[] {
+  return DEFAULT_RULES.map((r) => ({ ...r }));
 }
 
 export function setRules(db: Db, rules: RuleCriterion[]): void {

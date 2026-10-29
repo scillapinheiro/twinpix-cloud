@@ -3,6 +3,7 @@ import { FakeCloudProvider } from '../cloud/fake-cloud-provider';
 import { ScanService } from '../scan/scan.service';
 import { Db } from '../storage/db';
 import { ReviewService } from './review.service';
+import { DEFAULT_RULES } from '../rules/suggest-keep';
 import { getRules, setRules } from './rules-settings';
 
 let db: Db;
@@ -79,5 +80,15 @@ describe('ReviewService', () => {
     db.sql.prepare("INSERT INTO actions (group_id, file_id, kept_file_id, status, created_at, updated_at) VALUES (?, ?, ?, 'pending', 'x', 'x')")
       .run(other, g.preMarkedIds[0], g.suggestion.keepId);
     expect(review.activeFileIds(g.id)).toEqual([g.suggestion.keepId]);
+  });
+
+  it('regras gravadas corrompidas caem no padrão e o padrão devolvido é uma cópia', () => {
+    const snapshot = JSON.parse(JSON.stringify(DEFAULT_RULES));
+    const rules = getRules(db);
+    rules.push({ type: 'oldestModified' });
+    expect(DEFAULT_RULES).toEqual(snapshot);
+    db.sql.prepare("INSERT INTO settings (key, value) VALUES ('rules', '{quebrado')").run();
+    expect(getRules(db)).toEqual(snapshot);
+    expect(() => review.current(scanId)).not.toThrow();
   });
 });
