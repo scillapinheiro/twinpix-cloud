@@ -41,6 +41,10 @@ A implementação foi dividida em planos:
   tela cheia (2→2, 3→3, 4+→2 por linha, 1 no celular), selo só "★ Sugerida para manter" com a
   regra numa faixa de legenda, barra de ações fixa no rodapé, botões da tela inicial lado a
   lado, visual arredondado com a fonte **Nunito** (embutida). Testes: API 148, web 33.
+- **Paleta "Violeta e menta"** escolhida pela autora entre três opções (prints comparativos) e
+  aplicada: título e faixa violeta, botões principais preenchidos, borda menta na cópia
+  sugerida, progresso violeta. Testes: API 148, web 34. Pendência pequena: o link "ver lista"
+  usa fonte serifada (falta `font-family: inherit` em `.link`).
 
 ### Como experimentar
 
@@ -83,7 +87,7 @@ Foram tomadas pelo Claude com a autonomia dada para a noite. A usuária pode rev
 
 ## Pendências e próximo passo seguro
 
-1. **A usuária experimenta o modo demonstração** (`npm run demo`) e dá retorno sobre as telas.
+1. Modo demonstração revisado pela autora (29/10, manhã): layout e paleta aprovados.
 2. **Combinar uma pasta de teste** no OneDrive. Sugestão: uma pasta nova com algumas fotos
    copiadas, incluindo repetidas de propósito. Primeiro teste real **só nela**: conectar,
    analisar, mover uma cópia, desfazer.
