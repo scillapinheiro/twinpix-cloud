@@ -181,3 +181,41 @@ export interface BatchSummary {
   notRestoredFiles: number;
   error: string | null;
 }
+
+export interface FolderStat {
+  path: string;
+  fileCount: number;
+  bytes: number;
+  /** Arquivos que só existem nesta pasta (sem cópia idêntica em outra pasta do conjunto). */
+  uniqueCount: number;
+  situation: 'complete' | 'contained' | 'partial';
+  /** Para `contained`: a pasta que contém todos os arquivos desta. */
+  containedIn: string | null;
+  /** Grupos em comum com a pasta mais completa (0 para ela mesma). */
+  commonWithComplete: number;
+}
+
+export interface FolderCluster {
+  key: string;
+  /** Na ordem de sugestão: a primeira é a sugerida para manter. */
+  folders: FolderStat[];
+  suggestedKeep: string;
+  repeatedFiles: number;
+  uniqueFiles: number;
+  groupCount: number;
+}
+
+export interface ReconcileItem {
+  groupId: number;
+  keepId: string;
+  deleteIds: string[];
+}
+
+export interface ReconcilePlan {
+  clusterKey: string;
+  keepFolder: string;
+  items: ReconcileItem[];
+  deleteFiles: CloudItem[];
+  bytes: number;
+  remaining: Array<{ path: string; fileCount: number }>;
+}
