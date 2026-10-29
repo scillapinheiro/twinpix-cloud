@@ -5,7 +5,6 @@ import { Thumbnail } from './Thumbnail';
 interface Props {
   file: CloudItem;
   isSuggested: boolean;
-  reason: string;
   marked: boolean;
   /** true quando marcar esta cópia deixaria o grupo sem nenhuma. */
   lockDelete: boolean;
@@ -14,12 +13,12 @@ interface Props {
   fields: FieldKey[];
 }
 
-export function FileCard({ file, isSuggested, reason, marked, lockDelete, onToggle, diffs, fields }: Props) {
+export function FileCard({ file, isSuggested, marked, lockDelete, onToggle, diffs, fields }: Props) {
   const disabled = lockDelete && !marked;
   return (
     <article className={`file-card${marked ? ' marked' : ''}`}>
       <Thumbnail fileId={file.id} alt={file.name} />
-      {isSuggested && <p className="badge-keep">★ Sugerida para manter ({reason})</p>}
+      {isSuggested && <p className="badge-keep">★ Sugerida para manter</p>}
       <dl>
         {fields.map((key) => (
           <div key={key} style={{ display: 'contents' }}>

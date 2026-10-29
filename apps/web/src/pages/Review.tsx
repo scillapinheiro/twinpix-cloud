@@ -1,6 +1,7 @@
 import type { GroupView } from '@twinpix/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { FileCard } from '../components/FileCard';
 import { ApiError, apiFetch } from '../lib/api';
 import { FIELD_LABELS, differingFields, fieldValue, type FieldKey } from '../lib/differing-fields';
@@ -12,6 +13,8 @@ export function Review() {
   const [group, setGroup] = useState<GroupView | null | undefined>(undefined);
   const [marked, setMarked] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const deleteButton = useRef<HTMLButtonElement>(null);
 
   const shownId = useRef<number | null>(null);
 
@@ -75,6 +78,13 @@ export function Review() {
       setError((e as ApiError).message);
     }
   }
+  async function afterApply(stale: boolean) {
+    try {
+      goTo(await apiFetch<GroupView | null>(stale ? `/api/groups/${group!.id}` : `/api/scans/${scanId}/groups/current`));
+    } catch (e) {
+      setError((e as ApiError).message);
+    }
+  }
   async function back() {
     try {
       const prev = await apiFetch<GroupView | null>(`/api/groups/${group!.id}/previous`);
@@ -85,7 +95,7 @@ export function Review() {
   }
 
   return (
-    <section>
+    <section className="review">
       <div className="group-header card">
         <strong>
           Grupo {group.position} de {group.total} · Cópias idênticas · {formatBytes(group.bytesFreedSoFar)} liberados até agora
@@ -113,15 +123,18 @@ export function Review() {
         </div>
       )}
 
-      <p className="legend">Campos em <span className="diff">laranja</span> são diferentes entre as cópias.</p>
+      <p className="legend">
+        <span className="legend-keep">★ Sugerida para manter</span> — escolhida pela regra: {group.suggestion.reason.replace(/^regra:\s*/, '')}
+        <span className="legend-sep" aria-hidden="true"> · </span>
+        Campos em <span className="diff">laranja</span> são diferentes entre as cópias.
+      </p>
 
-      <div className="cards">
+      <div className="cards" data-count={group.files.length >= 4 ? 'many' : group.files.length}>
         {group.files.map((f) => (
           <FileCard
             key={f.id}
             file={f}
             isSuggested={f.id === group.suggestion.keepId}
-            reason={group.suggestion.reason}
             marked={marked.has(f.id)}
             lockDelete={unmarkedCount <= 1}
             onToggle={() => toggle(f.id)}
@@ -136,13 +149,23 @@ export function Review() {
         <button type="button" className="button" onClick={skip}>Pular</button>
         <button
           type="button"
+          ref={deleteButton}
           className="button danger"
           disabled={marked.size === 0 || group.status === 'resolved'}
-          onClick={() => navigate('/confirmar', { state: { groupId: group.id, scanId: group.scanId, deleteIds: [...marked] } })}
+          onClick={() => setConfirming(true)}
         >
           Excluir marcadas ({marked.size})
         </button>
       </div>
+
+      {confirming && (
+        <ConfirmDialog
+          groupId={group.id}
+          deleteIds={[...marked]}
+          onCancel={() => { setConfirming(false); deleteButton.current?.focus(); }}
+          onDone={(stale) => { setConfirming(false); void afterApply(stale); }}
+        />
+      )}
     </section>
   );
 }

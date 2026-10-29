@@ -18,7 +18,7 @@ beforeEach(() => {
 const fields = ['name', 'folderPath', 'dimensions', 'size', 'takenAt', 'modifiedAt', 'camera'] as const;
 
 it('mostra todos os campos com rótulo, câmera com fabricante e link do OneDrive', () => {
-  render(<FileCard file={file} isSuggested={false} reason="" marked={false} lockDelete={false} onToggle={() => {}} diffs={new Set()} fields={[...fields]} />);
+  render(<FileCard file={file} isSuggested={false} marked={false} lockDelete={false} onToggle={() => {}} diffs={new Set()} fields={[...fields]} />);
   for (const label of ['Arquivo', 'Pasta', 'Dimensões', 'Tamanho', 'Tirada em', 'Modificada em', 'Câmera']) {
     expect(screen.getByText(label)).toBeInTheDocument();
   }
@@ -26,15 +26,15 @@ it('mostra todos os campos com rótulo, câmera com fabricante e link do OneDriv
   expect(screen.getByRole('link', { name: /Abrir no OneDrive/ })).toHaveAttribute('href', 'https://onedrive.live.com/x');
 });
 
-it('destaca diferenças e mostra o selo de sugerida com o motivo', () => {
-  render(<FileCard file={file} isSuggested reason="regra: mais antiga (tirada em)" marked={false} lockDelete={false} onToggle={() => {}} diffs={new Set(['name'])} fields={[...fields]} />);
+it('destaca diferenças e mostra o selo de sugerida sem o motivo', () => {
+  render(<FileCard file={file} isSuggested marked={false} lockDelete={false} onToggle={() => {}} diffs={new Set(['name'])} fields={[...fields]} />);
   expect(screen.getByText(file.name)).toHaveClass('diff');
-  expect(screen.getByText('★ Sugerida para manter (regra: mais antiga (tirada em))')).toBeInTheDocument();
+  expect(screen.getByText('★ Sugerida para manter')).toBeInTheDocument();
 });
 
 it('trava: não deixa marcar a última cópia que sobraria', async () => {
   const onToggle = vi.fn();
-  render(<FileCard file={file} isSuggested={false} reason="" marked={false} lockDelete onToggle={onToggle} diffs={new Set()} fields={[...fields]} />);
+  render(<FileCard file={file} isSuggested={false} marked={false} lockDelete onToggle={onToggle} diffs={new Set()} fields={[...fields]} />);
   const box = screen.getByRole('checkbox', { name: 'Excluir esta cópia' });
   expect(box).toBeDisabled();
   expect(screen.getByText('É a única cópia que sobraria.')).toBeInTheDocument();

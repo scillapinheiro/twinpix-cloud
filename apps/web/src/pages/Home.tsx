@@ -52,18 +52,16 @@ export function Home() {
       <h1>Olá{auth.accountName ? `, ${auth.accountName}` : ''}!</h1>
       {auth.demo && <p className="notice">Modo demonstração: os arquivos são fictícios e nada acontece no seu OneDrive.</p>}
       {latest && (
-        <div className="latest">
-          <p>
-            Última análise: {latest.filesFound} arquivos, {latest.groupsPending} grupos para revisar,
-            {' '}{formatBytes(latest.bytesFreed)} liberados.
-          </p>
-          <div className="row">
-            <Link className="button" to={`/varredura/${latest.id}`}>Ver análise</Link>
-            {latest.groupsPending > 0 && <Link className="button primary" to={`/revisao/${latest.id}`}>Continuar revisão</Link>}
-          </div>
-        </div>
+        <p>
+          Última análise: {latest.filesFound} arquivos, {latest.groupsPending} grupos para revisar,
+          {' '}{formatBytes(latest.bytesFreed)} liberados.
+        </p>
       )}
-      <Link className="button" to="/pastas">Nova análise</Link>
+      <div className="row">
+        {latest && <Link className="button" to={`/varredura/${latest.id}`}>Ver análise</Link>}
+        {latest && latest.groupsPending > 0 && <Link className="button primary" to={`/revisao/${latest.id}`}>Continuar revisão</Link>}
+        <Link className="button" to="/pastas">Nova análise</Link>
+      </div>
     </section>
   );
 }
