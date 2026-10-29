@@ -1,6 +1,6 @@
 # Handoff — TwinPix Cloud
 
-Última atualização: 29/10/2026, noite (v1 concluída: planos 1-6, merge na main, README final)
+Última atualização: 29/10/2026, fim da noite (v1 concluída, testada pela autora e repositório público)
 
 ## Objetivo e escopo
 
@@ -13,7 +13,7 @@ A implementação foi dividida em planos:
 
 | Plano | Conteúdo | Situação |
 |---|---|---|
-| **1** | Base + **cópias idênticas** de ponta a ponta + modo demonstração | **Implementado e revisado** (branch `plano-1-identicas`) |
+| **1** | Base + **cópias idênticas** de ponta a ponta + modo demonstração | **Implementado e revisado** |
 | 2 | **Lote das idênticas** (prévia por par de pastas, inverter, desfazer lote) + atalhos de teclado | **Implementado e revisado** (29/10, tarde) |
 | 3 | **Reconciliação de pastas** (`docs/superpowers/plans/2026-10-29-plano-3-reconciliacao-de-pastas.md`) | **Implementado e revisado** (29/10, tarde) |
 | 4 | **Prováveis cópias** (`docs/superpowers/plans/2026-10-29-plano-4-provaveis-copias.md`) | **Implementado e revisado** (29/10, noite) |
@@ -22,18 +22,49 @@ A implementação foi dividida em planos:
 
 ## Estado atual
 
-- **v1 concluída.** Planos 1 a 6 implementados e revisados, tudo na `main` (branch de trabalho
-  apagada local e remotamente), README final publicado.
-- Testes na `main`: API 350 + 1 pulado (contrato real), web 143; typecheck e build OK.
-- A autora vai testar tudo de uma vez, incluindo o lote das prováveis regravações e a tecla X.
-- Registro no Microsoft Entra feito pela autora; Client ID no `.env` da raiz (fora do git).
+Branch única: **`main`**, igual a `origin/main` (último commit no momento deste handoff:
+`9fd7aa3 docs: handoff com a v1 concluída`). A branch `plano-1-identicas` foi juntada por
+fast-forward e apagada local e remotamente.
+
+| Item | Situação |
+|---|---|
+| Planos 1-6 | Concluídos: cada tarefa revisada, revisão final por plano e onda de correção re-revisada |
+| README final | Publicado (`27c1574`), com imagens da demo em `docs/imagens/` (só arquivos fictícios) |
+| Teste geral da autora | **Validado** por ela em 29/10 ("já testei tudo") |
+| Repositório no GitHub | **Público** (a autora mudou a visibilidade). Conferido: o histórico não tem o Client ID, `.env`, listagens do rclone nem bancos `.sqlite` |
+| Post no LinkedIn | Rascunho entregue no chat; a autora vai ajustar e publicar ela mesma (fora do repositório) |
+
+Validações executadas na `main` (29/10, fim da noite):
+
+    npm test            # API: 33 arquivos, 350 passaram + 1 pulado (contrato real); web: 15 arquivos, 143 passaram
+    npm run typecheck   # sem erros
+    npm run build       # ok
+
+O teste de contrato com o OneDrive real (pulado no `npm test`) passou em 29/10 às 17h12 na pasta
+`/TwinPix Teste`, que foi conferida intacta por rclone depois.
+
+### Ambiente e processos locais
+
+- A autora roda o app dela em `127.0.0.1:4317` (`npm start`). **Nunca usar essa porta** para
+  testes; smokes usam `PORT=4400` com `TWINPIX_DATA_DIR` temporário e `--demo`.
+- Dados do app da autora: `~/.twinpix-cloud/` (`twinpix.sqlite`, `msal-cache.json` com o login,
+  `demo.sqlite`). Não apagar nem ler o cache de login.
+- Ledgers do desenvolvimento por subagentes: `.superpowers/sdd/<plano>/` (ignorado pelo git).
+
+### Dados temporários
+
+- Scratchpad da sessão de 29/10 (~24 MB, inclui listagens reais do rclone com nomes de fotos da
+  autora em `listagens/`, dados de smoke, capturas da demo e o `playwright-core` em `pw/`):
+  `/tmp/claude-1001/-home-ene-twinpix-cloud/ac224d97-fcea-4504-a54e-ed9e3309c86a/scratchpad/`.
+  Pode ser apagado inteiro com `rm -rf` nesse caminho; nada dele é necessário ao projeto.
+- `.superpowers/` pode ser apagado quando a autora não quiser mais o histórico das revisões.
 
 ### Como experimentar
 
     npm install
     npm run demo          # arquivos fictícios, nada acontece no OneDrive
 
-Com o OneDrive de verdade (só depois de combinar a pasta de teste):
+Com o OneDrive de verdade (passo a passo do registro na Microsoft no README):
 
     npm run build && npm start
 
@@ -146,9 +177,14 @@ Conteúdo obrigatório (pedido da autora, 29/10/2026):
 
 ## Próximo passo
 
-Aguardar o teste geral da autora e corrigir o que ela encontrar. Pendências de revisão adiadas
-(não bloqueiam): `isInsideFolder` duplicado em `cloud/test-folder.ts` e `grouping/folders.ts`;
-`msal-node` 7.x para os alertas do `npm audit`; algumas asserções de teste mais frouxas.
+Nada em andamento. Próximo passo seguro: esperar a autora trazer ajustes ou ideias novas e,
+antes de qualquer mudança, descrever o que será feito e pedir autorização.
+
+Pendências de revisão adiadas (não bloqueiam, só se a autora quiser):
+- `isInsideFolder` duplicado em `apps/api/src/cloud/test-folder.ts` e `apps/api/src/grouping/folders.ts`.
+- `@azure/msal-node` 7.x para os alertas do `npm audit` (mudança de versão maior).
+- Algumas asserções de teste frouxas (e2e das prováveis com `>=`; tecla X sem teste em grupo
+  resolvido). Lista completa nos ledgers `.superpowers/sdd/*/progress.md` (linhas `minor (deferred)`).
 
 ## Dados de referência
 
@@ -166,20 +202,23 @@ Aguardar o teste geral da autora e corrigir o que ela encontrar. Pendências de 
   exceto na pasta de teste combinada: `/TwinPix Teste` (contém teste.jpg, "teste 1.jpg" e outra.jpg).
 - Nunca ler, mostrar ou commitar o `.env`.
 - Não mexer no backup do notebook (`/home/ene/backup-notebook/`), que é outro assunto.
+- Nunca usar a porta 4317 (app da autora).
+- Listagens reais e nomes de fotos da autora nunca vão para o git (o repositório é público).
 - A autonomia da noite de 29/10 **não vale automaticamente** para as próximas sessões:
-  perguntar antes de executar mudanças, conforme as regras da usuária.
+  perguntar antes de ler, executar ou mudar qualquer coisa, conforme as regras da usuária.
 
 ## Prompt para nova sessão
 
 ```
-Vamos continuar o projeto TwinPix Cloud (ferramenta para achar fotos e vídeos repetidos no OneDrive).
-Diretório: /home/ene/twinpix-cloud — branch plano-1-identicas
-Leia primeiro, nesta ordem:
-1. /home/ene/twinpix-cloud/docs/HANDOFF.md
-2. /home/ene/twinpix-cloud/docs/superpowers/specs/2026-10-29-twinpix-cloud-design.md
-3. a memória twinpix-cloud
-Os planos 1-5 foram implementados e revisados; ver a tabela de planos e o "Fechamento da v1".
+Vamos continuar o projeto TwinPix Cloud (app local para achar fotos e vídeos repetidos no OneDrive).
+Diretório: /home/ene/twinpix-cloud — branch main (repositório público no GitHub:
+https://github.com/scillapinheiro/twinpix-cloud). A v1 está concluída e testada por mim.
 Antes de qualquer comando, diga o que pretende ler/verificar e espere minha autorização.
-Depois me resuma o estado em poucas linhas e me ajude com o próximo passo do handoff.
-Não mexa em nada do meu OneDrive fora da pasta de teste combinada; commits sem coautoria.
+Depois de autorizado, leia nesta ordem:
+1. as instruções globais e a memória do projeto (twinpix-cloud, commits-sem-coautoria);
+2. /home/ene/twinpix-cloud/docs/HANDOFF.md;
+3. a spec, se precisar: docs/superpowers/specs/2026-10-29-twinpix-cloud-design.md.
+Confira o estado real (git status, branch, últimos commits) sem mudar nada e me resuma em poucas
+linhas. Não faça commit, push nem mudanças sem eu pedir. Nunca mexa no meu OneDrive fora da pasta
+/TwinPix Teste, nunca leia o .env, nunca use a porta 4317. Commits sempre sem coautoria.
 ```
