@@ -1,6 +1,6 @@
 # Handoff — TwinPix Cloud
 
-Última atualização: 29/10/2026, noite (planos 1-6 concluídos; fechamento da v1)
+Última atualização: 29/10/2026, noite (v1 concluída: planos 1-6, merge na main, README final)
 
 ## Objetivo e escopo
 
@@ -22,15 +22,11 @@ A implementação foi dividida em planos:
 
 ## Estado atual
 
-- Planos 1 a 5 implementados, cada tarefa revisada e cada plano com revisão final + onda de
-  correções re-revisada. Tudo na branch **`plano-1-identicas`** no GitHub, **ainda não juntada
-  na `main`** (o fechamento da v1 faz o merge, apaga as branches e reescreve o README).
-- A autora usa o app **todo dia no OneDrive real** (login testado, lote, pastas repetidas,
-  prováveis). Contrato com o OneDrive real passou na pasta `/TwinPix Teste`.
-- Registro no Microsoft Entra feito pela autora (conta gratuita do Azure → "Diretório padrão");
-  Client ID no `.env` da raiz (fora do git, permissão 600).
-- Testes (fim do Plano 5): API 320 + 1 pulado (contrato real), web 130; typecheck e build OK.
-- Plano 6 (lote das prováveis regravações + tecla X) concluído. **Próximo:** fechamento da v1.
+- **v1 concluída.** Planos 1 a 6 implementados e revisados, tudo na `main` (branch de trabalho
+  apagada local e remotamente), README final publicado.
+- Testes na `main`: API 350 + 1 pulado (contrato real), web 143; typecheck e build OK.
+- A autora vai testar tudo de uma vez, incluindo o lote das prováveis regravações e a tecla X.
+- Registro no Microsoft Entra feito pela autora; Client ID no `.env` da raiz (fora do git).
 
 ### Como experimentar
 
@@ -148,11 +144,11 @@ Conteúdo obrigatório (pedido da autora, 29/10/2026):
 - Página do Histórico espera as ações pendentes serem conferidas (limitado pelo timeout de 60 s).
 - Links de grupo "fantasma" antigos no banco são ignorados, não apagados (inócuos).
 
-## Fechamento da v1 (depois do Plano 6)
+## Próximo passo
 
-1. Revisão final geral, merge de `plano-1-identicas` na `main`, apagar branches locais e remotas.
-2. README final no padrão da autora (seção "README final" acima).
-3. A autora testa tudo de uma vez.
+Aguardar o teste geral da autora e corrigir o que ela encontrar. Pendências de revisão adiadas
+(não bloqueiam): `isInsideFolder` duplicado em `cloud/test-folder.ts` e `grouping/folders.ts`;
+`msal-node` 7.x para os alertas do `npm audit`; algumas asserções de teste mais frouxas.
 
 ## Dados de referência
 
