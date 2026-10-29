@@ -49,6 +49,11 @@ describe('buildBatchLines', () => {
     expect(r).toEqual({ lines: [], tiesCount: 1 });
   });
 
+  it('grupo cujo keepId não está nos arquivos é pulado (intencional)', () => {
+    const r = buildBatchLines([g(1, [f('a', '/A'), f('b', '/B')], 'zzz')]);
+    expect(r).toEqual({ lines: [], tiesCount: 0 });
+  });
+
   it('ordena por bytes desc, groupCount desc, key', () => {
     const { lines } = buildBatchLines([
       g(1, [f('a', '/A'), f('b', '/B', 10)]),
@@ -73,14 +78,26 @@ describe('buildBatchLines', () => {
         const files = s.folders.map((p, j) => f(`g${i}f${j}`, p, j + 1));
         return g(i, files, files[s.keepIdx % files.length].id, s.fallback);
       });
-      const { lines } = buildBatchLines(groups);
-      for (const line of lines) for (const item of line.items) {
-        const src = groups.find((x) => x.groupId === item.groupId)!;
-        const removeIds = item.remove.map((r) => r.id);
-        expect(src.suggestion.fallback).toBe(false);
-        expect(removeIds).not.toContain(src.suggestion.keepId);
-        expect(removeIds.length).toBe(src.files.length - 1);
-        expect(removeIds.sort()).toEqual(src.files.filter((x) => x.id !== src.suggestion.keepId).map((x) => x.id).sort());
+      const { lines, tiesCount } = buildBatchLines(groups);
+      expect(tiesCount).toBe(groups.filter((x) => x.suggestion.fallback).length);
+      const expectedIds = groups.filter((x) => !x.suggestion.fallback).map((x) => x.groupId).sort((x, y) => x - y);
+      const seenIds = lines.flatMap((l) => l.items.map((i) => i.groupId)).sort((x, y) => x - y);
+      expect(seenIds).toEqual(expectedIds);
+      for (const line of lines) {
+        expect(line.groupCount).toBe(line.items.length);
+        expect(line.fileCount).toBe(line.items.reduce((n, i) => n + i.remove.length, 0));
+        expect(line.bytes).toBe(line.items.reduce((n, i) => n + i.remove.reduce((m, r) => m + r.size, 0), 0));
+        for (const item of line.items) {
+          const src = groups.find((x) => x.groupId === item.groupId)!;
+          const keep = src.files.find((x) => x.id === src.suggestion.keepId)!;
+          const removeIds = item.remove.map((r) => r.id);
+          expect(item.keep).toEqual({ name: `${keep.id}.jpg`, folderPath: keep.folderPath });
+          expect(line.keepFolder).toBe(keep.folderPath);
+          expect(src.suggestion.fallback).toBe(false);
+          expect(removeIds).not.toContain(keep.id);
+          expect(removeIds.length).toBe(src.files.length - 1);
+          expect([...removeIds].sort()).toEqual(src.files.filter((x) => x.id !== keep.id).map((x) => x.id).sort());
+        }
       }
     }));
   });

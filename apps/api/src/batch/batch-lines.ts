@@ -26,6 +26,7 @@ export function buildBatchLines(groups: BatchGroupInput[]): { lines: BatchLine[]
       continue;
     }
     const keep = g.files.find((f) => f.id === g.suggestion.keepId);
+    // keepId fora dos arquivos do grupo (grupo mudou): pula de propósito; segue pendente para revisão manual.
     if (!keep) continue;
     const remove = g.files.filter((f) => f.id !== keep.id);
     if (remove.length === 0) continue;
