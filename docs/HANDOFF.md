@@ -1,6 +1,6 @@
 # Handoff — TwinPix Cloud
 
-Última atualização: 29/10/2026 (2ª sessão)
+Última atualização: 29/10/2026, fim da madrugada (sessão de implementação noturna)
 
 ## Objetivo e escopo
 
@@ -8,81 +8,90 @@ Ferramenta open source (repositório público `twinpix-cloud`, **fechado a contr
 para encontrar fotos e vídeos repetidos no **OneDrive** e revisar **um grupo por vez,
 lado a lado**, movendo para a lixeira o que a usuária escolher.
 
-O escopo da v1 está na spec. Resumo:
-- **Duplicatas:** idênticas e prováveis cópias, de fotos e vídeos.
-- **Pastas:** várias pastas por análise e reconciliação de pastas.
-- **Execução:** aplicação web local (NestJS + React).
+A spec aprovada está em `docs/superpowers/specs/2026-10-29-twinpix-cloud-design.md`.
+A implementação foi dividida em planos:
 
-Depois da v1:
-- **v2:** Google Drive.
-- **v3:** fotos parecidas.
-- **Futuro:** app instalável com Electron.
+| Plano | Conteúdo | Situação |
+|---|---|---|
+| **1** | Base + **cópias idênticas** de ponta a ponta + modo demonstração | **Implementado e revisado** (branch `plano-1-identicas`) |
+| 2 | Prováveis cópias e lote (aplicar a regra em todas as idênticas) | A planejar |
+| 3 | Reconciliação de pastas | A planejar |
+| 4 | Testes de contrato com o OneDrive real, trava da pasta de teste, validação com as listagens do rclone (§10), acabamento | A planejar |
 
 ## Estado atual
 
-- **Brainstorming concluído em conversa.** A usuária aprovou:
-  - o escopo;
-  - a arquitetura;
-  - o fluxo da varredura;
-  - as regras e as proteções;
-  - os layouts das telas.
-- **Spec escrita:** `docs/superpowers/specs/2026-10-29-twinpix-cloud-design.md`.
-  **§8 (erros) e §9 (testes) revisadas e reescritas na 2ª sessão**, com a aprovação da usuária:
-  conferência da cópia que fica antes de mover, IDs contra pastas sobrepostas, diário de
-  ações, falhas do desfazer, segurança do backend local, trava testada por propriedades,
-  provedor falso cobrindo cada erro, testes de contrato e trava da pasta de teste.
-  **Spec aprovada pela usuária em 29/10/2026.**
-- **Esboços aprovados** em `.superpowers/brainstorm/1448353-1793247420/content/`:
-  - `revisao-layout-v2.html`: layout escolhido;
-  - `tres-copias-e-pastas.html`;
-  - `reconciliacao.html`;
-  - `revisao-layout.html`: versão 1, descartada.
+- **Plano 1 implementado** em `docs/superpowers/plans/2026-10-29-plano-1-base-e-identicas.md`:
+  17 tarefas, cada uma revisada (especificação e qualidade), com rodadas de correção quando
+  necessário, e uma **revisão final do conjunto** seguida de uma onda de correções re-revisada.
+- **Branch `plano-1-identicas` no GitHub**, ainda **não juntada na `main`**. A decisão de
+  juntar é da usuária.
+- **Verificação final:** `npm test` (API 148 testes, web 24), `npm run typecheck` e
+  `npm run build` passam. O modo demonstração foi testado de ponta a ponta pela API compilada:
+  análise, grupo, mover para a lixeira, histórico e desfazer.
+- **Nada foi feito no OneDrive real.** Todos os testes usam o provedor falso.
+- **Registro no Microsoft Entra concluído pela usuária** (29/10/2026): conta pessoal exigiu
+  criar a conta gratuita do Azure ("Diretório padrão"). App "TwinPix Cloud", só contas
+  pessoais, cliente público com redirect `http://localhost:4317/api/auth/callback`,
+  permissões delegadas `Files.ReadWrite`, `offline_access` e `User.Read`. O Client ID está
+  no `.env` da raiz (fora do git, permissão 600).
+- **O login real ainda não foi testado.**
 
-  O servidor de esboços foi parado. Para reabrir, use a skill de brainstorming com
-  `--project-dir /home/ene/twinpix-cloud`.
-- **Repositório:** https://github.com/scillapinheiro/twinpix-cloud (remote SSH
-  `git@github.com:scillapinheiro/twinpix-cloud.git`, branch `main`).
-- **Autonomia (29/10/2026, noite):** a usuária liberou implementar, commitar e dar push sem
-  pedir autorização a cada passo, para revisar de manhã. Commits **sem coautoria**.
-- Existe um `.gitignore` com `.superpowers/`, `node_modules/`, `.env` e `*.sqlite`.
+### Como experimentar
 
-## Decisões tomadas, com o motivo
+    npm install
+    npm run demo          # arquivos fictícios, nada acontece no OneDrive
+
+Com o OneDrive de verdade (só depois de combinar a pasta de teste):
+
+    npm run build && npm start
+
+## Decisões tomadas durante a implementação
+
+Foram tomadas pelo Claude com a autonomia dada para a noite. A usuária pode rever qualquer uma.
 
 | Decisão | Motivo |
 |---|---|
-| Nome **TwinPix Cloud**, repositório `twinpix-cloud` | Já existem projetos pequenos chamados "TwinPix" (duplicatas locais/Mac); "Cloud" diferencia e destaca o foco em nuvem |
-| Aplicação web local agora, pensada para Electron depois | A usuária queria um instalável como o programa antigo, mas aceitou a web local para começar |
-| Stack TypeScript: NestJS + React (Vite) + SQLite, em monorepo | É a stack da usuária; o SQLite permite retomar a varredura |
-| v1 sem semelhança visual | O problema real são backups duplicados (cópias exatas) |
-| "Prováveis cópias" na v1 | Na análise real, 87 arquivos do tipo `nome 1.jpg` não eram idênticos, mas tinham as mesmas dimensões e a mesma data em que foram tirados |
-| Reconciliação de pastas **na v1** | A usuária pediu. `Minhas imagens` tem pastas inteiras duplicadas |
-| Um grupo por tela, com Excluir/Pular/Voltar | Igual ao programa antigo; a usuária quer ir etapa por etapa |
-| Prováveis cópias **nunca** vêm pré-marcadas | Medo de excluir sem querer; podem ser a original e uma versão editada |
-| Rótulos explícitos em todos os campos e câmera com fabricante | Acessibilidade para pessoas não técnicas |
-| Licença MIT, `CONTRIBUTING.md` recusando PRs | Open source para fork, sem aceitar mudanças no projeto dela |
+| A posição dos grupos é fixada quando o grupo é encontrado e nunca muda | O plano renumerava os grupos no fim da análise; isso contradiz a spec §5 (revisar durante a análise e retomar do mesmo grupo). A spec prevaleceu. |
+| Uma **trava global**: só uma ação de mover ou desfazer por vez, em todo o app | A revisão encontrou casos em que duas abas ou duas análises poderiam mandar cópias diferentes da mesma foto para a lixeira ao mesmo tempo, sem sobrar nenhuma. |
+| Um arquivo com ação "movido" ou "em andamento" sai de **todos** os grupos, de qualquer análise | Mesmo motivo: um arquivo a caminho da lixeira nunca pode contar como "a cópia que fica". |
+| Erro incerto ao mover (rede caiu, erro 5xx) é conferido no OneDrive; se não der para conferir, a ação fica "em andamento" e é acertada depois | A spec §8 pede que nada fique "pela metade"; antes aparecia "não foi movido" para um arquivo que podia estar na lixeira. |
+| Grupo que mudou no OneDrive é **atualizado** com a situação atual, em vez de ficar travado como "desatualizado" | Antes a usuária ficaria presa no mesmo grupo sem conseguir avançar. |
+| Proteção do servidor local contra endereço com maiúsculas (`/API/...`) e contra DNS rebinding (verificação do `Host`) | Achados de segurança na revisão. O token só vai para `graph.microsoft.com`. |
+| Mensagens do login sempre fixas em português | O endereço de retorno do login podia exibir texto de terceiros dentro do app. |
+| `npm` workspaces, em vez de `pnpm` | O `pnpm` não está instalado na máquina. |
+
+## Pendências conhecidas (não bloqueiam; ficaram registradas pela revisão)
+
+- Falha de configuração do app na Microsoft *depois* de um login bem-sucedido (por exemplo,
+  um registro apagado) aparece como "sem conexão" e a análise fica esperando.
+  Correção de uma linha: tratar `invalid_client` e `unauthorized_client` como "reconectar".
+- Um grupo pode aparecer com uma foto só quando uma exclusão não pôde ser confirmada; dá para
+  pular. O `Retry-After` da Microsoft não tem limite de espera e as requisições não têm timeout
+  próprio. Com a trava global, uma espera longa segura todas as ações.
+- A página do Histórico espera as ações pendentes serem conferidas antes de abrir.
+- As regras de prioridade só podem ser mudadas pela API. Ainda não existe tela para isso.
+- Pastas sem permissão não aparecem na tela da análise.
+- Ainda não há testes de alguns fluxos da interface: link colado, clique duplo e falha parcial.
+- A tela "Falta configurar" usa termos técnicos (Entra, `.env`).
+- `npm audit` aponta vulnerabilidades em dependências indiretas.
+
+## Pendências e próximo passo seguro
+
+1. **A usuária experimenta o modo demonstração** (`npm run demo`) e dá retorno sobre as telas.
+2. **Combinar uma pasta de teste** no OneDrive. Sugestão: uma pasta nova com algumas fotos
+   copiadas, incluindo repetidas de propósito. Primeiro teste real **só nela**: conectar,
+   analisar, mover uma cópia, desfazer.
+3. Decidir se a branch `plano-1-identicas` vai para a `main`.
+4. Escrever e executar o **Plano 2** (prováveis cópias e lote) com
+   `superpowers:writing-plans`.
 
 ## Dados de referência
 
 - Análises reais, **só leitura**, feitas com rclone: `onedrive:` (remote em
-  `~/.config/rclone/rclone.conf`, conta pessoal, `drive_id 74C059BAED225922`).
-  Os números estão na spec, §10.
-- As listagens JSON usadas ficavam no scratchpad da sessão anterior, que é temporário.
-  Para refazer:
+  `~/.config/rclone/rclone.conf`, conta pessoal). Os números estão na spec, §10.
+- Para refazer as listagens:
   `rclone lsjson -R --files-only --hash --hash-type quickxor "onedrive:Imagens/Imagens da Câmera"`
   e `"onedrive:Minhas imagens"`.
-
-## Pendências e próximo passo seguro
-
-1. A usuária faz a aprovação final da spec (§8 e §9 já revisadas); ajustar o que pedir.
-2. Com a spec aprovada, usar a skill **`superpowers:writing-plans`** para criar o plano
-   de implementação.
-3. O repositório no GitHub já existe. A usuária **autorizou o `git init` e o primeiro
-   commit quando forem necessários** (previsto para quando a spec for aprovada, junto com
-   o plano), **sem linha de coautoria** (`Co-Authored-By`). Push e commits seguintes
-   continuam dependendo de pedido explícito.
-4. No início da implementação, guiar o **registro do app no Microsoft Entra**
-   (cliente público, redirect localhost, `Files.ReadWrite` + `offline_access`) e
-   validar se a conta pessoal exige criar um diretório antes.
 
 ## Proibições
 
@@ -90,23 +99,22 @@ Depois da v1:
 - Sem force-push e sem reescrever histórico.
 - **Nunca mover, apagar ou alterar nada no OneDrive** durante o desenvolvimento,
   exceto numa pasta de teste combinada com ela.
-- Não mexer no backup do notebook (`/home/ene/backup-notebook/`), que é outro
-  assunto e segue em outra sessão.
-- Pedir autorização antes de executar mudanças, conforme as regras da usuária.
+- Nunca ler, mostrar ou commitar o `.env`.
+- Não mexer no backup do notebook (`/home/ene/backup-notebook/`), que é outro assunto.
+- A autonomia da noite de 29/10 **não vale automaticamente** para as próximas sessões:
+  perguntar antes de executar mudanças, conforme as regras da usuária.
 
 ## Prompt para nova sessão
 
 ```
 Vamos continuar o projeto TwinPix Cloud (ferramenta para achar fotos e vídeos repetidos no OneDrive).
-Diretório: /home/ene/twinpix-cloud
+Diretório: /home/ene/twinpix-cloud — branch plano-1-identicas
 Leia primeiro, nesta ordem:
 1. /home/ene/twinpix-cloud/docs/HANDOFF.md
 2. /home/ene/twinpix-cloud/docs/superpowers/specs/2026-10-29-twinpix-cloud-design.md
 3. a memória twinpix-cloud
-O brainstorming foi aprovado; a spec foi escrita e as seções 8 e 9 já foram revisadas.
+O Plano 1 (base + cópias idênticas + modo demonstração) foi implementado e revisado.
 Antes de qualquer comando, diga o que pretende ler/verificar e espere minha autorização.
-Depois me resuma o estado em poucas linhas e me ajude a fechar a aprovação da spec
-e, com ela aprovada, a criar o plano de implementação (superpowers:writing-plans).
-O git init e o primeiro commit (sem coautoria) estão autorizados quando necessário; fora isso,
-não faça commit/push e não mexa em nada do meu OneDrive sem eu pedir.
+Depois me resuma o estado em poucas linhas e me ajude com o próximo passo do handoff.
+Não mexa em nada do meu OneDrive fora da pasta de teste combinada; commits sem coautoria.
 ```
