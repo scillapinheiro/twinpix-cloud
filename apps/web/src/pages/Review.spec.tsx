@@ -432,3 +432,78 @@ describe('atalhos de teclado', () => {
     expect(posts.filter((u) => /\/apply$/.test(u))).toHaveLength(1);
   });
 });
+
+describe('modo prováveis cópias', () => {
+  const probableGroup: GroupView = { ...group, kind: 'probable', preMarkedIds: [] };
+  const probableNext: GroupView = { ...probableGroup, id: 9, position: 13 };
+  let calls: Array<{ url: string; body?: string }>;
+  let current: GroupView | null;
+
+  beforeEach(() => {
+    calls = [];
+    current = probableGroup;
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, body: init?.body as string | undefined });
+      if (url.endsWith('/thumbnail')) return new Response(JSON.stringify({ url: null }));
+      if (url.endsWith('/preview')) return new Response(JSON.stringify({ groupId: 7, deleteFiles: [group.files[1]], keepFiles: [group.files[0]], bytes: 1 }));
+      if (url.endsWith('/apply')) {
+        current = probableNext;
+        return new Response(JSON.stringify({ groupId: 7, stale: false, results: [{ actionId: 1, fileId: 'b', fileName: 'x 1.jpg', status: 'done', error: null }] }));
+      }
+      if (url.endsWith('/skip')) return new Response(JSON.stringify(probableNext));
+      if (url.includes('/unskip')) return new Response('{}');
+      return new Response(JSON.stringify(current));
+    }));
+  });
+
+  function renderProbable() {
+    render(
+      <MemoryRouter initialEntries={['/revisao/1?tipo=provaveis']}>
+        <Routes>
+          <Route path="/revisao/:scanId" element={<Review />} />
+          <Route path="/revisao/:scanId/grupo/:groupId" element={<Review />} />
+        </Routes>
+        <Where />
+      </MemoryRouter>,
+    );
+  }
+
+  it('pede kind=probable, mostra o aviso, nenhum marcado e sem "Revisar em lote"', async () => {
+    renderProbable();
+    expect(await screen.findByText(/Prováveis cópias/)).toBeInTheDocument();
+    expect(screen.getByText(/Podem ser a original e uma versão editada. Confira antes de excluir./)).toBeInTheDocument();
+    expect(calls[0].url).toBe('/api/scans/1/groups/current?kind=probable');
+    for (const box of screen.getAllByRole('checkbox', { name: 'Excluir esta cópia' })) expect(box).not.toBeChecked();
+    expect(screen.queryByText('Revisar em lote')).not.toBeInTheDocument();
+    expect(screen.getAllByText('★ Sugerida para manter').length).toBeGreaterThan(0);
+  });
+
+  it('Enter sem marcadas não faz nada; marcar uma e confirmar envia só ela, e a URL preserva o tipo', async () => {
+    renderProbable();
+    await screen.findByText(/Prováveis cópias/);
+    fireEvent.keyDown(document, { key: 'Enter' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole('checkbox', { name: 'Excluir esta cópia' })[1]);
+    await userEvent.click(screen.getByRole('button', { name: 'Excluir marcadas (1)' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Mover para a lixeira' }));
+    expect(JSON.parse(calls.find((c) => c.url.endsWith('/apply'))!.body!)).toEqual({ deleteIds: ['b'] });
+    await userEvent.click(await screen.findByRole('button', { name: 'Próximo grupo' }));
+    expect(await screen.findByText(/Grupo 13 de 445/)).toBeInTheDocument();
+    expect(calls.some((c) => c.url === '/api/scans/1/groups/current?kind=probable' && calls.indexOf(c) > 0)).toBe(true);
+    expect(screen.getByTestId('where').textContent).toContain('/revisao/1/grupo/9');
+  });
+
+  it('pular preserva o tipo na URL; fim da revisão reabre pulados do mesmo tipo', async () => {
+    renderProbable();
+    await userEvent.click(await screen.findByRole('button', { name: /Pular/ }));
+    await screen.findByText(/Grupo 13 de 445/);
+    expect(screen.getByTestId('where').textContent).toContain('/revisao/1/grupo/9');
+  });
+
+  it('sem grupos: "Rever grupos pulados" usa unskip?kind=probable', async () => {
+    current = null;
+    renderProbable();
+    await userEvent.click(await screen.findByRole('button', { name: 'Rever grupos pulados' }));
+    expect(calls.some((c) => c.url === '/api/scans/1/unskip?kind=probable')).toBe(true);
+  });
+});

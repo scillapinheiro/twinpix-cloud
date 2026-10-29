@@ -64,6 +64,7 @@ export function ScanProgress() {
         <li>Pastas analisadas: {scan.foldersDone} de {scan.foldersTotal}</li>
         <li>Fotos e vídeos encontrados: {scan.filesFound}</li>
         <li>Grupos de cópias idênticas: {scan.groupsTotal} ({scan.groupsPending} para revisar, {scan.groupsSkipped} pulados)</li>
+        <li>Prováveis cópias: {scan.probableTotal} ({scan.probablePending} para revisar)</li>
         <li>Espaço liberado: {formatBytes(scan.bytesFreed)}</li>
         <li>
           Não analisados (o OneDrive não informou a impressão digital do arquivo): {scan.unanalyzedCount}
@@ -92,6 +93,9 @@ export function ScanProgress() {
         )}
         {scan.status === 'done' && scan.groupsPending > 0 && (
           <Link className="button" to={`/lote/${scan.id}`}>Revisar em lote</Link>
+        )}
+        {scan.probablePending > 0 && (
+          <Link className="button" to={`/revisao/${scan.id}?tipo=provaveis`}>Revisar prováveis cópias</Link>
         )}
         {scan.status === 'done' && clusterCount > 0 && (
           <Link className="button" to={`/pastas-repetidas/${scan.id}`}>Pastas repetidas ({clusterCount})</Link>

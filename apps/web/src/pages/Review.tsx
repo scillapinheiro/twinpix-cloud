@@ -1,6 +1,6 @@
 import type { GroupView } from '@twinpix/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { FileCard } from '../components/FileCard';
 import { ApiError, apiFetch } from '../lib/api';
@@ -11,6 +11,10 @@ import { ignoreShortcut, isNativeActivator } from '../lib/shortcuts';
 export function Review() {
   const { scanId, groupId } = useParams();
   const navigate = useNavigate();
+  const [search] = useSearchParams();
+  const probable = search.get('tipo') === 'provaveis';
+  const tipoQs = probable ? '?tipo=provaveis' : '';
+  const kindQs = probable ? '?kind=probable' : '';
   const [group, setGroup] = useState<GroupView | null | undefined>(undefined);
   const [marked, setMarked] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -65,9 +69,9 @@ export function Review() {
 
   useEffect(() => {
     if (groupId && shownId.current === Number(groupId)) return;
-    const path = groupId ? `/api/groups/${groupId}` : `/api/scans/${scanId}/groups/current`;
+    const path = groupId ? `/api/groups/${groupId}` : `/api/scans/${scanId}/groups/current${kindQs}`;
     apiFetch<GroupView | null>(path).then(show).catch((e: ApiError) => setError(e.message));
-  }, [scanId, groupId]);
+  }, [scanId, groupId, kindQs]);
 
   useEffect(() => {
     if (focusHeader.current && group) {
@@ -95,8 +99,8 @@ export function Review() {
         <p>Não há mais grupos pendentes nesta análise.</p>
         <div className="row">
           <button type="button" className="button" onClick={async () => {
-            await apiFetch(`/api/scans/${scanId}/unskip`, { method: 'POST' });
-            show(await apiFetch<GroupView | null>(`/api/scans/${scanId}/groups/current`));
+            await apiFetch(`/api/scans/${scanId}/unskip${kindQs}`, { method: 'POST' });
+            show(await apiFetch<GroupView | null>(`/api/scans/${scanId}/groups/current${kindQs}`));
           }}>Rever grupos pulados</button>
           <Link className="button" to={`/varredura/${scanId}`}>Ver resumo da análise</Link>
         </div>
@@ -116,7 +120,7 @@ export function Review() {
   // Mantém a URL no grupo exibido, para que recarregar a página não mude de grupo.
   function goTo(g: GroupView | null) {
     show(g);
-    navigate(g ? `/revisao/${scanId}/grupo/${g.id}` : `/revisao/${scanId}`, { replace: true });
+    navigate(g ? `/revisao/${scanId}/grupo/${g.id}${tipoQs}` : `/revisao/${scanId}${tipoQs}`, { replace: true });
   }
   function skip() {
     return guarded(async () => {
@@ -132,7 +136,7 @@ export function Review() {
     return guarded(async () => {
       try {
         focusHeader.current = true;
-        goTo(await apiFetch<GroupView | null>(stale ? `/api/groups/${group!.id}` : `/api/scans/${scanId}/groups/current`));
+        goTo(await apiFetch<GroupView | null>(stale ? `/api/groups/${group!.id}` : `/api/scans/${scanId}/groups/current${kindQs}`));
       } catch (e) {
         focusHeader.current = false;
         setError(null);
@@ -164,9 +168,14 @@ export function Review() {
     <section className="review" inert={confirmingId === group.id}>
       <div className="group-header card" tabIndex={-1} ref={headerRef}>
         <strong>
-          Grupo {group.position} de {group.total} · Cópias idênticas · {formatBytes(group.bytesFreedSoFar)} liberados até agora
+          Grupo {group.position} de {group.total} · {probable ? 'Prováveis cópias' : 'Cópias idênticas'} · {formatBytes(group.bytesFreedSoFar)} liberados até agora
         </strong>
-        {' '}<Link className="batch-link" to={`/lote/${scanId}`}>Revisar em lote</Link>
+        {!probable && <>{' '}<Link className="batch-link" to={`/lote/${scanId}`}>Revisar em lote</Link></>}
+        {probable && (
+          <p className="notice probable-warning" role="note">
+            <span aria-hidden="true">⚠ </span>Podem ser a original e uma versão editada. Confira antes de excluir.
+          </p>
+        )}
         {group.status === 'stale' && (
           <p className="notice">
             Este grupo mudou no OneDrive desde a análise. Ele foi atualizado com a situação atual — confira as cópias antes de excluir.
