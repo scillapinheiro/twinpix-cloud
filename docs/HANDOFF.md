@@ -16,8 +16,8 @@ A implementação foi dividida em planos:
 | **1** | Base + **cópias idênticas** de ponta a ponta + modo demonstração | **Implementado e revisado** (branch `plano-1-identicas`) |
 | 2 | **Lote das idênticas** (prévia por par de pastas, inverter, desfazer lote) + atalhos de teclado | **Implementado e revisado** (29/10, tarde) |
 | 3 | **Reconciliação de pastas** (`docs/superpowers/plans/2026-10-29-plano-3-reconciliacao-de-pastas.md`) | **Implementado e revisado** (29/10, tarde) |
-| 4 | **Prováveis cópias** (`docs/superpowers/plans/2026-10-29-plano-4-provaveis-copias.md`) | Em execução |
-| 5 | Testes de contrato com o OneDrive real, trava da pasta de teste, validação com as listagens do rclone (§10), acabamento | A planejar |
+| 4 | **Prováveis cópias** (`docs/superpowers/plans/2026-10-29-plano-4-provaveis-copias.md`) | **Implementado e revisado** (29/10, noite) |
+| 5 | Testes de contrato com o OneDrive real, trava da pasta de teste, validação com as listagens do rclone (§10), lista "Depois", acabamento | A planejar |
 
 ## Estado atual
 
@@ -87,6 +87,19 @@ Com o OneDrive de verdade (só depois de combinar a pasta de teste):
 - Testado pela autora com dados reais (par ConfraeNe 2024 × Robô Paparazzi). Testes: API 249, web 94.
 - Pendências pequenas: rótulo "Próximo conjunto" quando o lote aberto é de outro tipo; mensagem de
   grupo pulado com "grupo"; desfazer direto de lote pausado não aparece na tela.
+
+### Plano 4 (prováveis cópias), concluído em 29/10/2026
+- Grupos de **prováveis cópias**: mesmo nome-base (ignora " 1", " (2)", "-1"), mesmas dimensões,
+  mesma data em que foi tirada (sem fallback), vídeos com duração a até 1 s; conteúdo diferente.
+  Calculados **uma vez ao fim da análise**; análises antigas ganham os grupos ao iniciar o app
+  (backfill protegido: se falhar, o app abre e tenta de novo depois).
+- Revisão própria ("Revisar prováveis cópias" na tela inicial e na análise; `?tipo=provaveis`):
+  **nada pré-marcado**, aviso "Podem ser a original e uma versão editada. Confira antes de excluir.",
+  sem lote e fora das pastas repetidas. Grupos pulados continuam alcançáveis (botões e "Rever
+  grupos pulados" para os dois tipos). A tela segue o tipo do grupo.
+- Arquivo que some do OneDrive sai de todos os grupos da análise; contadores e revisão ignoram
+  grupos sem duas cópias ativas (sem mudar o status deles; voltam após desfazer).
+- Testes: API 285, web 114.
 
 ## Decisões tomadas durante a implementação
 
