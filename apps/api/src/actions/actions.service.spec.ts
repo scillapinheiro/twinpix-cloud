@@ -35,6 +35,22 @@ beforeEach(async () => {
 });
 
 describe('ActionsService', () => {
+  it('histórico não mostra erro cru gravado por versões antigas: vira frase fixa; frases conhecidas ficam', () => {
+    const ins = db.sql.prepare("INSERT INTO actions (group_id, file_id, kept_file_id, status, error, created_at, updated_at) VALUES (?, ?, 'orig', 'failed', ?, 'x', 'x')");
+    ins.run(groupId, 'c1', 'TypeError: fetch failed at Object.fetch (node:internal/deps/undici:11)');
+    ins.run(groupId, 'c2', 'O OneDrive respondeu com erro 503.');
+    const h = actions.history();
+    expect(h.find((e) => e.file.id === 'c1')!.error).toBe('Não foi possível mover este arquivo.');
+    expect(h.find((e) => e.file.id === 'c2')!.error).toBe('O OneDrive respondeu com erro 503.');
+  });
+
+  it('erro inesperado ao mover grava frase fixa, nunca a mensagem crua', async () => {
+    cloud.moveToTrash = async () => { throw new Error('socket hang up /home/alguem/segredo'); };
+    await actions.apply(groupId, [extra[0]]);
+    const row = db.sql.prepare('SELECT error FROM actions').get() as { error: string | null };
+    expect(row.error).not.toContain('segredo');
+  });
+
   it('apply com batchId grava batch_id e o histórico devolve batchId (null fora de lote)', async () => {
     const scanId = review.view(groupId).scanId;
     db.sql.prepare("INSERT INTO batches (id, scan_id, created_at, status) VALUES (7, ?, 'x', 'running')").run(scanId);
