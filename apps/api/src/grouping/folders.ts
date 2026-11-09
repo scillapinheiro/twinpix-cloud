@@ -4,6 +4,7 @@ function trimSlash(p: string): string {
   return p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p;
 }
 
+/** A própria pasta ou algo abaixo dela. O OneDrive não diferencia maiúsculas nos nomes. */
 export function isInsideFolder(folderPath: string, folder: string): boolean {
   const child = trimSlash(folderPath).toLowerCase();
   const parent = trimSlash(folder).toLowerCase();
