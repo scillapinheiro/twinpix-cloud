@@ -58,6 +58,7 @@ export function Home() {
 
   const pending = latest ? latest.groupsPending + latest.groupsSkipped : 0;
   const probablePending = latest ? latest.probablePending + latest.probableSkipped : 0;
+  const reviewed = latest ? Math.max(0, latest.groupsTotal - latest.groupsPending - latest.groupsSkipped) : 0;
   const greeting = `Olá${auth.accountName ? `, ${auth.accountName}` : ''}!`;
 
   return (
@@ -91,10 +92,24 @@ export function Home() {
             <p className="stat-label">
               {latest.filesFound === 1 ? 'foto ou vídeo encontrado' : 'fotos e vídeos encontrados'} em {plural(latest.roots.length, 'pasta', 'pastas')}
             </p>
+            <ul className="stat-chips" aria-label="O que foi encontrado">
+              <li>{plural(latest.groupsTotal, 'grupo de cópias idênticas', 'grupos de cópias idênticas')}</li>
+              {latest.probableTotal > 0 && <li>{plural(latest.probableTotal, 'provável cópia', 'prováveis cópias')}</li>}
+            </ul>
           </section>
           <section className="stat stat-navy">
-            <p className="stat-value">{formatBytes(latest.bytesFreed)}</p>
+            <p className="stat-value">
+              {formatBytes(latest.bytesFreed).split(' ')[0]} <span className="stat-unit">{formatBytes(latest.bytesFreed).split(' ')[1]}</span>
+            </p>
             <p className="stat-label">liberados até agora</p>
+            {latest.groupsTotal > 0 && (
+              <div className="stat-progress">
+                <div className="progress" role="progressbar" aria-label="Grupos revisados" aria-valuemin={0} aria-valuemax={latest.groupsTotal} aria-valuenow={reviewed}>
+                  <div style={{ width: `${Math.round((reviewed / latest.groupsTotal) * 100)}%` }} />
+                </div>
+                <p>{reviewed} de {plural(latest.groupsTotal, 'grupo revisado', 'grupos revisados')}</p>
+              </div>
+            )}
           </section>
         </div>
       )}

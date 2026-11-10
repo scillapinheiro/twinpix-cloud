@@ -11,7 +11,7 @@ const LINK_PREFIX = 'https://fake.onedrive/';
 
 export class FakeCloudProvider implements CloudProvider {
   pageSize = 50;
-  /** Espera artificial a cada listagem de pasta (só o modo demonstração usa, para dar para ver a análise andando). */
+  /** Espera artificial a cada listagem de pasta e a cada arquivo movido (só o modo demonstração usa, para dar para ver a análise e o lote andando). */
   latencyMs = 0;
   readonly rootId = 'root';
   readonly calls: string[] = [];
@@ -151,6 +151,7 @@ export class FakeCloudProvider implements CloudProvider {
 
   async moveToTrash(id: string): Promise<'moved' | 'already-gone'> {
     this.enter('moveToTrash');
+    if (this.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, this.latencyMs));
     const blocked = this.blockedTrash.get(id);
     if (blocked) throw blocked;
     const node = this.files.get(id);

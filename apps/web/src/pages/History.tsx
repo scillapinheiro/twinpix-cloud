@@ -66,8 +66,9 @@ export function History() {
           <ul>
             {batches.map((b) => (
               <li key={b.id} className="batch-history-item">
-                <strong>{BATCH_LABEL[b.kind] ?? 'Lote'} #{b.id}</strong> · {formatDate(b.createdAt)} · {BATCH_STATUS_TEXT[b.status]}
-                <br />
+                <span className="batch-head">
+                  <strong>{BATCH_LABEL[b.kind] ?? 'Lote'} #{b.id}</strong> · {formatDate(b.createdAt)} · {BATCH_STATUS_TEXT[b.status]}
+                </span>
                 <span className="muted">
                   {plural(b.movedFiles, 'arquivo movido', 'arquivos movidos')} · {formatBytes(b.movedBytes)}
                   {b.restoredFiles > 0 && ` · ${plural(b.restoredFiles, 'restaurado', 'restaurados')}`}

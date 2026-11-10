@@ -192,6 +192,7 @@ export function Review() {
   return (
     <>
     <section className="review" inert={confirmingId === group.id}>
+      <h1 className="sr-only">{probable ? 'Revisão das prováveis cópias' : 'Revisão das cópias idênticas'}</h1>
       <div className="group-header card" tabIndex={-1} ref={headerRef}>
         <strong>
           Grupo {group.position} de {group.total} · {probable ? 'Prováveis cópias' : 'Cópias idênticas'} · {formatBytes(group.bytesFreedSoFar)} liberados até agora
