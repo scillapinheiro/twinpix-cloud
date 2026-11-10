@@ -121,7 +121,7 @@ export function Rules() {
       ) : (
         <button type="button" className="button" onClick={() => setAdding(true)}>Adicionar regra</button>
       )}
-      <div className="row" style={{ marginTop: 16 }}>
+      <div className="row rules-actions">
         <button type="button" className="button primary" onClick={save}>Salvar</button>
         <button type="button" className="button" onClick={() => change(DEFAULT_RULES.map((r) => ({ ...r })))}>Voltar ao padrão</button>
       </div>

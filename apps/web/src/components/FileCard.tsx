@@ -25,7 +25,7 @@ export function FileCard({ file, isSuggested, marked, lockDelete, onToggle, diff
       </div>
       <dl>
         {fields.map((key) => (
-          <div key={key} style={{ display: 'contents' }}>
+          <div key={key} className="dl-pair">
             <dt>{FIELD_LABELS[key]}</dt>
             <dd><span className={diffs.has(key) ? 'diff' : undefined}>{fieldValue(file, key)}</span></dd>
           </div>

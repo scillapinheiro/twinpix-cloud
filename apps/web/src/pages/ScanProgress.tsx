@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes } from '../lib/format';
 import { ProbableBatchButton } from '../components/ProbableBatchButton';
+import { ProgressBar } from '../components/ProgressBar';
 
 const STATUS_TEXT: Record<ScanSummary['status'], string> = {
   running: 'Analisando… (só lendo informações; nada é baixado)',
@@ -74,9 +75,7 @@ export function ScanProgress() {
       <p className={scan.status === 'error' || scan.status === 'needs-auth' ? 'alert' : undefined}>
         {STATUS_TEXT[scan.status]} {scan.error && scan.status === 'error' ? `(${scan.error})` : ''}
       </p>
-      <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso da análise">
-        <div style={{ width: `${pct}%` }} />
-      </div>
+      <ProgressBar percent={pct} label="Progresso da análise" />
       <ul>
         <li>Pastas analisadas: {scan.foldersDone} de {scan.foldersTotal}</li>
         {scan.foldersSkipped > 0 && (

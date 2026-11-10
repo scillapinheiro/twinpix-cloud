@@ -63,3 +63,24 @@ Corrigido nesta passada:
 - Cantos arredondados grandes (64 px) em telas pequenas foram só reduzidos, não redesenhados.
 - Não testado: leitor de tela real, navegação só por teclado em todas as telas (o foco visível está definido, mas não percorri tudo), modo escuro, zoom do navegador a 200%.
 - Estados sem demo: "Conectar de novo" e pausa por falta de internet.
+
+## Organização do CSS e tokens (para reproduzir no Figma)
+
+`apps/web/src/styles.css` está em seções: tokens, base, layout, componentes, uma seção por tela, ritmo vertical dos cartões e responsivo. Sem seletor repetido e sem `!important`.
+
+| Grupo | Tokens |
+|---|---|
+| Cores | `--navy #1F1B5A`, `--lime #D9F560`, `--pink #FF8AC4`, `--bg`/`--soft #F2F1F8`, `--card #fff`, `--muted #5B5890`, `--border #E2E0F0` |
+| Espaço | `--space-1…10` = 4, 8, 12, 16, 20, 24, 32, 40 px |
+| Raios | `--radius-xs 8`, `--radius-sm 20`, `--radius-md 24`, `--radius 32`, `--radius-lg 64`, `--pill 999` |
+| Texto | `--text-xs .75`, `--text-sm .9`, `--text-base 1`, `--text-md 1.0625`, `--text-lg 1.25`, `--text-xl 1.375`, `--text-2xl 1.75` rem |
+| Fontes | títulos Unbounded Bold; texto Figtree |
+
+Regras de manutenção:
+- Espaço entre blocos de um cartão vem só do `gap` do `.card`; os filhos diretos têm margem zerada (bloco "Ritmo vertical", que fica depois dos componentes de propósito).
+- Valores novos de espaço, raio e fonte entram pela escala acima, não como número solto.
+- Estilo inline só para valor dinâmico (largura da barra). Barra de progresso é o componente `ProgressBar`.
+
+Como provar que uma refatoração de CSS não mudou nada: antes de mexer, gravar para cada rota uma "foto" (retângulo, fonte, cor, fundo, raio, padding, margem, gap de cada elemento) e depois comparar elemento a elemento. A consolidação do CSS deu 0 diferenças nas 11 telas e estados (fora nós injetados por extensões do navegador). A padronização para a escala mudou valores de propósito (10→12, 14→16, 6→8, 28→24, 36→40 px).
+
+Código removido nesta passada: classes `.batch-bar-note` e `.selection-bar` (sem uso), tokens de cor sem uso, o script `apps/api/scripts/validate-listing.ts` com `grouping/listing-stats.ts` e seu teste (validação com listagens do rclone, fase anterior à API do OneDrive; sem chamada em nenhum script nem documento).

@@ -246,7 +246,7 @@ export function Review() {
           <h2>Igual em todas as cópias</h2>
           <dl>
             {commonFields.map((k) => (
-              <div key={k} style={{ display: 'contents' }}>
+              <div key={k} className="dl-pair">
                 <dt>{FIELD_LABELS[k]}</dt>
                 <dd>{fieldValue(group.files[0], k)}</dd>
               </div>

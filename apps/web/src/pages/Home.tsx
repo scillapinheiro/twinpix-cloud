@@ -6,6 +6,7 @@ import { formatBytes } from '../lib/format';
 import { ProbableBatchButton } from '../components/ProbableBatchButton';
 import { plural } from '../lib/plural';
 import { ArrowIcon, TwinPhoto } from '../components/Brand';
+import { ProgressBar } from '../components/ProgressBar';
 
 export function Home() {
   const [auth, setAuth] = useState<AuthStatus | null>(null);
@@ -104,9 +105,7 @@ export function Home() {
             <p className="stat-label">liberados até agora</p>
             {latest.groupsTotal > 0 && (
               <div className="stat-progress">
-                <div className="progress" role="progressbar" aria-label="Grupos revisados" aria-valuemin={0} aria-valuemax={latest.groupsTotal} aria-valuenow={reviewed}>
-                  <div style={{ width: `${Math.round((reviewed / latest.groupsTotal) * 100)}%` }} />
-                </div>
+                <ProgressBar percent={Math.round((reviewed / latest.groupsTotal) * 100)} label="Grupos revisados" />
                 <p>{reviewed} de {plural(latest.groupsTotal, 'grupo revisado', 'grupos revisados')}</p>
               </div>
             )}
