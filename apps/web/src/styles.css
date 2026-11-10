@@ -126,7 +126,8 @@ input[type='checkbox']:checked::after { content: ''; width: 6px; height: 11px; b
 input[type='radio']:checked::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--lime); }
 input[type='checkbox']:disabled { opacity: 0.4; cursor: not-allowed; }
 input[type='text'], input[type='url'], input:not([type]) { font-family: inherit; font-size: var(--text-base); color: var(--navy); background: var(--soft); border: var(--stroke) solid var(--muted); border-radius: var(--pill); padding: var(--space-3) var(--space-5); }
-select { font-family: inherit; font-size: var(--text-base); color: var(--navy); background: var(--soft); border: var(--stroke) solid var(--muted); border-radius: var(--pill); padding: var(--space-2) var(--space-4); }
+/* Seta própria no lugar da nativa, que o navegador cola na borda arredondada. A cor da seta é o --navy (não aceita var() dentro do desenho). */
+select { appearance: none; -webkit-appearance: none; font-family: inherit; font-size: var(--text-base); color: var(--navy); background: var(--soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%231F1B5A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E") no-repeat right var(--space-4) center / 12px 12px; border: var(--stroke) solid var(--muted); border-radius: var(--pill); padding: var(--space-2) var(--space-10) var(--space-2) var(--space-4); cursor: pointer; }
 label:has(> select) { display: inline-flex; align-items: center; gap: var(--space-3); }
 
 /* ===== Componentes: chips e ícones de texto ===== */
