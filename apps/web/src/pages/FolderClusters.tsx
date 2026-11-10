@@ -179,7 +179,7 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
             <div className="reconcile-cards">
               {folders.map((f) => (
                 <div key={f.path} className={`reconcile-card${f.path === cluster.suggestedKeep ? ' suggested' : ''}`}>
-                  <p className="reconcile-badge">{f.path === cluster.suggestedKeep ? '★ Sugerida para manter' : ' '}</p>
+                  <p className={`reconcile-badge${f.path === cluster.suggestedKeep ? '' : ' none'}`}>{f.path === cluster.suggestedKeep ? '★ Sugerida para manter' : ' '}</p>
                   <p><strong>📁 {f.path}</strong></p>
                   <dl>
                     <dt>Arquivos:</dt><dd>{f.fileCount}</dd>

@@ -148,7 +148,8 @@ th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--bor
 .reconcile-card dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 6px 0 0; }
 .reconcile-card dt { color: var(--muted); }
 .reconcile-card dd { margin: 0; }
-.reconcile-badge { background: var(--lime); border-radius: var(--pill); padding: 1px 12px; font-weight: 700; font-size: 0.9rem; }
+.reconcile-badge { width: fit-content; min-height: 1.6em; background: var(--lime); border-radius: var(--pill); padding: 1px 14px; font-weight: 700; font-size: 0.9rem; }
+.reconcile-badge.none { background: transparent; }
 .reconcile-table { margin-top: 12px; }
 .reconcile-table tr.suggested td { background: var(--soft); }
 .reconcile-summary { margin-top: 14px; padding: 14px 18px; border-radius: var(--radius-sm); background: var(--soft); }
@@ -216,3 +217,11 @@ th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--bor
   .hero-art { opacity: 0.25; }
   .stat { border-radius: 40px; padding: 32px; }
 }
+
+/* ===== Análise, histórico e demais cartões ===== */
+.card h1 { margin-bottom: 12px; }
+.card ul:not(.folder-list):not(.chosen-list):not(.rules-list):not(.batch-lines):not(.batch-items) { padding-left: 20px; }
+.card .progress { margin: 16px 0; }
+table { font-size: 1rem; }
+th { font-weight: 800; color: var(--muted); font-size: 0.9rem; text-transform: none; }
+tbody tr:last-child td { border-bottom: none; }
