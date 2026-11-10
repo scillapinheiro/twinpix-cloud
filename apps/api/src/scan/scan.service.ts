@@ -123,6 +123,7 @@ export class ScanService implements OnModuleInit {
       roots,
       foldersDone: count("SELECT COUNT(*) n FROM scan_folders WHERE scan_id = ? AND status != 'pending'"),
       foldersTotal: count('SELECT COUNT(*) n FROM scan_folders WHERE scan_id = ?'),
+      foldersSkipped: count("SELECT COUNT(*) n FROM scan_folders WHERE scan_id = ? AND status = 'forbidden'"),
       filesFound: count('SELECT COUNT(*) n FROM files WHERE scan_id = ?'),
       unanalyzedCount: count('SELECT COUNT(*) n FROM files WHERE scan_id = ? AND quick_xor_hash IS NULL'),
       groupsTotal: count("SELECT COUNT(*) n FROM dup_groups WHERE scan_id = ? AND kind = 'identical'"),
@@ -139,6 +140,11 @@ export class ScanService implements OnModuleInit {
       ).get(scanId) as { n: number }).n,
       error: scan.error && KNOWN_SCAN_ERRORS.has(scan.error) ? scan.error : scan.error ? SCAN_ERRORS.unexpected : null,
     };
+  }
+
+  /** Caminhos das pastas puladas por falta de permissão. */
+  skippedFolders(scanId: number): string[] {
+    return (this.db.sql.prepare("SELECT path FROM scan_folders WHERE scan_id = ? AND status = 'forbidden' ORDER BY path").all(scanId) as Array<{ path: string }>).map((r) => r.path);
   }
 
   unanalyzed(scanId: number): CloudItem[] {

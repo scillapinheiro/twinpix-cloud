@@ -57,6 +57,11 @@ export class ScanController {
     return this.scans.summary(id);
   }
 
+  @Get(':id/skipped-folders')
+  skippedFolders(@Param('id', ParseIntPipe) id: number): string[] {
+    return this.scans.skippedFolders(id);
+  }
+
   @Get(':id/unanalyzed')
   unanalyzed(@Param('id', ParseIntPipe) id: number): CloudItem[] {
     return this.scans.unanalyzed(id);

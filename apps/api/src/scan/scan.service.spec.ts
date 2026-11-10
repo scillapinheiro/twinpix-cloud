@@ -172,6 +172,8 @@ describe('ScanService', () => {
     const forbidden = db.sql.prepare("SELECT folder_id FROM scan_folders WHERE scan_id = ? AND status = 'forbidden'").all(id);
     expect(forbidden).toEqual([{ folder_id: a.id }]);
     expect(scan.summary(id).filesFound).toBe(4);
+    expect(scan.summary(id).foldersSkipped).toBe(1);
+    expect(scan.skippedFolders(id)).toEqual([a.path]);
   });
 
   it('grupos ganham posição pela ordem de descoberta e não se repetem', async () => {

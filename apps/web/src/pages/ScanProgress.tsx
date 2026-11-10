@@ -21,6 +21,7 @@ export function ScanProgress() {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [scan, setScan] = useState<ScanSummary | null>(null);
   const [unanalyzed, setUnanalyzed] = useState<CloudItem[] | null>(null);
+  const [skippedFolders, setSkippedFolders] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [clusterCount, setClusterCount] = useState(0);
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -78,6 +79,16 @@ export function ScanProgress() {
       </div>
       <ul>
         <li>Pastas analisadas: {scan.foldersDone} de {scan.foldersTotal}</li>
+        {scan.foldersSkipped > 0 && (
+          <li className="notice">
+            Pastas puladas por falta de permissão: {scan.foldersSkipped}
+            {skippedFolders === null && (
+              <button type="button" className="link" onClick={async () => setSkippedFolders(await apiFetch<string[]>(`/api/scans/${id}/skipped-folders`))}>
+                ver lista
+              </button>
+            )}
+          </li>
+        )}
         <li>Fotos e vídeos encontrados: {scan.filesFound}</li>
         <li>Grupos de cópias idênticas: {scan.groupsTotal} ({scan.groupsPending} para revisar, {scan.groupsSkipped} pulados)</li>
         <li>
@@ -95,6 +106,11 @@ export function ScanProgress() {
           )}
         </li>
       </ul>
+      {skippedFolders && (
+        <ul className="muted" aria-label="Pastas puladas">
+          {skippedFolders.map((p) => <li key={p}>{p}</li>)}
+        </ul>
+      )}
       {unanalyzed && (
         <ul className="muted">
           {unanalyzed.map((f) => <li key={f.id}>{f.folderPath}/{f.name}</li>)}

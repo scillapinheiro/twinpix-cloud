@@ -6,7 +6,7 @@ import { Home } from './Home';
 import { ScanProgress } from './ScanProgress';
 
 const scan = (probablePending: number, extra: Partial<ScanSummary> = {}): ScanSummary => ({
-  id: 3, status: 'done', roots: [{ id: 'r', name: 'A', path: '/A', childCount: 1 }], foldersDone: 1, foldersTotal: 1, filesFound: 4,
+  id: 3, status: 'done', roots: [{ id: 'r', name: 'A', path: '/A', childCount: 1 }], foldersDone: 1, foldersTotal: 1, foldersSkipped: 0, filesFound: 4,
   unanalyzedCount: 0, groupsTotal: 0, groupsPending: 0, groupsSkipped: 0, probableTotal: 2, probablePending, probableSkipped: 0, bytesFreed: 0, error: null, ...extra,
 });
 
