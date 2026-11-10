@@ -5,7 +5,7 @@ export const BATCH_STATUS_TEXT: Record<BatchStatus, string> = {
   running: 'Movendo para a lixeira…',
   paused: 'Lote pausado.',
   'waiting-network': 'Sem conexão. Continua sozinho quando a internet voltar.',
-  'needs-auth': 'A conexão com o OneDrive expirou.',
+  'needs-auth': 'A conexão com a nuvem expirou.',
   done: 'Lote concluído.',
   undoing: 'Desfazendo o lote…',
   undone: 'Lote desfeito.',
@@ -39,8 +39,13 @@ export const OTHER_BATCH_NOTICE = 'Termine ou desfaça este lote antes de começ
 export function UndoBatchButton({ onUndo }: { onUndo: () => void | Promise<void> }) {
   const [confirming, setConfirming] = useState(false);
   return confirming ? (
-    <button type="button" className="button danger" onClick={async () => { await onUndo(); setConfirming(false); }}>Confirmar desfazer</button>
+    <span className="undo-actions">
+      <button type="button" className="button danger" onClick={async () => { await onUndo(); setConfirming(false); }}>Confirmar desfazer</button>
+      <button type="button" className="button" onClick={() => setConfirming(false)}>Cancelar</button>
+    </span>
   ) : (
-    <button type="button" className="button" onClick={() => setConfirming(true)}>Desfazer este lote</button>
+    <span className="undo-actions">
+      <button type="button" className="button" onClick={() => setConfirming(true)}>Desfazer este lote</button>
+    </span>
   );
 }

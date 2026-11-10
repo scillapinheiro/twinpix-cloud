@@ -38,6 +38,8 @@ export interface ScanSummary {
   roots: CloudFolder[];
   foldersDone: number;
   foldersTotal: number;
+  /** Pastas que o OneDrive não deixou ler (sem permissão); a análise seguiu sem elas. */
+  foldersSkipped: number;
   filesFound: number;
   unanalyzedCount: number;
   groupsTotal: number;

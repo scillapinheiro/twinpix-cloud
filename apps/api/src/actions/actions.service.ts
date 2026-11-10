@@ -3,7 +3,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleIni
 import type { ActionResult, GroupView, ActionStatus, ApplyResult, DeletionPreview, HistoryEntry, UndoResponse } from '@twinpix/shared';
 import type { BatchKind, CloudItem } from '@twinpix/shared';
 import type { CloudProvider } from '../cloud/cloud-provider';
-import { ForbiddenError } from '../cloud/errors';
+import { ForbiddenError, OfflineError, ReconnectRequiredError } from '../cloud/errors';
 import { ReviewService } from '../review/review.service';
 import type { Db } from '../storage/db';
 import { getFilesByIds, insertFile, nowIso, rowToItem, type FileRow } from '../storage/rows';
@@ -13,6 +13,15 @@ import { planDeletion } from './deletion-plan';
 const ALREADY_GONE_NOTE = 'Já não estava no OneDrive.';
 const UNCONFIRMED_NOTE = 'Não deu para confirmar se foi para a lixeira (sem conexão). Será conferido de novo.';
 const INTERRUPTED_NOTE = 'Interrompida antes de mover; nada foi alterado.';
+const GENERIC_MOVE_ERROR = 'Não foi possível mover este arquivo.';
+
+/** Só frases do próprio app chegam à tela; qualquer outra mensagem (inclusive de versões antigas) vira a frase fixa. */
+function safeActionError(raw: string | null): string | null {
+  if (raw == null) return null;
+  const known = [ALREADY_GONE_NOTE, UNCONFIRMED_NOTE, INTERRUPTED_NOTE, GENERIC_MOVE_ERROR, new ForbiddenError().message, new OfflineError().message, new ReconnectRequiredError().message];
+  if (known.includes(raw) || /^(A nuvem|O OneDrive) respondeu com erro \d+\.$/.test(raw) || /^Modo de teste: só dá para .+ dentro de .+\.$/.test(raw)) return raw;
+  return GENERIC_MOVE_ERROR;
+}
 
 const STILL_IN_ONEDRIVE = 'O arquivo já não está na lixeira e continua no OneDrive.';
 
@@ -128,10 +137,10 @@ export class ActionsService implements OnModuleInit {
    * de o OneDrive já ter movido o arquivo. Confere o estado real antes de registrar.
    */
   private async reconcileAfterError(id: string, e: Error): Promise<{ status: ActionStatus; error: string | null }> {
-    if (e instanceof ForbiddenError) return { status: 'failed', error: e.message };
+    if (e instanceof ForbiddenError) return { status: 'failed', error: safeActionError(e.message) };
     try {
       const item = await this.cloud.getItem(id);
-      return item ? { status: 'failed', error: e.message } : { status: 'done', error: null };
+      return item ? { status: 'failed', error: safeActionError(e.message) } : { status: 'done', error: null };
     } catch {
       return { status: 'pending', error: UNCONFIRMED_NOTE };
     }
@@ -171,7 +180,7 @@ export class ActionsService implements OnModuleInit {
       groupId: r.group_id,
       file: rowToItem(r),
       status: r.status,
-      error: r.error,
+      error: safeActionError(r.error),
       createdAt: r.action_created_at,
       batchId: r.batch_id,
       batchKind: r.batch_kind,

@@ -2,7 +2,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { captureTokenFromHash } from './lib/session';
-import '@fontsource-variable/nunito';
+import '@fontsource-variable/unbounded';
+import '@fontsource-variable/figtree';
 import './styles.css';
 
 captureTokenFromHash();

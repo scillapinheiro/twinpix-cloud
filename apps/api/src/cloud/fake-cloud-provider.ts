@@ -1,6 +1,6 @@
 import type { CloudFolder, CloudItem, RestoreResult } from '@twinpix/shared';
 import type { ChildrenPage, CloudProvider } from './cloud-provider';
-import { InvalidLinkError } from './errors';
+import { ForbiddenError, InvalidLinkError } from './errors';
 
 type Method = keyof CloudProvider;
 
@@ -11,12 +11,16 @@ const LINK_PREFIX = 'https://fake.onedrive/';
 
 export class FakeCloudProvider implements CloudProvider {
   pageSize = 50;
+  /** Espera artificial a cada listagem de pasta e a cada arquivo movido (só o modo demonstração usa, para dar para ver a análise e o lote andando). */
+  latencyMs = 0;
   readonly rootId = 'root';
   readonly calls: string[] = [];
   private folders = new Map<string, FolderNode>();
   private files = new Map<string, FileNode>();
   private trash = new Map<string, FileNode>();
   private faults: Array<{ method: Method; error: Error; times: number }> = [];
+  private deniedFolders = new Set<string>();
+  private blockedTrash = new Map<string, Error>();
   private nextId = 1;
 
   constructor() {
@@ -80,6 +84,20 @@ export class FakeCloudProvider implements CloudProvider {
     this.trash.delete(id);
   }
 
+  folderByPath(path: string): CloudFolder | undefined {
+    return [...this.folders.values()].find((n) => n.folder.path === path)?.folder;
+  }
+
+  /** Simula uma pasta que o OneDrive não deixa ler (sem permissão). */
+  denyFolder(folderId: string): void {
+    this.deniedFolders.add(folderId);
+  }
+
+  /** Simula um arquivo que o OneDrive não deixa mover para a lixeira. */
+  blockTrash(fileId: string, error: Error): void {
+    this.blockedTrash.set(fileId, error);
+  }
+
   failNext(method: Method, error: Error, times = 1): void {
     this.faults.push({ method, error, times });
   }
@@ -91,11 +109,14 @@ export class FakeCloudProvider implements CloudProvider {
 
   async listFolders(parentId: string): Promise<CloudFolder[]> {
     this.enter('listFolders');
+    this.assertReadable(parentId);
     return this.childFolders(parentId).map((f) => this.withCount(f));
   }
 
   async listChildren(folderId: string, pageToken: string | null): Promise<ChildrenPage> {
     this.enter('listChildren');
+    if (this.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, this.latencyMs));
+    this.assertReadable(folderId);
     const entries: Array<{ folder?: CloudFolder; file?: CloudItem }> = [
       ...this.childFolders(folderId).map((folder) => ({ folder: this.withCount(folder) })),
       ...this.childFiles(folderId).map((file) => ({ file })),
@@ -130,6 +151,9 @@ export class FakeCloudProvider implements CloudProvider {
 
   async moveToTrash(id: string): Promise<'moved' | 'already-gone'> {
     this.enter('moveToTrash');
+    if (this.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, this.latencyMs));
+    const blocked = this.blockedTrash.get(id);
+    if (blocked) throw blocked;
     const node = this.files.get(id);
     if (!node) return 'already-gone';
     this.files.delete(id);
@@ -164,6 +188,10 @@ export class FakeCloudProvider implements CloudProvider {
       if (fault.times <= 0) this.faults.splice(this.faults.indexOf(fault), 1);
       throw fault.error;
     }
+  }
+
+  private assertReadable(folderId: string): void {
+    if (this.deniedFolders.has(folderId)) throw new ForbiddenError();
   }
 
   private mustFolder(id: string): FolderNode {

@@ -83,7 +83,7 @@ it('ver lista mostra os caminhos', async () => {
   renderBatch();
   await screen.findByText('140 grupos');
   await userEvent.click(screen.getAllByRole('button', { name: 'ver lista' })[0]);
-  expect(screen.getByText(/★ fica/)).toBeInTheDocument();
+  expect(screen.getByText('fica', { selector: '.chip-keep' })).toBeInTheDocument();
   expect(screen.getByText(/\/Viagem Praia\/foto\.jpg/)).toBeInTheDocument();
   expect(screen.getByText(/\/Backup celular 2015\/IMG_1\.jpg/)).toBeInTheDocument();
   expect(screen.getAllByRole('link', { name: 'Abrir no OneDrive ↗' }).map((a) => a.getAttribute('href'))).toEqual(['https://od/k1', 'https://od/r1']);
@@ -118,7 +118,7 @@ it('inverter troca o texto e o ver lista, e o POST leva keepFolders', async () =
   await userEvent.click(screen.getByRole('button', { name: '⇄ Inverter: manter em /Backup celular 2015' }));
   expect(screen.getByText(/escolhido por você/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: '⇄ Voltar à sugestão: manter em /Viagem Praia' })).toBeInTheDocument();
-  expect(screen.getByText(/★ fica/).closest('.batch-file')).toHaveTextContent('IMG_1.jpg');
+  expect(screen.getByText('fica', { selector: '.chip-keep' }).closest('.batch-file')).toHaveTextContent('IMG_1.jpg');
   await userEvent.click(screen.getByRole('button', { name: /Mover para a lixeira \(/ }));
   expect(screen.getByRole('dialog')).toHaveTextContent('fica em /Backup celular 2015');
   await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
@@ -159,7 +159,7 @@ it('o modal confirma e envia as lineKeys marcadas uma vez só, mesmo com clique 
   await userEvent.click(screen.getByRole('button', { name: /Mover para a lixeira \(140/ }));
   const dialog = screen.getByRole('dialog');
   expect(dialog).toHaveAttribute('aria-modal', 'true');
-  expect(dialog).toHaveTextContent('140 arquivos de 140 grupos vão para a lixeira do OneDrive');
+  expect(dialog).toHaveTextContent('140 arquivos de 140 grupos vão para a lixeira da nuvem');
   const go = screen.getByRole('button', { name: 'Mover para a lixeira' });
   await userEvent.dblClick(go);
   await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument());
@@ -327,7 +327,7 @@ it('o POST leva a ★ de cada grupo só das linhas marcadas, igual ao "ver lista
   await userEvent.click(screen.getAllByRole('checkbox')[0]);
   await userEvent.click(screen.getAllByRole('button', { name: /Inverter/ })[1]);
   await userEvent.click(screen.getAllByRole('button', { name: 'ver lista' })[1]);
-  expect(screen.getByText(/★ fica/).closest('.batch-file')).toHaveTextContent('/Antigas');
+  expect(screen.getByText('fica', { selector: '.chip-keep' }).closest('.batch-file')).toHaveTextContent('/Antigas');
   await userEvent.click(screen.getByRole('button', { name: /Mover para a lixeira \(/ }));
   await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
   await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));

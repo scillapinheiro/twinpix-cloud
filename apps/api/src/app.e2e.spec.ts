@@ -18,7 +18,7 @@ const T = 'tok';
 
 beforeAll(async () => {
   const config = loadConfig(
-    { TWINPIX_DATA_DIR: mkdtempSync(join(tmpdir(), 'twinpix-e2e-')), TWINPIX_SESSION_TOKEN: T },
+    { TWINPIX_DATA_DIR: mkdtempSync(join(tmpdir(), 'twinpix-e2e-')), TWINPIX_SESSION_TOKEN: T, TWINPIX_DEMO_SCENARIOS: '0' },
     ['node', 'main.js', '--demo'],
   );
   const mod = await Test.createTestingModule({ imports: [AppModule.forRoot(config)] }).compile();
@@ -214,10 +214,10 @@ describe('API em modo demonstração', () => {
     const folders = (await api().get(`/api/folders/${encodeURIComponent(root.id)}/children`)).body;
     const started = (await api().post('/api/scans', { roots: folders })).body as ScanSummary;
     const done = await waitDone(started.id);
-    expect(done.probableTotal).toBeGreaterThanOrEqual(2);
+    expect(done.probableTotal).toBe(3);
 
     const group = (await api().get(`/api/scans/${started.id}/groups/current?kind=probable`)).body as GroupView;
-    expect(group.files.length).toBeGreaterThanOrEqual(2);
+    expect(group.files).toHaveLength(2);
     expect(group.preMarkedIds).toEqual([]);
 
     const victim = group.files.find((f) => f.id !== group.suggestion?.keepId) ?? group.files[1];
@@ -255,8 +255,8 @@ describe('API em modo demonstração', () => {
     expect(items[0].keep.name).toBe('IMG_20160701_100000.jpg');
     expect(items[0].remove.map((f) => f.name)).toEqual(['IMG_20160701_100000 1.jpg']);
     // Os pares editados (foto e vídeo) ficam de fora e continuam pendentes um por um.
-    expect(done.probableTotal).toBeGreaterThanOrEqual(3);
-    expect(preview.pendingCount).toBeGreaterThanOrEqual(2);
+    expect(done.probableTotal).toBe(3);
+    expect(preview.pendingCount).toBe(3);
 
     const keeps: Record<string, string> = {};
     for (const it of items) keeps[it.groupId] = it.keep.id;

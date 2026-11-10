@@ -8,6 +8,10 @@ export interface AppConfig {
   port: number;
   provider: 'onedrive' | 'fake';
   demo: boolean;
+  /** Modo demonstração com cenários extras (pasta sem permissão, arquivo que não vai para a lixeira, análise lenta). */
+  demoScenarios: boolean;
+  /** Espera por pasta na análise dos cenários da demonstração. */
+  demoDelayMs: number;
   clientId: string | null;
   authority: string;
   dataDir: string;
@@ -33,6 +37,8 @@ export function loadConfig(
   return {
     port,
     demo,
+    demoScenarios: demo && env.TWINPIX_DEMO_SCENARIOS !== '0',
+    demoDelayMs: Number(env.TWINPIX_DEMO_DELAY_MS ?? 700),
     provider,
     clientId: env.TWINPIX_CLIENT_ID || null,
     authority: env.TWINPIX_AUTHORITY ?? 'https://login.microsoftonline.com/consumers',

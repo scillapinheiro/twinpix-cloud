@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import { ScanProgress } from './ScanProgress';
 
 const scan = (status: ScanSummary['status']): ScanSummary => ({
-  id: 3, status, roots: [{ id: 'r', name: 'A', path: '/A', childCount: 1 }], foldersDone: 1, foldersTotal: 2, filesFound: 4,
+  id: 3, status, roots: [{ id: 'r', name: 'A', path: '/A', childCount: 1 }], foldersDone: 1, foldersTotal: 2, foldersSkipped: 0, filesFound: 4,
   unanalyzedCount: 0, groupsTotal: 0, groupsPending: 0, groupsSkipped: 0, probableTotal: 0, probablePending: 0, probableSkipped: 0, bytesFreed: 0, error: null,
 });
 

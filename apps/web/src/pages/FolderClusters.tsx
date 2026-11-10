@@ -1,6 +1,7 @@
 import type { BatchSummary, CloudItem, FolderCluster, FolderStat, ReconcilePlan } from '@twinpix/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { CheckIcon, CrossIcon, FolderIcon, LockIcon } from '../components/Brand';
 import { findOpenBatch, OTHER_BATCH_NOTICE } from '../components/BatchBits';
 import { BatchProgress } from '../components/BatchProgress';
 import { ReconcileConfirmDialog } from '../components/ReconcileConfirmDialog';
@@ -174,13 +175,24 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
     <>
       <section className="reconcile" inert={confirming}>
         <div className="card">
-          <h1>Pastas repetidas · {position} de {total}</h1>
+          <h1>
+            Pastas repetidas<span className="sr-only"> · </span>
+            <span className="chip chip-keep title-chip">{position} de {total}</span>
+          </h1>
           {two ? (
             <div className="reconcile-cards">
               {folders.map((f) => (
                 <div key={f.path} className={`reconcile-card${f.path === cluster.suggestedKeep ? ' suggested' : ''}`}>
-                  <p className="reconcile-badge">{f.path === cluster.suggestedKeep ? '★ Sugerida para manter' : ' '}</p>
-                  <p><strong>📁 {f.path}</strong></p>
+                  <div className="reconcile-badges">
+                    {f.path === cluster.suggestedKeep && <span className="reconcile-badge">Sugerida para manter</span>}
+                    {choice !== REVIEW && (
+                      <span className={`chip ${choice === f.path ? 'chip-keep' : 'chip-drop'}`}>
+                        {choice === f.path ? <CheckIcon /> : <CrossIcon />}
+                        {choice === f.path ? 'fica' : 'sai'}
+                      </span>
+                    )}
+                  </div>
+                  <p><strong><FolderIcon /> {f.path}</strong></p>
                   <dl>
                     <dt>Arquivos:</dt><dd>{f.fileCount}</dd>
                     <dt>Tamanho:</dt><dd>{formatBytes(f.bytes)}</dd>
@@ -196,7 +208,7 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
               <tbody>
                 {folders.map((f) => (
                   <tr key={f.path} className={f.path === cluster.suggestedKeep ? 'suggested' : undefined}>
-                    <td>{f.path === cluster.suggestedKeep ? '★' : ''}</td>
+                    <td>{f.path === cluster.suggestedKeep && (<><span className="sr-only">Sugerida para manter</span><span className="chip chip-keep" aria-hidden="true"><CheckIcon /></span></>)}</td>
                     <td><strong>{f.path}</strong></td>
                     <td>{f.fileCount}</td>
                     <td><strong>{f.uniqueCount}</strong>{f.uniqueCount > 0 && <UniqueList scanId={scanId} cluster={cluster} folder={f.path} />}</td>
@@ -236,7 +248,7 @@ function ClusterView({ cluster, position, total, scanId, onPrev, onNext, onStart
             {planError && <p className="alert" role="alert">{planError}</p>}
             {folders.filter((x) => x.uniqueCount > 0).map((x) => (
               <p key={x.path} className="muted">
-                🔒 {x.uniqueCount === 1 ? 'O arquivo que só existe' : `Os ${plural(x.uniqueCount, 'arquivo', 'arquivos')} que só existem`} em <strong>{x.path}</strong> nunca {x.uniqueCount === 1 ? 'é tocado' : 'são tocados'}.
+                <LockIcon /> {x.uniqueCount === 1 ? 'O arquivo que só existe' : `Os ${plural(x.uniqueCount, 'arquivo', 'arquivos')} que só existem`} em <strong>{x.path}</strong> nunca {x.uniqueCount === 1 ? 'é tocado' : 'são tocados'}.
               </p>
             ))}
           </fieldset>

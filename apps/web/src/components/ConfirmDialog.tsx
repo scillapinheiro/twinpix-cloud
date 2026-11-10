@@ -1,7 +1,7 @@
 import type { ApplyResult, DeletionPreview } from '@twinpix/shared';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ApiError, apiFetch } from '../lib/api';
-import { formatBytes } from '../lib/format';
+import { formatBytes, formatReason } from '../lib/format';
 import { plural } from '../lib/plural';
 import { ignoreShortcut, isNativeActivator } from '../lib/shortcuts';
 
@@ -85,15 +85,15 @@ export function ConfirmDialog({ groupId, deleteIds, onCancel, onDone }: Props) {
             <h1 id="confirm-title">Resultado</h1>
             {result.stale ? (
               <p className="notice">
-                Este grupo mudou no OneDrive desde a análise (algum arquivo foi alterado, movido ou apagado). Nada foi movido.
-                {' '}O grupo foi atualizado com a situação atual — confira de novo antes de excluir.
+                Este grupo mudou na nuvem desde a análise (algum arquivo foi alterado, movido ou apagado). Nada foi movido.
+                {' '}O grupo foi atualizado com a situação atual. Confira de novo antes de excluir.
               </p>
             ) : (
               <>
                 <ul>
                   {result.results.map((r) => (
                     <li key={r.actionId} className={r.status === 'failed' ? 'alert' : undefined}>
-                      {r.fileName}: {STATUS_TEXT[r.status]}{r.error ? ` (${r.error})` : ''}
+                      {r.fileName}: {STATUS_TEXT[r.status]}{r.error ? `: ${formatReason(r.error)}` : ''}
                     </li>
                   ))}
                 </ul>
@@ -115,13 +115,13 @@ export function ConfirmDialog({ groupId, deleteIds, onCancel, onDone }: Props) {
             {preview && (
               <>
                 <p>
-                  <strong>{plural(n, 'arquivo vai', 'arquivos vão')} para a lixeira do OneDrive</strong>, liberando {formatBytes(preview.bytes)}.
-                  Nada é apagado de vez: você pode restaurar pelo Histórico ou pela lixeira do OneDrive.
+                  <strong>{plural(n, 'arquivo vai', 'arquivos vão')} para a lixeira da nuvem</strong>, liberando {formatBytes(preview.bytes)}.
+                  Nada é apagado de vez: você pode restaurar pelo Histórico ou pela lixeira da nuvem.
                 </p>
                 <h2>Vão para a lixeira</h2>
-                <ul>{preview.deleteFiles.map((f) => <li key={f.id}>{path(f)}</li>)}</ul>
+                <ul className="list-out">{preview.deleteFiles.map((f) => <li key={f.id}>{path(f)}</li>)}</ul>
                 <h2>Ficam onde estão</h2>
-                <ul>{preview.keepFiles.map((f) => <li key={f.id}>{path(f)}</li>)}</ul>
+                <ul className="list-keep">{preview.keepFiles.map((f) => <li key={f.id}>{path(f)}</li>)}</ul>
               </>
             )}
             {applyError && <p className="alert">{applyError}</p>}

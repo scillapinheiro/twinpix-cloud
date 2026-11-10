@@ -10,9 +10,6 @@ export function normalizeTestFolder(raw: string | undefined): string | null {
   return path;
 }
 
-/** A própria pasta ou algo abaixo dela. O OneDrive não diferencia maiúsculas nos nomes. */
-export function isInsideFolder(path: string, folder: string): boolean {
-  const p = path.toLowerCase();
-  const f = folder.toLowerCase();
-  return p === f || p.startsWith(`${f}/`);
-}
+// A própria pasta ou algo abaixo dela (sem diferenciar maiúsculas, como o OneDrive).
+// Uma única implementação, usada também pelo agrupamento de pastas.
+export { isInsideFolder } from '../grouping/folders';

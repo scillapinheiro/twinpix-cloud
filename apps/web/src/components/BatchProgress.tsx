@@ -5,6 +5,7 @@ import { ApiError, apiFetch } from '../lib/api';
 import { formatBytes } from '../lib/format';
 import { plural } from '../lib/plural';
 import { BATCH_STATUS_TEXT, BATCH_TITLE, UndoBatchButton } from './BatchBits';
+import { ProgressBar } from './ProgressBar';
 
 export function BatchProgress({ initial, scanId, title = BATCH_TITLE[initial.kind], notice, afterFinish }: {
   initial: BatchSummary;
@@ -70,14 +71,11 @@ export function BatchProgress({ initial, scanId, title = BATCH_TITLE[initial.kin
         {BATCH_STATUS_TEXT[b.status]}
       </p>
       {b.error && <p className={bad ? 'alert' : 'notice'}>{b.error}</p>}
-      <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso do lote">
-        <div style={{ width: `${pct}%` }} />
-      </div>
+      <ProgressBar percent={pct} label="Progresso do lote" />
       <p>{b.doneGroups} de {total}</p>
       <p>{plural(b.movedFiles, 'arquivo movido', 'arquivos movidos')} · {formatBytes(b.movedBytes)} liberados</p>
-      {finished && (
+      {finished && (b.skippedGroups > 0 || b.failedFiles > 0 || b.status === 'undone') && (
         <ul>
-          {b.status !== 'undone' && <li>Movidos: {b.movedFiles}</li>}
           {b.skippedGroups > 0 && <li>Pulados: {unit(b.skippedGroups)} (não foram mexidos)</li>}
           {b.failedFiles > 0 && <li className="alert">Falhas: {plural(b.failedFiles, 'arquivo não foi movido', 'arquivos não foram movidos')}</li>}
           {b.status === 'undone' && (

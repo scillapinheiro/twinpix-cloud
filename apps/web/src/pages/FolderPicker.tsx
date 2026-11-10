@@ -92,7 +92,7 @@ export function FolderPicker() {
       </ul>
 
       <div className="link-input">
-        <label htmlFor="folder-link">Ou cole o endereço de uma pasta do OneDrive (da barra do navegador ou do botão Compartilhar)</label>
+        <label htmlFor="folder-link">Ou cole o endereço de uma pasta da nuvem (da barra do navegador ou do botão Compartilhar)</label>
         <div className="row">
           <input id="folder-link" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://onedrive.live.com/…" />
           <button type="button" className="button" onClick={addFromLink} disabled={!link.trim()}>Adicionar</button>

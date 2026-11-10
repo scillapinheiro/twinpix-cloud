@@ -1,4 +1,5 @@
 import { HashRouter, Link, Route, Routes } from 'react-router-dom';
+import { LogoMark } from './components/Brand';
 import { Batch } from './pages/Batch';
 import { FolderPicker } from './pages/FolderPicker';
 import { FolderClusters } from './pages/FolderClusters';
@@ -12,10 +13,12 @@ export function App() {
   return (
     <HashRouter>
       <header className="topbar">
-        <Link to="/" className="brand">TwinPix Cloud</Link>
+        <Link to="/" className="brand" aria-label="TwinPix Cloud, página inicial">
+          <LogoMark />
+          <span>TwinPix</span>
+        </Link>
         <nav>
           <Link to="/historico">Histórico</Link>
-          {' '}
           <Link to="/regras">Regras</Link>
         </nav>
       </header>

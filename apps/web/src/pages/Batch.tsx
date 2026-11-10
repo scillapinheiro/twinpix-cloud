@@ -1,6 +1,7 @@
 import type { BatchItem, BatchLine, BatchPreview, BatchSummary } from '@twinpix/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { CheckIcon, CrossIcon, WarningIcon } from '../components/Brand';
 import { BATCH_TITLE, findOpenBatch, OTHER_BATCH_NOTICE } from '../components/BatchBits';
 import { BatchProgress } from '../components/BatchProgress';
 import { BatchConfirmDialog } from '../components/BatchConfirmDialog';
@@ -63,12 +64,12 @@ function BatchItems({ line, folder, probable }: { line: BatchLine; folder: strin
                   <div className="batch-thumb"><Thumbnail fileId={f.id} alt={f.name} /></div>
                   <div className="batch-file-info">
                     <div>
-                      <strong>{f.id === keepId ? '★ fica' : 'sai'}</strong>: {filePath(f.folderPath, f.name)}{' '}
-                      <a className="batch-link" href={f.webUrl} target="_blank" rel="noreferrer">Abrir no OneDrive ↗</a>
+                      <strong className={`chip ${f.id === keepId ? 'chip-keep' : 'chip-drop'}`}>{f.id === keepId ? <CheckIcon /> : <CrossIcon />}{f.id === keepId ? 'fica' : 'sai'}</strong> {filePath(f.folderPath, f.name)}{' '}
+                      <a className="link batch-link" href={f.webUrl} target="_blank" rel="noreferrer">Abrir no OneDrive ↗</a>
                     </div>
                     <div className="batch-file-meta">
-                      {LIST_FIELDS.map((k) => (
-                        <span key={k}>{FIELD_LABELS[k]}: <span className={diffs.has(k) ? 'diff' : undefined}>{fieldValue(f, k)}</span> </span>
+                      {LIST_FIELDS.map((k, i) => (
+                        <span key={k}>{i > 0 && ' · '}{FIELD_LABELS[k]}: <span className={diffs.has(k) ? 'diff' : undefined}>{fieldValue(f, k)}</span></span>
                       ))}
                     </div>
                   </div>
@@ -189,16 +190,16 @@ function BatchPreviewView({ preview, scanId, probable, onStarted }: { preview: B
           {probable ? (
             <>
               <p className="notice probable-warning" role="note">
-                <span aria-hidden="true">⚠ </span>São fotos que parecem regravadas (mesma imagem, arquivo um pouco diferente). Confira as miniaturas antes de marcar.
+                <WarningIcon />São fotos que parecem regravadas (mesma imagem, arquivo um pouco diferente). Confira as miniaturas antes de marcar.
               </p>
               <p>
                 Só grupos que parecem a mesma gravação, com a cópia sem sufixo de cópia no nome. Em cada grupo, fica essa cópia; as outras
-                vão para a lixeira do OneDrive. Nada vem marcado: marque as linhas que quiser mover. Dá para desfazer pelo Histórico.
+                vão para a lixeira da nuvem. Nada vem marcado: marque as linhas que quiser mover. Dá para desfazer pelo Histórico.
               </p>
             </>
           ) : (
             <p>
-              Só cópias idênticas. Em cada grupo, fica a cópia sugerida pela regra; as outras vão para a lixeira do OneDrive.
+              Só cópias idênticas. Em cada grupo, fica a cópia sugerida pela regra; as outras vão para a lixeira da nuvem.
               Dá para desfazer pelo Histórico.
             </p>
           )}
@@ -223,8 +224,8 @@ function BatchPreviewView({ preview, scanId, probable, onStarted }: { preview: B
                 <label className="batch-line-head">
                   <input type="checkbox" checked={marked.has(l.key)} onChange={() => setMarked((m) => flip(m, l.key))} />
                   <span>
-                    <strong>{plural(l.groupCount, 'grupo', 'grupos')}</strong> · fica em <strong>{keepFolder}</strong> · sai de{' '}
-                    <strong>{outFolders.join(', ')}</strong> · {formatBytes(st.bytes)}
+                    <strong>{plural(l.groupCount, 'grupo', 'grupos')}</strong> · fica em <strong className="chip chip-keep"><CheckIcon />{keepFolder}</strong> · sai de{' '}
+                    <strong className="chip chip-drop"><CrossIcon />{outFolders.join(', ')}</strong> · {formatBytes(st.bytes)}
                     {changed && <span className="badge-chosen"> escolhido por você</span>}
                   </span>
                 </label>

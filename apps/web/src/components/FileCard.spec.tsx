@@ -29,7 +29,7 @@ it('mostra todos os campos com rótulo, câmera com fabricante e link do OneDriv
 it('destaca diferenças e mostra o selo de sugerida sem o motivo', () => {
   render(<FileCard file={file} isSuggested marked={false} lockDelete={false} onToggle={() => {}} diffs={new Set(['name'])} fields={[...fields]} />);
   expect(screen.getByText(file.name)).toHaveClass('diff');
-  expect(screen.getByText('★ Sugerida para manter')).toBeInTheDocument();
+  expect(screen.getByText('Sugerida para manter')).toBeInTheDocument();
   expect(screen.getByRole('article')).toHaveClass('suggested');
 });
 

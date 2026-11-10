@@ -27,7 +27,7 @@ it('carrega, reordena, adiciona, remove e salva a lista ordenada', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Adicionar regra' }));
   await userEvent.selectOptions(screen.getByLabelText('Critério'), 'inFolder');
   await userEvent.click(screen.getByRole('button', { name: 'Incluir regra' }));
-  expect(await screen.findByText(/começando com "\/"/)).toBeInTheDocument();
+  expect(await screen.findByText(/começando com “\/”/)).toBeInTheDocument();
   await userEvent.type(screen.getByLabelText('Pasta'), '/Imagens/Viagem');
   await userEvent.click(screen.getByRole('button', { name: 'Incluir regra' }));
   await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));

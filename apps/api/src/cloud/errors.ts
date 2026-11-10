@@ -5,12 +5,12 @@ export class ReconnectRequiredError extends Error {
   constructor(message = 'A conexão com o OneDrive expirou. Conecte de novo.') { super(message); }
 }
 export class ForbiddenError extends Error {
-  constructor(message = 'Sem permissão para este item do OneDrive.') { super(message); }
+  constructor(message = 'Sem permissão para este item da nuvem.') { super(message); }
 }
 export class InvalidLinkError extends Error {}
 export class GraphError extends Error {
   constructor(readonly status: number, readonly body: string) {
-    super(`O OneDrive respondeu com erro ${status}.`);
+    super(`A nuvem respondeu com erro ${status}.`);
   }
 }
 /** Trava da pasta de teste: é um ForbiddenError para o app registrar como falha, sem tentar conferir. */
