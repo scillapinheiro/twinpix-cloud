@@ -215,7 +215,7 @@ export function Review() {
       <p className="legend">
         <span className="legend-keep">★ Sugerida para manter</span> — escolhida pela regra: {group.suggestion.reason.replace(/^regra:\s*/, '')}
         <span className="legend-sep" aria-hidden="true"> · </span>
-        Campos em <span className="diff">laranja</span> são diferentes entre as cópias.
+        Campos <span className="diff">destacados</span> são diferentes entre as cópias.
       </p>
 
       {reloadStale !== null && loadError && (

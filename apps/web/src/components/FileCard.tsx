@@ -1,5 +1,6 @@
 import type { CloudItem } from '@twinpix/shared';
 import { FIELD_LABELS, fieldValue, type FieldKey } from '../lib/differing-fields';
+import { CheckIcon, CrossIcon } from './Brand';
 import { Thumbnail } from './Thumbnail';
 
 interface Props {
@@ -20,6 +21,7 @@ export function FileCard({ file, isSuggested, marked, lockDelete, onToggle, diff
       <div className="thumb">
         <Thumbnail fileId={file.id} alt={file.name} />
         {isSuggested && <span className="badge-keep">★ Sugerida para manter</span>}
+        <span className="decision-seal" aria-hidden="true">{marked ? <CrossIcon /> : <CheckIcon />}</span>
       </div>
       <dl>
         {fields.map((key) => (
