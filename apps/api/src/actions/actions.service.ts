@@ -19,7 +19,7 @@ const GENERIC_MOVE_ERROR = 'Não foi possível mover este arquivo.';
 function safeActionError(raw: string | null): string | null {
   if (raw == null) return null;
   const known = [ALREADY_GONE_NOTE, UNCONFIRMED_NOTE, INTERRUPTED_NOTE, GENERIC_MOVE_ERROR, new ForbiddenError().message, new OfflineError().message, new ReconnectRequiredError().message];
-  if (known.includes(raw) || /^O OneDrive respondeu com erro \d+\.$/.test(raw) || /^Modo de teste: só dá para .+ dentro de .+\.$/.test(raw)) return raw;
+  if (known.includes(raw) || /^(A nuvem|O OneDrive) respondeu com erro \d+\.$/.test(raw) || /^Modo de teste: só dá para .+ dentro de .+\.$/.test(raw)) return raw;
   return GENERIC_MOVE_ERROR;
 }
 

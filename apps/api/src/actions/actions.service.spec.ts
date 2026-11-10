@@ -307,7 +307,7 @@ describe('ActionsService', () => {
   it('erro 5xx sem o OneDrive ter movido: confere e registra como não movido', async () => {
     cloud.failNext('moveToTrash', new GraphError(503, ''));
     const r = await actions.apply(groupId, ['c1']);
-    expect(r.results[0]).toMatchObject({ status: 'failed', error: 'O OneDrive respondeu com erro 503.' });
+    expect(r.results[0]).toMatchObject({ status: 'failed', error: 'A nuvem respondeu com erro 503.' });
     expect(review.activeFileIds(groupId)).toContain('c1');
   });
 
