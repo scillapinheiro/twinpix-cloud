@@ -54,6 +54,7 @@ Corrigido nesta passada:
 - Moldura tracejada ao redor das fotos (era de placeholder): removida.
 - Celular (390 px): barra de navegação sem estourar, tabela do Histórico com rolagem própria.
 - Listas de números sem marcadores soltos (Análise, Lote).
+- Histórico: caixa do lote e tabela alinhadas com o título (uma regra antiga de lista dava 20 px de recuo; a primeira coluna da tabela tinha 8 px).
 
 ## Em aberto / para olhar com calma
 

@@ -331,3 +331,7 @@ li.alert::marker, li.notice::marker { content: ''; }
 .stat-progress .progress { height: 12px; background: rgba(217, 245, 96, 0.25); }
 .stat-progress .progress > div { background: var(--lime); }
 .stat-progress p { margin: 8px 0 0; font-weight: 600; font-size: 1rem; color: #fff; }
+/* Alinhamento do Histórico: lotes e tabela começam na mesma margem do título */
+.card .batches ul { padding: 0 !important; }
+th:first-child, td:first-child { padding-left: 0; }
+th:last-child, td:last-child { padding-right: 0; }
