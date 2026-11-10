@@ -197,12 +197,15 @@ th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--bor
 .hero-connect .alert { margin: 0 0 24px; }
 .hero-home { background: var(--lime); }
 .hero-home .greeting { font-size: 1.375rem; font-weight: 700; margin: 0 0 16px; }
-.hero-home h1 { font-size: clamp(2rem, 4.4vw, 4.2rem); }
-.hero-home h1 .big { display: block; font-size: 1.35em; }
+.hero-home h1 { font-size: clamp(2rem, 3.6vw, 3.4rem); }
+.hero-home h1 .big { display: block; font-size: 1.3em; white-space: nowrap; }
 .hero-home .notice { background: #fff; border: none; border-radius: 28px; padding: 16px 24px; margin: 0 0 32px; max-width: 520px; }
 .hero-home .row { gap: 16px; }
-.hero-home .twin-photo.art-one { --s: 340px; right: 280px; bottom: -120px; transform: rotate(6deg); }
-.hero-home .twin-photo.art-two { --s: 340px; right: -50px; bottom: -150px; transform: rotate(-8deg); }
+.hero-home .button.big { padding: 16px 32px; font-size: 1.125rem; }
+.hero-home { min-height: 640px; }
+.hero-home .hero-copy { max-width: 62%; }
+.hero-home .twin-photo.art-one { --s: 260px; right: 90px; bottom: -150px; transform: rotate(6deg); }
+.hero-home .twin-photo.art-two { --s: 260px; right: -80px; bottom: -150px; transform: rotate(-8deg); }
 .home-grid.alone { grid-template-columns: 1fr; }
 .home-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; align-items: stretch; }
 .stat-column { display: grid; grid-template-rows: 1.5fr 1fr; gap: 24px; }
