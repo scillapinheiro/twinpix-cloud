@@ -1,7 +1,7 @@
 import type { BatchItem, BatchLine, BatchPreview, BatchSummary } from '@twinpix/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { CheckIcon, CrossIcon, WarningIcon } from '../components/Brand';
+import { CheckIcon, CrossIcon, SwapIcon, WarningIcon } from '../components/Brand';
 import { BATCH_TITLE, findOpenBatch, OTHER_BATCH_NOTICE } from '../components/BatchBits';
 import { BatchProgress } from '../components/BatchProgress';
 import { BatchConfirmDialog } from '../components/BatchConfirmDialog';
@@ -232,7 +232,8 @@ function BatchPreviewView({ preview, scanId, probable, onStarted }: { preview: B
                 <p className="muted batch-reason">regra: {l.reasons.map((r) => r.replace(/^regra:\s*/, '')).join('; ')}</p>
                 {offered.length < 2 ? null : l.removeFolders.length === 1 ? (
                   <button type="button" className="link" onClick={() => pick(l, changed ? l.keepFolder : l.removeFolders[0])}>
-                    {changed ? `⇄ Voltar à sugestão: manter em ${l.keepFolder}` : `⇄ Inverter: manter em ${l.removeFolders[0]}`}
+                    <SwapIcon />
+                    {changed ? `Voltar à sugestão: manter em ${l.keepFolder}` : `Inverter: manter em ${l.removeFolders[0]}`}
                   </button>
                 ) : (
                   <label className="batch-keep-select">
