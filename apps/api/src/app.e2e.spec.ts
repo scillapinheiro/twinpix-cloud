@@ -18,7 +18,7 @@ const T = 'tok';
 
 beforeAll(async () => {
   const config = loadConfig(
-    { TWINPIX_DATA_DIR: mkdtempSync(join(tmpdir(), 'twinpix-e2e-')), TWINPIX_SESSION_TOKEN: T },
+    { TWINPIX_DATA_DIR: mkdtempSync(join(tmpdir(), 'twinpix-e2e-')), TWINPIX_SESSION_TOKEN: T, TWINPIX_DEMO_SCENARIOS: '0' },
     ['node', 'main.js', '--demo'],
   );
   const mod = await Test.createTestingModule({ imports: [AppModule.forRoot(config)] }).compile();

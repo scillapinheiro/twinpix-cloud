@@ -1,3 +1,4 @@
+import { ForbiddenError } from './errors';
 import type { FakeCloudProvider } from './fake-cloud-provider';
 
 /** Árvore fictícia parecida com o caso real (spec §10), para o modo demonstração. */
@@ -57,4 +58,29 @@ export function seedDemo(p: FakeCloudProvider): void {
   // Arquivos únicos e um sem hash (vai para "não analisados").
   p.addFile(c2016.id, { name: 'IMG_20160401_090000.jpg', size: 2_000_000, ...samsung });
   p.addFile(c2016.id, { name: 'IMG_20160402_090000.jpg', size: 2_100_000, quickXorHash: null, ...samsung });
+}
+
+/**
+ * Cenários só do modo demonstração, para ver na tela o que a árvore normal não gera:
+ * uma pasta sem permissão de leitura (análise segue sem ela), um grupo cujo arquivo o OneDrive
+ * não deixa mover para a lixeira (lote com erro) e análise lenta (latência por pasta).
+ * Fica separado de seedDemo, que os testes usam com números exatos.
+ */
+export function seedDemoScenarios(p: FakeCloudProvider, options: { delayMs: number }): void {
+  const imagens = p.folderByPath('/Imagens');
+  if (!imagens) throw new Error('seedDemo precisa rodar antes de seedDemoScenarios');
+
+  // Pasta que o OneDrive não deixa ler: a análise pula e avisa.
+  const protegido = p.addFolder(imagens.id, 'Backup protegido');
+  p.addFile(protegido.id, { name: 'IMG_PROTEGIDA.jpg', size: 2_000_000, quickXorHash: 'demo-protegida' });
+  p.denyFolder(protegido.id);
+
+  // Duas cópias idênticas, mas a "1" não pode ir para a lixeira: o lote termina com erro nesse arquivo.
+  const bloqueada = p.addFolder(imagens.id, 'Álbum compartilhado');
+  const common = { size: 2_750_000, quickXorHash: 'demo-bloqueada', takenAt: '2016-09-10T12:00:00Z', cameraMake: 'Samsung', cameraModel: 'SM-G900M' };
+  p.addFile(bloqueada.id, { name: 'IMG_20160910_120000.jpg', ...common, modifiedAt: '2016-09-10T12:00:00Z' });
+  const copia = p.addFile(bloqueada.id, { name: 'IMG_20160910_120000 1.jpg', ...common, modifiedAt: '2016-09-11T12:00:00Z' });
+  p.blockTrash(copia.id, new ForbiddenError());
+
+  p.latencyMs = options.delayMs;
 }

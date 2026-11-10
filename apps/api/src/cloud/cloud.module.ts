@@ -4,7 +4,7 @@ import { AuthService } from '../auth/auth.service';
 import type { AppConfig } from '../config';
 import { CLOUD_PROVIDER, CONFIG } from '../tokens';
 import type { CloudProvider } from './cloud-provider';
-import { seedDemo } from './demo-seed';
+import { seedDemo, seedDemoScenarios } from './demo-seed';
 import { FakeCloudProvider } from './fake-cloud-provider';
 import { FilesController } from './files.controller';
 import { FoldersController } from './folders.controller';
@@ -24,6 +24,7 @@ import { OneDriveProvider } from './onedrive/onedrive-provider';
           const fake = new FakeCloudProvider();
           fake.pageSize = 5;
           seedDemo(fake);
+          if (config.demoScenarios) seedDemoScenarios(fake, { delayMs: config.demoDelayMs });
           return fake;
         }
         return new OneDriveProvider(new GraphClient(auth), { testFolder: config.testFolder });

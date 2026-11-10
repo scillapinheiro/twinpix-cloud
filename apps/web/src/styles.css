@@ -228,3 +228,8 @@ th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--bor
 table { font-size: 1rem; }
 th { font-weight: 800; color: var(--muted); font-size: 0.9rem; text-transform: none; }
 tbody tr:last-child td { border-bottom: none; }
+.card li.notice { list-style: none; background: var(--soft); border-radius: var(--radius-sm); padding: 10px 20px; margin: 8px 0 8px -20px; font-weight: 700; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.card li.notice::before { content: ''; flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--pink); }
+.card ul.muted { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 6px; }
+.card ul.muted li { background: var(--soft); border-radius: var(--pill); padding: 6px 20px; width: fit-content; }
+.card li.alert { list-style: none; margin: 8px 0 8px -20px; padding: 10px 20px; border-radius: var(--radius-sm); }

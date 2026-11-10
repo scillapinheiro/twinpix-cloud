@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { InvalidLinkError, OfflineError } from './errors';
+import { ForbiddenError, InvalidLinkError, OfflineError } from './errors';
 import { FakeCloudProvider } from './fake-cloud-provider';
-import { seedDemo } from './demo-seed';
+import { seedDemo, seedDemoScenarios } from './demo-seed';
 
 describe('FakeCloudProvider', () => {
   it('lista filhos paginados, pastas primeiro', async () => {
@@ -58,5 +58,35 @@ describe('FakeCloudProvider', () => {
     seedDemo(p);
     const folders = await p.listFolders(p.rootId);
     expect(folders.map((f) => f.name)).toEqual(['Imagens', 'Minhas imagens']);
+  });
+});
+
+describe('cenários do modo demonstração', () => {
+  it('pasta sem permissão falha ao listar, arquivo bloqueado falha ao mover e o resto continua normal', async () => {
+    const p = new FakeCloudProvider();
+    seedDemo(p);
+    seedDemoScenarios(p, { delayMs: 0 });
+    const protegido = p.folderByPath('/Imagens/Backup protegido')!;
+    await expect(p.listChildren(protegido.id, null)).rejects.toBeInstanceOf(ForbiddenError);
+
+    const album = p.folderByPath('/Imagens/Álbum compartilhado')!;
+    const files = (await p.listChildren(album.id, null)).files;
+    expect(files).toHaveLength(2);
+    const copia = files.find((f) => f.name.endsWith(' 1.jpg'))!;
+    const original = files.find((f) => !f.name.endsWith(' 1.jpg'))!;
+    await expect(p.moveToTrash(copia.id)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(p.moveToTrash(original.id)).resolves.toBe('moved');
+  });
+
+  it('latência só vale para quem a liga', async () => {
+    const p = new FakeCloudProvider();
+    seedDemo(p);
+    const t0 = Date.now();
+    await p.listChildren(p.rootId, null);
+    expect(Date.now() - t0).toBeLessThan(50);
+    p.latencyMs = 60;
+    const t1 = Date.now();
+    await p.listChildren(p.rootId, null);
+    expect(Date.now() - t1).toBeGreaterThanOrEqual(55);
   });
 });
