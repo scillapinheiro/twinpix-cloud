@@ -303,6 +303,18 @@ describe('atalhos de teclado', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('X em grupo já resolvido não marca nada nem abre o modal', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('/thumbnail')) return new Response(JSON.stringify({ url: null }));
+      return new Response(JSON.stringify({ ...group, status: 'resolved', preMarkedIds: [] }));
+    }));
+    renderReview();
+    await screen.findByText('Este grupo já foi resolvido.');
+    await userEvent.keyboard('x');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    screen.getAllByRole('checkbox', { name: 'Excluir esta cópia' }).forEach((box) => expect(box).not.toBeChecked());
+  });
+
   it('X é ignorada com Ctrl e em campo de texto', async () => {
     marks = [];
     renderReview();
