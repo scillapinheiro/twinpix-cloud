@@ -45,6 +45,16 @@ export function WarningIcon() {
   );
 }
 
+/** Duas setas em sentidos opostos: trocar qual pasta fica. */
+export function SwapIcon() {
+  return (
+    <svg className="icon" viewBox="0 0 24 24" aria-hidden="true" {...outline}>
+      <path d="M4 8h15m0 0-3.5-3.5M19 8l-3.5 3.5" />
+      <path d="M20 16H5m0 0 3.5-3.5M5 16l3.5 3.5" />
+    </svg>
+  );
+}
+
 export function FolderIcon() {
   return (
     <svg className="icon" viewBox="0 0 24 24" aria-hidden="true" {...outline}>

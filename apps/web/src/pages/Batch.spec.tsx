@@ -115,9 +115,9 @@ it('inverter troca o texto e o ver lista, e o POST leva keepFolders', async () =
   renderBatch();
   await screen.findByText('140 grupos');
   await userEvent.click(screen.getAllByRole('button', { name: 'ver lista' })[0]);
-  await userEvent.click(screen.getByRole('button', { name: '⇄ Inverter: manter em /Backup celular 2015' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Inverter: manter em /Backup celular 2015' }));
   expect(screen.getByText(/escolhido por você/)).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: '⇄ Voltar à sugestão: manter em /Viagem Praia' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Voltar à sugestão: manter em /Viagem Praia' })).toBeInTheDocument();
   expect(screen.getByText('fica', { selector: '.chip-keep' }).closest('.batch-file')).toHaveTextContent('IMG_1.jpg');
   await userEvent.click(screen.getByRole('button', { name: /Mover para a lixeira \(/ }));
   expect(screen.getByRole('dialog')).toHaveTextContent('fica em /Backup celular 2015');
