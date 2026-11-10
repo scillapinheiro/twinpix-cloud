@@ -233,3 +233,30 @@ tbody tr:last-child td { border-bottom: none; }
 .card ul.muted { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 6px; }
 .card ul.muted li { background: var(--soft); border-radius: var(--pill); padding: 6px 20px; width: fit-content; }
 .card li.alert { list-style: none; margin: 8px 0 8px -20px; padding: 10px 20px; border-radius: var(--radius-sm); }
+
+/* ===== Ritmo vertical dos cartões: um espaço único entre texto, listas e botões ===== */
+.card { display: flex; flex-direction: column; align-items: stretch; gap: 20px; }
+.card > .button, .card > button, .card > a.button { align-self: flex-start; }
+.card > * { margin-top: 0; margin-bottom: 0; }
+.card > .row { margin-top: 4px; }
+.card > h1, .card > h2 { margin-bottom: 0; }
+.card > .row + .muted, .card > .row + p { margin-top: 0; }
+.card ul { margin: 0; }
+.card li.notice, .card li.alert { margin-left: -20px; }
+.group-header.card { flex-direction: row; align-items: center; gap: 8px 16px; }
+.card .progress { margin: 0; }
+.modal > * + * { margin-top: 16px; }
+.modal > h1 + p { margin-top: 12px; }
+.modal .row { margin-top: 28px; }
+.batch-bar-note, .batch-lines + * { margin-top: 16px; }
+.page > p, .page > .row { margin-top: 0; margin-bottom: 20px; }
+
+/* ===== Histórico: lotes ===== */
+.batches { margin-bottom: 24px; }
+.batches h2 { margin: 0 0 16px; }
+.batches ul { list-style: none; padding: 0; display: grid; gap: 12px; }
+.batch-history-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; background: var(--soft); border-radius: var(--radius-sm); padding: 16px 24px; }
+.batch-history-item br { display: none; }
+.batch-history-item > .muted { flex-basis: 100%; }
+.batch-history-item > .button, .batch-history-item > button { margin-top: 8px; }
+.batch-history-item > p { flex-basis: 100%; margin: 0; }
