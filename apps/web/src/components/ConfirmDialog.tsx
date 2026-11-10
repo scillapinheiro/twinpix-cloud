@@ -86,7 +86,7 @@ export function ConfirmDialog({ groupId, deleteIds, onCancel, onDone }: Props) {
             {result.stale ? (
               <p className="notice">
                 Este grupo mudou no OneDrive desde a análise (algum arquivo foi alterado, movido ou apagado). Nada foi movido.
-                {' '}O grupo foi atualizado com a situação atual — confira de novo antes de excluir.
+                {' '}O grupo foi atualizado com a situação atual. Confira de novo antes de excluir.
               </p>
             ) : (
               <>

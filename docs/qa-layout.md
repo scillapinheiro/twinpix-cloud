@@ -66,7 +66,7 @@ Corrigido nesta passada:
 
 ## Organização do CSS e tokens (para reproduzir no Figma)
 
-`apps/web/src/styles.css` está em seções: tokens, base, layout, componentes, uma seção por tela, ritmo vertical dos cartões e responsivo. Sem seletor repetido e sem `!important`.
+`apps/web/src/styles.css` está em seções: tokens, base, layout, componentes, uma seção por tela, ritmo vertical dos cartões e responsivo. Sem `!important` e sem regra duplicada para o mesmo elemento. Alguns seletores aparecem em mais de um bloco de propósito: uma regra de grupo (por exemplo o tamanho mínimo de clique de `.link`, `.batch-link` e `.file-card > a`) mais a regra própria de cada um, e as repetições dentro de `@media`.
 
 | Grupo | Tokens |
 |---|---|
@@ -84,3 +84,13 @@ Regras de manutenção:
 Como provar que uma refatoração de CSS não mudou nada: antes de mexer, gravar para cada rota uma "foto" (retângulo, fonte, cor, fundo, raio, padding, margem, gap de cada elemento) e depois comparar elemento a elemento. A consolidação do CSS deu 0 diferenças nas 11 telas e estados (fora nós injetados por extensões do navegador). A padronização para a escala mudou valores de propósito (10→12, 14→16, 6→8, 28→24, 36→40 px).
 
 Código removido nesta passada: classes `.batch-bar-note` e `.selection-bar` (sem uso), tokens de cor sem uso, o script `apps/api/scripts/validate-listing.ts` com `grouping/listing-stats.ts` e seu teste (validação com listagens do rclone, fase anterior à API do OneDrive; sem chamada em nenhum script nem documento).
+
+### Exceções à escala (valores fixos de desenho)
+
+Ficam como número solto por serem geometria da marca ou de ilustração, não espaçamento: logo (30 e 48 px, raio 11), selos e ícones (24, 28, 48, 56 px), marca de seleção das caixas (6×11 px, borda de 3 px), bordas de 2 e 6 px, ilustração "foto gêmea" (percentuais e posições) e alturas de barra (12 e 16 px). Cores: só pelos tokens (`--white`, `--navy`, `--lime`, `--pink`, `--soft`, `--muted`, `--border`, `--navy-hover`, `--pink-hover`); os `rgba(...)` que restam são transparências de sobreposição.
+
+### Foco e contraste
+
+- Contorno de foco de 3 px, azul por padrão e **lima** em superfície azul-escura (`.action-bar`, `.hero-connect`, `.stat-navy`), pela variável `--focus-ring`. Cobre `a`, `.button`, `.link`, `input`, `select` e `textarea`.
+- Contrastes calculados: texto secundário (`--muted`) sobre fundo claro 5,8:1; azul sobre lima 12,6:1; azul sobre rosa 7,1:1. **Não usar `--muted` sobre rosa** (3,0:1) nem sobre branco com rosa (2,2:1).
+- Texto da interface sem travessão: usar ponto médio (·) ou ponto final.

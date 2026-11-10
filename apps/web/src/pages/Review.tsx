@@ -206,7 +206,7 @@ export function Review() {
         )}
         {group.status === 'stale' && (
           <p className="notice">
-            Este grupo mudou no OneDrive desde a análise. Ele foi atualizado com a situação atual — confira as cópias antes de excluir.
+            Este grupo mudou no OneDrive desde a análise. Ele foi atualizado com a situação atual. Confira as cópias antes de excluir.
           </p>
         )}
         {group.status === 'resolved' && <p className="muted">Este grupo já foi resolvido.</p>}
@@ -214,7 +214,7 @@ export function Review() {
       </div>
 
       <p className="legend">
-        <span className="legend-keep">★ Sugerida para manter</span> — escolhida pela regra: {group.suggestion.reason.replace(/^regra:\s*/, '')}
+        <span className="legend-keep">★ Sugerida para manter</span> · escolhida pela regra: {group.suggestion.reason.replace(/^regra:\s*/, '')}
         <span className="legend-sep" aria-hidden="true"> · </span>
         Campos <span className="diff">destacados</span> são diferentes entre as cópias.
       </p>
