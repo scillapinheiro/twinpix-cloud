@@ -223,7 +223,6 @@ th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--bor
 
 /* ===== Análise, histórico e demais cartões ===== */
 .card h1 { margin-bottom: 12px; }
-.card ul:not(.folder-list):not(.chosen-list):not(.rules-list):not(.batch-lines):not(.batch-items) { padding-left: 20px; }
 .card .progress { margin: 16px 0; }
 table { font-size: 1rem; }
 th { font-weight: 800; color: var(--muted); font-size: 0.9rem; text-transform: none; }
@@ -335,3 +334,5 @@ li.alert::marker, li.notice::marker { content: ''; }
 .card .batches ul { padding: 0 !important; }
 th:first-child, td:first-child { padding-left: 0; }
 th:last-child, td:last-child { padding-right: 0; }
+/* Nos cartões as listas não têm mais recuo, então as faixas de aviso ficam na margem */
+.card li.notice, .card li.alert { margin-left: 0; }

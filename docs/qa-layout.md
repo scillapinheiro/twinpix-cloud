@@ -55,6 +55,7 @@ Corrigido nesta passada:
 - Celular (390 px): barra de navegação sem estourar, tabela do Histórico com rolagem própria.
 - Listas de números sem marcadores soltos (Análise, Lote).
 - Histórico: caixa do lote e tabela alinhadas com o título (uma regra antiga de lista dava 20 px de recuo; a primeira coluna da tabela tinha 8 px).
+- Análise: três listas com o mesmo recuo indevido de 20 px (mesma regra antiga). Regra removida; as faixas de aviso nos cartões não compensam mais com margem negativa. Para achar casos assim: listas sem marcador (`list-style: none`) com `padding-left > 0` e blocos cujo `left` difere da margem interna do cartão.
 
 ## Em aberto / para olhar com calma
 
