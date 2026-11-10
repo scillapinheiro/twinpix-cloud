@@ -52,7 +52,7 @@ it('mostra o cabeçalho do grupo, a legenda com o motivo e pré-marca a cópia',
   expect(screen.getByText(/2,1 GB liberados até agora/)).toBeInTheDocument();
   expect(screen.getByText(/escolhida pela regra: nome sem sufixo de cópia/)).toBeInTheDocument();
   expect(screen.getByText(/são diferentes entre as cópias/)).toBeInTheDocument();
-  expect(screen.getAllByText('★ Sugerida para manter').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Sugerida para manter').length).toBeGreaterThan(0);
   const boxes = screen.getAllByRole('checkbox', { name: 'Excluir esta cópia' });
   expect(boxes[0]).not.toBeChecked();
   expect(boxes[1]).toBeChecked();
@@ -127,7 +127,7 @@ describe('modal de confirmação', () => {
     const dialog = await openModal();
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(dialog).toHaveAccessibleName('Confirmar');
-    expect(await screen.findByText(/1 arquivo vai para a lixeira do OneDrive/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 arquivo vai para a lixeira da nuvem/)).toBeInTheDocument();
     expect(screen.getByText('/A/x.jpg')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Mover para a lixeira' }));
     expect(await screen.findByText('x 1.jpg: movido para a lixeira')).toBeInTheDocument();
@@ -538,7 +538,7 @@ describe('modo prováveis cópias', () => {
     for (const box of screen.getAllByRole('checkbox', { name: 'Excluir esta cópia' })) expect(box).not.toBeChecked();
     expect(screen.queryByText('Revisar em lote')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Lote das prováveis regravações' })).toHaveAttribute('href', '/lote/1?tipo=provaveis');
-    expect(screen.getAllByText('★ Sugerida para manter').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Sugerida para manter').length).toBeGreaterThan(0);
   });
 
   it('Enter sem marcadas não faz nada; marcar uma e confirmar envia só ela, e a URL preserva o tipo', async () => {

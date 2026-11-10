@@ -1,4 +1,4 @@
-import { filePath, formatBytes, formatCamera, formatDate, formatDimensions, formatDuration } from './format';
+import { filePath, formatBytes, formatCamera, formatDate, formatDimensions, formatDuration, formatReason } from './format';
 
 it('formata bytes em pt-BR', () => {
   expect(formatBytes(0)).toBe('0 B');
@@ -23,4 +23,10 @@ it('caminho do arquivo sem barra dupla', () => {
   expect(filePath('', 'a.jpg')).toBe('/a.jpg');
   expect(filePath('/Fotos', 'a.jpg')).toBe('/Fotos/a.jpg');
   expect(filePath('/Fotos/', 'a.jpg')).toBe('/Fotos/a.jpg');
+});
+
+it('motivo de falha entra na frase sem maiúscula nem ponto final', () => {
+  expect(formatReason('Sem permissão para este item da nuvem.')).toBe('sem permissão para este item da nuvem');
+  expect(formatReason('A nuvem respondeu com erro 503.')).toBe('a nuvem respondeu com erro 503');
+  expect(formatReason('já está certo')).toBe('já está certo');
 });

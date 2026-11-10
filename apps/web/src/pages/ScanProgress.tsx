@@ -10,7 +10,7 @@ const STATUS_TEXT: Record<ScanSummary['status'], string> = {
   running: 'Analisando… (só lendo informações; nada é baixado)',
   paused: 'Análise pausada.',
   'waiting-network': 'Sem conexão. A análise continua sozinha quando a internet voltar.',
-  'needs-auth': 'A conexão com o OneDrive expirou.',
+  'needs-auth': 'A conexão com a nuvem expirou.',
   done: 'Análise concluída.',
   error: 'A análise parou por um erro.',
   cancelled: 'Análise cancelada.',
@@ -23,9 +23,21 @@ export function ScanProgress() {
   const [scan, setScan] = useState<ScanSummary | null>(null);
   const [unanalyzed, setUnanalyzed] = useState<CloudItem[] | null>(null);
   const [skippedFolders, setSkippedFolders] = useState<string[] | null>(null);
+  const [showSkipped, setShowSkipped] = useState(false);
+  const [showUnanalyzed, setShowUnanalyzed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [clusterCount, setClusterCount] = useState(0);
   const [cancelError, setCancelError] = useState<string | null>(null);
+
+  async function toggleSkipped() {
+    if (!showSkipped && skippedFolders === null) setSkippedFolders(await apiFetch<string[]>(`/api/scans/${id}/skipped-folders`));
+    setShowSkipped((v) => !v);
+  }
+
+  async function toggleUnanalyzed() {
+    if (!showUnanalyzed && unanalyzed === null) setUnanalyzed(await apiFetch<CloudItem[]>(`/api/scans/${id}/unanalyzed`));
+    setShowUnanalyzed((v) => !v);
+  }
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -81,10 +93,13 @@ export function ScanProgress() {
         {scan.foldersSkipped > 0 && (
           <li className="notice">
             Pastas puladas por falta de permissão: {scan.foldersSkipped}
-            {skippedFolders === null && (
-              <button type="button" className="link" onClick={async () => setSkippedFolders(await apiFetch<string[]>(`/api/scans/${id}/skipped-folders`))}>
-                ver lista
-              </button>
+            <button type="button" className="link" aria-expanded={showSkipped} onClick={() => void toggleSkipped()}>
+              {showSkipped ? 'esconder lista' : 'ver lista'}
+            </button>
+            {showSkipped && skippedFolders && (
+              <ul className="muted" aria-label="Pastas puladas">
+                {skippedFolders.map((p) => <li key={p}>{p}</li>)}
+              </ul>
             )}
           </li>
         )}
@@ -96,25 +111,20 @@ export function ScanProgress() {
             : 'Prováveis cópias: calculadas ao fim da análise'}
         </li>
         <li>Espaço liberado: {formatBytes(scan.bytesFreed)}</li>
-        <li>
-          Não analisados (o OneDrive não informou a impressão digital do arquivo): {scan.unanalyzedCount}
-          {scan.unanalyzedCount > 0 && unanalyzed === null && (
-            <button type="button" className="link" onClick={async () => setUnanalyzed(await apiFetch<CloudItem[]>(`/api/scans/${id}/unanalyzed`))}>
-              ver lista
+        <li className="link-row">
+          Não analisados (a nuvem não informou a impressão digital do arquivo): {scan.unanalyzedCount}
+          {scan.unanalyzedCount > 0 && (
+            <button type="button" className="link" aria-expanded={showUnanalyzed} onClick={() => void toggleUnanalyzed()}>
+              {showUnanalyzed ? 'esconder lista' : 'ver lista'}
             </button>
+          )}
+          {showUnanalyzed && unanalyzed && (
+            <ul className="muted" aria-label="Arquivos não analisados">
+              {unanalyzed.map((f) => <li key={f.id}>{f.folderPath}/{f.name}</li>)}
+            </ul>
           )}
         </li>
       </ul>
-      {skippedFolders && (
-        <ul className="muted" aria-label="Pastas puladas">
-          {skippedFolders.map((p) => <li key={p}>{p}</li>)}
-        </ul>
-      )}
-      {unanalyzed && (
-        <ul className="muted">
-          {unanalyzed.map((f) => <li key={f.id}>{f.folderPath}/{f.name}</li>)}
-        </ul>
-      )}
       {cancelError && <p className="alert" role="alert">{cancelError}</p>}
       <div className="row">
         {scan.status === 'running' && <button type="button" className="button" onClick={() => act('pause')}>Pausar</button>}

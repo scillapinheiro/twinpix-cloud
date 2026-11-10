@@ -10,6 +10,12 @@ export function formatBytes(n: number): string {
   return `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1, minimumFractionDigits: 1 })} ${units[unit]}`;
 }
 
+/** Motivo de falha para entrar numa frase depois de dois-pontos: sem maiúscula inicial e sem ponto final. */
+export function formatReason(message: string): string {
+  const text = message.trim().replace(/\.$/, '');
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
 export function formatDate(iso: string | null): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });

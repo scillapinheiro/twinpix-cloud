@@ -65,15 +65,15 @@ export function ReconcileConfirmDialog({ plan, uniqueCount, keepFolderUnique, re
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="reconcile-confirm-title" tabIndex={-1} ref={dialogRef}>
         <h1 id="reconcile-confirm-title">Confirmar pastas repetidas</h1>
         <p>
-          <strong>{plural(n, 'arquivo vai', 'arquivos vão')} para a lixeira do OneDrive</strong>, liberando {formatBytes(plan.bytes)}.
+          <strong>{plural(n, 'arquivo vai', 'arquivos vão')} para a lixeira da nuvem</strong>, liberando {formatBytes(plan.bytes)}.
           As cópias ficam em <strong>{plan.keepFolder}</strong>. Os arquivos que só existem em uma pasta não são tocados. Nada é apagado de vez.
         </p>
         <h2>Saem ({n})</h2>
-        <ul className="reconcile-list" aria-label="Arquivos que saem">
+        <ul className="reconcile-list list-out" aria-label="Arquivos que saem">
           {plan.deleteFiles.map((f) => <li key={f.id}>{filePath(f.folderPath, f.name)}</li>)}
         </ul>
         <h2>Cópia que fica de cada arquivo repetido ({plan.keepFiles.length})</h2>
-        <ul className="reconcile-list" aria-label="Cópias que ficam">
+        <ul className="reconcile-list list-keep" aria-label="Cópias que ficam">
           {plan.keepFiles.map((f) => <li key={f.id}>{filePath(f.folderPath, f.name)}</li>)}
         </ul>
         {staying.length > 0 && <p className="muted">Também continuam onde estão: {joinPt(staying)}.</p>}

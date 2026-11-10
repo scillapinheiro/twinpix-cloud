@@ -74,9 +74,8 @@ export function BatchProgress({ initial, scanId, title = BATCH_TITLE[initial.kin
       <ProgressBar percent={pct} label="Progresso do lote" />
       <p>{b.doneGroups} de {total}</p>
       <p>{plural(b.movedFiles, 'arquivo movido', 'arquivos movidos')} · {formatBytes(b.movedBytes)} liberados</p>
-      {finished && (
+      {finished && (b.skippedGroups > 0 || b.failedFiles > 0 || b.status === 'undone') && (
         <ul>
-          {b.status !== 'undone' && <li>Movidos: {b.movedFiles}</li>}
           {b.skippedGroups > 0 && <li>Pulados: {unit(b.skippedGroups)} (não foram mexidos)</li>}
           {b.failedFiles > 0 && <li className="alert">Falhas: {plural(b.failedFiles, 'arquivo não foi movido', 'arquivos não foram movidos')}</li>}
           {b.status === 'undone' && (

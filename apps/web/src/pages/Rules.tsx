@@ -8,7 +8,7 @@ const DEFAULT_RULES: RuleCriterion[] = [{ type: 'noCopySuffix' }, { type: 'oldes
 type SimpleType = Exclude<RuleCriterion['type'], 'inFolder' | 'notInFolder'>;
 
 const SIMPLE_OPTIONS: { type: SimpleType; label: string }[] = [
-  { type: 'noCopySuffix', label: 'nome sem sufixo de cópia (como "foto (1)")' },
+  { type: 'noCopySuffix', label: 'nome sem sufixo de cópia (como “foto (1)”)' },
   { type: 'oldestTaken', label: 'mais antiga (tirada em)' },
   { type: 'oldestModified', label: 'mais antiga (modificada em)' },
   { type: 'largestResolution', label: 'maior resolução' },
@@ -60,7 +60,7 @@ export function Rules() {
     if (selectedType === 'inFolder' || selectedType === 'notInFolder') {
       const typed = newPath.trim();
       const path = typed.length > 1 ? typed.replace(/\/+$/, '') || '/' : typed;
-      if (!path.startsWith('/')) { setAddError('Escreva o caminho começando com "/", por exemplo /Imagens/Viagem.'); return; }
+      if (!path.startsWith('/')) { setAddError('Escreva o caminho começando com “/”, por exemplo /Imagens/Viagem.'); return; }
       change([...rules!, { type: selectedType, path }]);
     } else {
       change([...rules!, { type: selectedType } as RuleCriterion]);
@@ -94,8 +94,8 @@ export function Rules() {
         {rules.map((r, i) => (
           <li key={`${i}-${r.type}-${'path' in r ? r.path : ''}`} className="row">
             <span className="rule-label">{i + 1}. {ruleLabel(r)}</span>
-            <button type="button" className="button" aria-label={`Subir regra: ${ruleLabel(r)}`} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
-            <button type="button" className="button" aria-label={`Descer regra: ${ruleLabel(r)}`} disabled={i === rules.length - 1} onClick={() => move(i, 1)}>↓</button>
+            <button type="button" className="button icon-button" aria-label={`Subir regra: ${ruleLabel(r)}`} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+            <button type="button" className="button icon-button" aria-label={`Descer regra: ${ruleLabel(r)}`} disabled={i === rules.length - 1} onClick={() => move(i, 1)}>↓</button>
             <button type="button" className="button" aria-label={`Remover regra: ${ruleLabel(r)}`} onClick={() => change(rules.filter((_, j) => j !== i))}>Remover</button>
           </li>
         ))}
@@ -125,7 +125,7 @@ export function Rules() {
         <button type="button" className="button primary" onClick={save}>Salvar</button>
         <button type="button" className="button" onClick={() => change(DEFAULT_RULES.map((r) => ({ ...r })))}>Voltar ao padrão</button>
       </div>
-      <p className="muted">"Voltar ao padrão" restaura a lista inicial; clique em Salvar para valer.</p>
+      <p className="muted">“Voltar ao padrão” restaura a lista inicial; clique em Salvar para valer.</p>
     </section>
   );
 }

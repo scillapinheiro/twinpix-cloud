@@ -40,6 +40,11 @@ it('mostra lotes, rótulo "lote #N" e desfaz o lote após confirmar', async () =
   expect(screen.getByText(/5 arquivos movidos/)).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Desfazer este lote' }));
   expect(calls).not.toContain('POST /api/batches/4/undo');
+  // arrependeu: Cancelar volta ao botão inicial e nada é enviado
+  await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+  expect(screen.getByRole('button', { name: 'Desfazer este lote' })).toBeInTheDocument();
+  expect(calls).not.toContain('POST /api/batches/4/undo');
+  await userEvent.click(screen.getByRole('button', { name: 'Desfazer este lote' }));
   await userEvent.click(screen.getByRole('button', { name: 'Confirmar desfazer' }));
   expect(await screen.findByText(/Lote desfeito\./)).toBeInTheDocument();
   expect(calls).toContain('POST /api/batches/4/undo');

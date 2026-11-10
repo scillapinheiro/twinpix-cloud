@@ -31,6 +31,18 @@ describe('pastas puladas por falta de permissão', () => {
     expect(screen.getByText('/A/Outra')).toBeInTheDocument();
   });
 
+  it('a lista fica logo abaixo da sua linha e dá para esconder de novo', async () => {
+    view(2);
+    await screen.findByText(/Pastas puladas por falta de permissão: 2/);
+    const linha = screen.getByText(/Pastas puladas por falta de permissão: 2/).closest('li')!;
+    await userEvent.click(screen.getByRole('button', { name: 'ver lista' }));
+    const lista = await screen.findByRole('list', { name: 'Pastas puladas' });
+    expect(linha).toContainElement(lista);
+    await userEvent.click(screen.getByRole('button', { name: 'esconder lista' }));
+    expect(screen.queryByRole('list', { name: 'Pastas puladas' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ver lista' })).toBeInTheDocument();
+  });
+
   it('sem pastas puladas, a linha não aparece', async () => {
     view(0);
     await screen.findByText(/Pastas analisadas: 3 de 3/);

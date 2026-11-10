@@ -30,13 +30,13 @@ it('falha parcial: mostra o que foi para a lixeira e o que não foi, com o motiv
     groupId: 7, stale: false,
     results: [
       { actionId: 1, fileId: 'b', fileName: 'x 1.jpg', status: 'done', error: null },
-      { actionId: 2, fileId: 'c', fileName: 'x 2.jpg', status: 'failed', error: 'O OneDrive respondeu com erro 503.' },
+      { actionId: 2, fileId: 'c', fileName: 'x 2.jpg', status: 'failed', error: 'A nuvem respondeu com erro 503.' },
     ],
   });
   renderDialog();
   await userEvent.click(await screen.findByRole('button', { name: /Mover para a lixeira|Excluir|Confirmar/i }));
   expect(await screen.findByText('x 1.jpg: movido para a lixeira')).toBeInTheDocument();
-  const falha = screen.getByText('x 2.jpg: não foi movido (O OneDrive respondeu com erro 503.)');
+  const falha = screen.getByText('x 2.jpg: não foi movido: a nuvem respondeu com erro 503');
   expect(falha).toHaveClass('alert');
   expect(screen.getByText('x 1.jpg: movido para a lixeira')).not.toHaveClass('alert');
 });

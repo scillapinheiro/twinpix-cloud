@@ -50,7 +50,7 @@ export function BatchConfirmDialog({ files, groups, bytes, inverted = [], onConf
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="batch-confirm-title" tabIndex={-1} ref={dialogRef}>
         <h1 id="batch-confirm-title">Confirmar lote</h1>
         <p>
-          <strong>{plural(files, 'arquivo', 'arquivos')} de {plural(groups, 'grupo vai', 'grupos vão')} para a lixeira do OneDrive</strong>,
+          <strong>{plural(files, 'arquivo', 'arquivos')} de {plural(groups, 'grupo vai', 'grupos vão')} para a lixeira da nuvem</strong>,
           {' '}liberando {formatBytes(bytes)}. Em cada grupo fica a cópia sugerida{inverted.length > 0 ? ', exceto onde você escolheu outra pasta' : ''}. Nada é apagado de vez.
         </p>
         {inverted.length > 0 && (

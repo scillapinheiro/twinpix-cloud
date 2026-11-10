@@ -31,7 +31,7 @@ export function Home() {
     return (
       <section className="card">
         <h1>Falta configurar</h1>
-        <p>O TwinPix ainda não está ligado a uma conta da Microsoft. Siga o passo "Usar com o seu OneDrive" do guia.</p>
+        <p>O TwinPix ainda não está ligado a uma conta da Microsoft. Siga o passo “Usar com o seu OneDrive” do guia.</p>
       </section>
     );
   }
@@ -72,7 +72,7 @@ export function Home() {
           ) : (
             <h1>{latest ? 'Tudo revisado por aqui.' : 'Vamos achar as cópias?'}</h1>
           )}
-          {auth.demo && <p className="notice">Modo demonstração: os arquivos são fictícios e nada acontece no seu OneDrive.</p>}
+          {auth.demo && <p className="notice">Modo demonstração: os arquivos são fictícios e nada acontece na sua nuvem.</p>}
           <div className="row">
             {latest && pending > 0 && <Link className="button primary big" to={`/revisao/${latest.id}`}>Continuar revisão</Link>}
             {latest && <Link className="button big" to={`/varredura/${latest.id}`}>Ver análise</Link>}

@@ -2,7 +2,7 @@ import type { BatchSummary, HistoryEntry, UndoResponse } from '@twinpix/shared';
 import { useEffect, useState } from 'react';
 import { BATCH_LABEL, BATCH_STATUS_TEXT, UndoBatchButton } from '../components/BatchBits';
 import { ApiError, apiFetch } from '../lib/api';
-import { formatBytes, formatDate } from '../lib/format';
+import { formatBytes, formatDate, formatReason } from '../lib/format';
 import { plural } from '../lib/plural';
 
 const UNDOABLE = ['done', 'paused', 'error'];
@@ -82,7 +82,7 @@ export function History() {
         </div>
       )}
       {entries.length === 0 && <p className="muted">Nenhum arquivo foi movido ainda.</p>}
-      <table>
+      <table className="history-table">
         <thead>
           <tr><th>Arquivo</th><th>Tamanho</th><th>Quando</th><th>Situação</th><th /></tr>
         </thead>
@@ -92,7 +92,7 @@ export function History() {
               <td>{e.file.folderPath === '/' ? '' : e.file.folderPath}/{e.file.name}</td>
               <td>{formatBytes(e.file.size)}</td>
               <td>{formatDate(e.createdAt)}{e.batchId != null && <> <span className="muted">{(BATCH_LABEL[e.batchKind ?? 'lines'] ?? 'Lote').toLowerCase()} #{e.batchId}</span></>}</td>
-              <td>{STATUS_TEXT[e.status]}{e.error ? ` (${e.error})` : ''}</td>
+              <td>{STATUS_TEXT[e.status]}{e.error ? `: ${formatReason(e.error)}` : ''}</td>
               <td>
                 {e.status === 'done' && <button type="button" className="button" onClick={() => undo(e.actionId)}>Desfazer</button>}
                 {messages[e.actionId] && <p className="muted">{messages[e.actionId]}</p>}

@@ -20,8 +20,11 @@ export function FileCard({ file, isSuggested, marked, lockDelete, onToggle, diff
     <article className={`file-card${marked ? ' marked' : isSuggested ? ' suggested' : ''}`}>
       <div className="thumb">
         <Thumbnail fileId={file.id} alt={file.name} />
-        {isSuggested && <span className="badge-keep">★ Sugerida para manter</span>}
-        <span className="decision-seal" aria-hidden="true">{marked ? <CrossIcon /> : <CheckIcon />}</span>
+        {isSuggested && <span className="badge-keep">Sugerida para manter</span>}
+        <span className="decision-seal" aria-hidden="true">
+          <span className="seal-dot">{marked ? <CrossIcon /> : <CheckIcon />}</span>
+          {marked ? 'sai' : 'fica'}
+        </span>
       </div>
       <dl>
         {fields.map((key) => (
@@ -36,7 +39,7 @@ export function FileCard({ file, isSuggested, marked, lockDelete, onToggle, diff
         Excluir esta cópia
       </label>
       {disabled && <p className="muted">É a única cópia que sobraria.</p>}
-      <a href={file.webUrl} target="_blank" rel="noreferrer">Abrir no OneDrive ↗</a>
+      <a className="link" href={file.webUrl} target="_blank" rel="noreferrer">Abrir no OneDrive ↗</a>
     </article>
   );
 }

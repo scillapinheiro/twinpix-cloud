@@ -62,13 +62,13 @@ function renderPage() {
 it('duas pastas: cartões, quadro-resumo, lista dos únicos e prévia', async () => {
   renderPage();
   expect(await screen.findByRole('heading', { name: 'Pastas repetidas · 1 de 1' })).toBeInTheDocument();
-  expect(screen.getByText('★ Sugerida para manter')).toBeInTheDocument();
+  expect(screen.getByText('Sugerida para manter')).toBeInTheDocument();
   expect(screen.getByText(/8 arquivos estão nas duas · 2 só na primeira · 0 só na segunda/)).toBeInTheDocument();
   expect(screen.getByText(/a segunda pasta está toda contida na primeira/)).toBeInTheDocument();
   expect(await screen.findByText('Resultado: a segunda pasta fica vazia.')).toBeInTheDocument();
   expect(screen.getByText('O que fazer com os arquivos repetidos?')).toBeInTheDocument();
   const lock = screen.getByText(/Os 2 arquivos que só existem em/);
-  expect(lock).toHaveTextContent('🔒 Os 2 arquivos que só existem em /A nunca são tocados.');
+  expect(lock).toHaveTextContent('Os 2 arquivos que só existem em /A nunca são tocados.');
   // Só o caminho da pasta vai em negrito.
   expect([...lock.querySelectorAll('strong')].map((x) => x.textContent)).toEqual(['/A']);
   expect(screen.getByRole('button', { name: 'Aplicar (8 arquivos para a lixeira)' })).toBeEnabled();
