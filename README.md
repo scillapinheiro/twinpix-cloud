@@ -10,13 +10,13 @@
 </p>
 
 <p align="center">
-  <img alt="License" src="https://img.shields.io/static/v1?label=license&message=MIT&color=6D4FD8&labelColor=grey">
-  <img alt="OneDrive" src="https://img.shields.io/static/v1?label=nuvem&message=OneDrive&color=137A67&labelColor=grey">
+  <img alt="License" src="https://img.shields.io/static/v1?label=license&message=MIT&color=1F1B5A&labelColor=grey">
+  <img alt="OneDrive" src="https://img.shields.io/static/v1?label=nuvem&message=OneDrive&color=FF8AC4&labelColor=grey">
   <img alt="Pull requests" src="https://img.shields.io/static/v1?label=pull%20requests&message=n%C3%A3o%20aceitos&color=lightgrey&labelColor=grey">
 </p>
 
 <p align="center">
-  <img src="docs/imagens/revisao.png" width="100%" alt="Tela de revisão: duas cópias da mesma foto lado a lado, com a sugerida para manter destacada">
+  <img src="docs/imagens/inicio.png" width="100%" alt="Tela inicial: quantos grupos esperam revisão, quantas fotos e vídeos foram encontrados e quanto espaço já foi liberado">
 </p>
 
 ## :computer: Projeto
@@ -74,7 +74,8 @@ O lote só aceita o que é seguro em massa: cópias idênticas e, num lote separ
 Essas vêm **desmarcadas** e com miniaturas, para você conferir antes de marcar.
 
 <p align="center">
-  <img src="docs/imagens/lote.png" width="100%" alt="Tela do lote: linhas por par de pastas, com quantidade de grupos e espaço liberado">
+  <img src="docs/imagens/revisao.png" width="100%" alt="Revisão um por um: duas cópias da mesma foto lado a lado, com a que fica em lima e a que sai em rosa">
+  <img src="docs/imagens/lote.png" width="100%" alt="Tela do lote: linhas por par de pastas, com quantidade de grupos, a pasta que fica e a que sai">
 </p>
 
 **Atalhos de teclado na revisão um por um**
@@ -87,7 +88,8 @@ Essas vêm **desmarcadas** e com miniaturas, para você conferir antes de marcar
 | `←` | Volta para o grupo anterior |
 
 **E mais:** escolher várias pastas de uma vez ou colar o endereço de uma pasta do OneDrive, pausar,
-continuar ou cancelar a análise, retomar se a internet cair, histórico de tudo o que foi feito.
+continuar ou cancelar a análise, retomar se a internet cair, aviso das pastas que o OneDrive não deixou ler
+(a análise segue sem elas e mostra a lista), histórico de tudo o que foi feito.
 
 ## :eyes: Como usar
 
@@ -160,11 +162,6 @@ Em modo dev, abra `http://localhost:5173/#token=dev-local`.
   `.env`, fora do repositório.
 
 </details>
-
-## :green_heart: Desenvolvedora
-
-[<img src="https://avatars.githubusercontent.com/u/69371906?v=4" width=115> <br> <sub>Priscilla Pinheiro</sub>](https://github.com/scillapinheiro) |
-| :---: |
 
 ## :memo: Licença
 
